@@ -15,6 +15,8 @@ cargo build -p runtime --target aarch64-linux-android --release
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "==> Copying native libraries into the APK"
+New-Item -ItemType Directory -Force "android/app/src/main/jniLibs/x86_64" | Out-Null
+New-Item -ItemType Directory -Force "android/app/src/main/jniLibs/arm64-v8a" | Out-Null
 Copy-Item "target/x86_64-linux-android/release/libruntime.so" "android/app/src/main/jniLibs/x86_64/libruntime.so" -Force
 Copy-Item "target/aarch64-linux-android/release/libruntime.so" "android/app/src/main/jniLibs/arm64-v8a/libruntime.so" -Force
 
