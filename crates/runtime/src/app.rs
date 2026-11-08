@@ -1,8 +1,9 @@
 use crate::diff::{diff, Op};
 use crate::element::Element;
-use crate::layout::{compute, Frame};
+use crate::layout::{compute, Frame, TextMeasurer};
 use crate::tree::{build, flatten, FlatTree};
 use std::collections::HashMap;
+use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Viewport {
@@ -27,6 +28,7 @@ pub struct Runtime {
     previous: Option<FlatTree>,
     frames: HashMap<u32, Frame>,
     viewport: Viewport,
+    text_measurer: Option<Rc<dyn TextMeasurer>>,
 }
 
 impl Runtime {
@@ -36,14 +38,24 @@ impl Runtime {
             previous: None,
             frames: HashMap::new(),
             viewport: Viewport::default(),
+            text_measurer: None,
         }
+    }
+
+    pub fn set_text_measurer(&mut self, measurer: Rc<dyn TextMeasurer>) {
+        self.text_measurer = Some(measurer);
     }
 
     pub fn render(&mut self, viewport: Viewport) -> Vec<Op> {
         self.viewport = viewport;
         let root = build(self.app.view(viewport));
         let flat = flatten(&root);
-        let frames = compute(&root, viewport.width, viewport.height);
+        let frames = compute(
+            &root,
+            viewport.width,
+            viewport.height,
+            self.text_measurer.as_deref(),
+        );
 
         let mut ops = diff(self.previous.as_ref(), &flat);
         for (id, frame) in &frames {

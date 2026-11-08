@@ -17,10 +17,20 @@ pub struct Frame {
 struct MeasureCtx {
     text: Option<String>,
     font_size: f32,
-    pad_v: f32,
+    bold: bool,
 }
 
-pub fn compute(root: &UiNode, width: f32, height: f32) -> HashMap<u32, Frame> {
+pub trait TextMeasurer {
+    /// Returns the content size in dp, excluding padding.
+    fn measure(&self, text: &str, font_size: f32, bold: bool, max_width: f32) -> (f32, f32);
+}
+
+pub fn compute(
+    root: &UiNode,
+    width: f32,
+    height: f32,
+    measurer: Option<&dyn TextMeasurer>,
+) -> HashMap<u32, Frame> {
     let mut taffy: TaffyTree<MeasureCtx> = TaffyTree::new();
     let root_node = build_node(&mut taffy, root);
 
@@ -39,7 +49,7 @@ pub fn compute(root: &UiNode, width: f32, height: f32) -> HashMap<u32, Frame> {
                     style,
                     |_, _| 0.0,
                     |known_dimensions, available_space| {
-                        measure(known_dimensions, available_space, node_context)
+                        measure(known_dimensions, available_space, node_context, measurer)
                     },
                 )
             },
@@ -181,11 +191,10 @@ fn measure_context(kind: Kind, props: &Props) -> MeasureCtx {
         Kind::Input => props.placeholder.clone(),
         _ => None,
     };
-    let (_, pad_v) = padding(props);
     MeasureCtx {
         text,
         font_size: props.size.unwrap_or(14.0),
-        pad_v,
+        bold: props.bold.unwrap_or(false),
     }
 }
 
@@ -193,6 +202,7 @@ fn measure(
     known: Size<Option<f32>>,
     available: Size<AvailableSpace>,
     context: Option<&mut MeasureCtx>,
+    measurer: Option<&dyn TextMeasurer>,
 ) -> Size<f32> {
     if let (Some(width), Some(height)) = (known.width, known.height) {
         return Size { width, height };
@@ -202,31 +212,41 @@ fn measure(
         Some(context) => context,
         None => return Size::ZERO,
     };
+    let text = match context.text.as_deref() {
+        Some(text) => text,
+        None => return Size::ZERO,
+    };
 
-    let text = context.text.as_deref().unwrap_or("");
-    let font_size = context.font_size.max(1.0);
-    let line_height = font_size * 1.3;
-    let char_width = font_size * 0.55;
-    let text_width = text.chars().count() as f32 * char_width;
-
-    let available_width = match available.width {
+    let available_width = known.width.unwrap_or(match available.width {
         AvailableSpace::Definite(width) => width.max(1.0),
-        _ => f32::INFINITY,
+        _ => 100_000.0,
+    });
+
+    let (text_width, text_height) = match measurer {
+        Some(measurer) => measurer.measure(text, context.font_size, context.bold, available_width),
+        None => rough_measure(text, context.font_size, available_width),
     };
 
     let width = known
         .width
         .unwrap_or_else(|| text_width.min(available_width));
+    let height = known.height.unwrap_or(text_height);
+
+    Size { width, height }
+}
+
+fn rough_measure(text: &str, font_size: f32, max_width: f32) -> (f32, f32) {
+    let font_size = font_size.max(1.0);
+    let line_height = font_size * 1.3;
+    let char_width = font_size * 0.55;
+    let text_width = text.chars().count() as f32 * char_width;
+    let width = text_width.min(max_width);
     let lines = if width > 0.0 {
         (text_width / width).ceil().max(1.0)
     } else {
         1.0
     };
-    let height = known
-        .height
-        .unwrap_or(lines * line_height + context.pad_v * 2.0);
-
-    Size { width, height }
+    (width, lines * line_height)
 }
 
 fn collect(
@@ -292,7 +312,7 @@ mod tests {
                 .child(row().height(468.0))
                 .child(row().height(68.0)),
         );
-        let frames = compute(&root, 300.0, 600.0);
+        let frames = compute(&root, 300.0, 600.0, None);
 
         let root_frame = frames[&root.id];
         assert_close(root_frame.width, 300.0);
@@ -328,7 +348,7 @@ mod tests {
                     ),
             ),
         );
-        let frames = compute(&root, 300.0, 600.0);
+        let frames = compute(&root, 300.0, 600.0, None);
         let item = &root.children[0].children[0];
         let frame = frames[&item.id];
 

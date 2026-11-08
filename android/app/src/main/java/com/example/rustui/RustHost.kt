@@ -6,7 +6,10 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.text.Editable
 import android.text.InputType
+import android.text.StaticLayout
+import android.text.TextPaint
 import android.text.TextWatcher
+import android.util.Log
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -26,12 +29,13 @@ class RustHost(
     private val context: Context,
     private val root: FrameLayout,
 ) {
-    private var handle: Long = RustBridge.nativeNew()
+    private var handle: Long = RustBridge.nativeNew(this)
     private val views = HashMap<Int, View>()
     private val tags = HashMap<Int, NodeTag>()
     private val density = context.resources.displayMetrics.density
     private var lastWidth = 0f
     private var lastHeight = 0f
+    private val pools = HashMap<String, ArrayDeque<View>>()
 
     init {
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
@@ -62,6 +66,41 @@ class RustHost(
         applyOps(RustBridge.nativeRender(handle, width, height))
     }
 
+    fun measureText(text: String, size: Float, bold: Boolean, maxWidth: Float): FloatArray {
+        val metrics = context.resources.displayMetrics
+        val paint = TextPaint().apply {
+            isAntiAlias = true
+            textSize = TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_SP,
+                size,
+                metrics,
+            )
+            typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+        }
+        val limitPx = if (maxWidth.isFinite() && maxWidth > 0f) {
+            (maxWidth * metrics.density).toInt().coerceAtLeast(1)
+        } else {
+            100_000
+        }
+        val layout = StaticLayout.Builder
+            .obtain(text, 0, text.length, paint, limitPx)
+            .setIncludePad(false)
+            .build()
+
+        var lineWidth = 0f
+        for (line in 0 until layout.lineCount) {
+            lineWidth = maxOf(lineWidth, layout.getLineWidth(line))
+        }
+        if (layout.lineCount <= 1) {
+            lineWidth = maxOf(lineWidth, paint.measureText(text))
+        }
+
+        return floatArrayOf(
+            (lineWidth + 1f) / metrics.density,
+            layout.height.toFloat() / metrics.density,
+        )
+    }
+
     fun dispose() {
         if (handle != 0L) {
             RustBridge.nativeFree(handle)
@@ -88,8 +127,8 @@ class RustHost(
     private fun create(op: JSONObject) {
         val id = op.getInt("id")
         val kind = op.getString("kind")
-        val view = createView(kind)
-        val tag = NodeTag(id, view)
+        val view = obtainView(kind)
+        val tag = NodeTag(id, view, kind)
 
         if (view is ScrollView) {
             val content = view.getChildAt(0) as FrameLayout
@@ -269,8 +308,73 @@ class RustHost(
 
     private fun remove(id: Int) {
         val view = views.remove(id) ?: return
+        val tag = tags.remove(id)
         (view.parent as? ViewGroup)?.removeView(view)
-        tags.remove(id)
+
+        val key = tag?.kind?.let(::poolKey) ?: return
+        if (key == "container" && view is ViewGroup) {
+            view.removeAllViews()
+        }
+        view.tag = null
+
+        val pool = pools.getOrPut(key) { ArrayDeque() }
+        if (pool.size < POOL_LIMIT) {
+            pool.addLast(view)
+            Log.d("ChitinPool", "pool $key (${pool.size})")
+        }
+    }
+
+    private fun obtainView(kind: String): View {
+        val key = poolKey(kind) ?: return createView(kind)
+        val recycled = pools[key]?.removeLastOrNull() ?: return createView(kind)
+        resetView(recycled, kind)
+        Log.d("ChitinPool", "reuse $key (${pools[key]?.size ?: 0} left)")
+        return recycled
+    }
+
+    private fun poolKey(kind: String): String? = when (kind) {
+        "column", "row" -> "container"
+        "text" -> "text"
+        "button" -> "button"
+        "space" -> "space"
+        else -> null
+    }
+
+    private fun resetView(view: View, kind: String) {
+        when (kind) {
+            "column", "row" -> {
+                (view as FrameLayout).removeAllViews()
+                view.background = null
+                view.setPadding(0, 0, 0, 0)
+            }
+
+            "text" -> {
+                resetText(view as TextView)
+                view.isClickable = false
+                view.setOnClickListener(null)
+            }
+
+            "button" -> {
+                resetText(view as TextView)
+                view.isClickable = true
+                view.isFocusable = false
+                view.gravity = Gravity.CENTER
+            }
+
+            "space" -> Unit
+        }
+    }
+
+    private fun resetText(view: TextView) {
+        view.text = ""
+        view.setTextColor(Color.WHITE)
+        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+        view.setTypeface(null, Typeface.NORMAL)
+        view.gravity = Gravity.START or Gravity.TOP
+        view.background = null
+        view.setPadding(0, 0, 0, 0)
+        view.contentDescription = null
+        view.includeFontPadding = false
     }
 
     private fun event(id: Int, kind: String, payload: String) {
@@ -382,6 +486,7 @@ class RustHost(
     private fun dp(value: Float): Int = (value * density).roundToInt()
 
     companion object {
+        private const val POOL_LIMIT = 64
         private val MATCH_PARENT = ViewGroup.LayoutParams.MATCH_PARENT
         private val WRAP_CONTENT = ViewGroup.LayoutParams.WRAP_CONTENT
     }
