@@ -1,7 +1,7 @@
-use crate::app::Runtime;
+use crate::app::{Runtime, Viewport};
 use crate::demo::ChatApp;
 use jni::objects::{JObject, JString};
-use jni::sys::{jint, jlong, jstring};
+use jni::sys::{jfloat, jint, jlong, jstring};
 use jni::JNIEnv;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
@@ -28,6 +28,8 @@ pub extern "system" fn Java_com_example_rustui_RustBridge_nativeRender<'local>(
     mut env: JNIEnv<'local>,
     _this: JObject<'local>,
     handle: jlong,
+    width: jfloat,
+    height: jfloat,
 ) -> jstring {
     if handle == 0 {
         return to_java_string(&mut env, EMPTY_OPS.to_string());
@@ -35,7 +37,7 @@ pub extern "system" fn Java_com_example_rustui_RustBridge_nativeRender<'local>(
 
     let json = catch_unwind(AssertUnwindSafe(|| {
         let runtime = unsafe { &mut *(handle as *mut Runtime) };
-        let ops = runtime.render();
+        let ops = runtime.render(Viewport { width, height });
         serde_json::to_string(&ops).unwrap_or_else(|_| EMPTY_OPS.to_string())
     }))
     .unwrap_or_else(|_| EMPTY_OPS.to_string());

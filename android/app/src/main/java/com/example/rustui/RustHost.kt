@@ -14,12 +14,13 @@ import android.view.ViewGroup
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.FrameLayout
-import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.Space
 import android.widget.TextView
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 class RustHost(
     private val context: Context,
@@ -28,10 +29,37 @@ class RustHost(
     private var handle: Long = RustBridge.nativeNew()
     private val views = HashMap<Int, View>()
     private val tags = HashMap<Int, NodeTag>()
+    private val density = context.resources.displayMetrics.density
+    private var lastWidth = 0f
+    private var lastHeight = 0f
+
+    init {
+        root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            root.post { resizeIfNeeded() }
+        }
+    }
 
     fun start() {
         if (handle == 0L) return
-        applyOps(RustBridge.nativeRender(handle))
+        if (root.width <= 0 || root.height <= 0) {
+            root.post { start() }
+            return
+        }
+        resizeIfNeeded()
+    }
+
+    private fun resizeIfNeeded() {
+        if (handle == 0L) return
+        if (root.width <= 0 || root.height <= 0) return
+
+        val width = (root.width - root.paddingLeft - root.paddingRight) / density
+        val height = (root.height - root.paddingTop - root.paddingBottom) / density
+        if (width <= 0f || height <= 0f) return
+        if (width == lastWidth && height == lastHeight) return
+
+        lastWidth = width
+        lastHeight = height
+        applyOps(RustBridge.nativeRender(handle, width, height))
     }
 
     fun dispose() {
@@ -51,6 +79,7 @@ class RustHost(
                 "create" -> create(op)
                 "update" -> update(op)
                 "children" -> children(op)
+                "layout" -> layout(op)
                 "remove" -> remove(op.getInt("id"))
             }
         }
@@ -63,9 +92,34 @@ class RustHost(
         val tag = NodeTag(id, view)
 
         if (view is ScrollView) {
-            val inner = view.getChildAt(0) as ViewGroup
-            tag.container = inner
-            inner.tag = tag
+            val content = view.getChildAt(0) as FrameLayout
+            tag.container = content
+            tag.content = content
+            tag.scroll = view
+            content.tag = tag
+
+            view.setOnScrollChangeListener { _, _, y, _, _ ->
+                val current = view.tag as? NodeTag ?: return@setOnScrollChangeListener
+                if (current.pendingScrollTo != null) {
+                    return@setOnScrollChangeListener
+                }
+                val expected = current.lastScrollTo
+                val isProgrammatic = expected != null && abs(y - expected) <= 1f
+                if (!isProgrammatic && !current.scrollEventPending) {
+                    val generation = current.scrollGeneration
+                    current.scrollEventPending = true
+                    view.postOnAnimation {
+                        current.scrollEventPending = false
+                        if (current.scrollGeneration == generation) {
+                            event(current.id, "scroll", (view.scrollY / density).toString())
+                        }
+                    }
+                }
+            }
+
+            content.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                applyScroll(view, tag)
+            }
         }
 
         tag.root = op.optBoolean("root", false)
@@ -74,21 +128,14 @@ class RustHost(
         tags[id] = tag
 
         if (tag.root) {
-            root.addView(view, FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT))
+            root.addView(view, FrameLayout.LayoutParams(0, 0))
         }
 
         applyProps(view, op.getJSONObject("props"))
     }
 
     private fun createView(kind: String): View = when (kind) {
-        "column" -> LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-        }
-
-        "row" -> LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
+        "column", "row" -> FrameLayout(context)
 
         "text" -> TextView(context).apply {
             setTextColor(Color.WHITE)
@@ -107,15 +154,12 @@ class RustHost(
             }
         }
 
-        "scroll" -> ScrollView(context).apply {
-            isFillViewport = true
+        "list", "scroll" -> ScrollView(context).apply {
+            isFillViewport = false
             overScrollMode = View.OVER_SCROLL_NEVER
             clipToPadding = false
             addView(
-                LinearLayout(context).apply {
-                    orientation = LinearLayout.VERTICAL
-                    gravity = Gravity.BOTTOM
-                },
+                FrameLayout(context),
                 FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT),
             )
         }
@@ -188,7 +232,6 @@ class RustHost(
             wanted.add(array.getInt(index))
         }
 
-        // Drop views that are no longer part of this parent.
         for (index in parent.childCount - 1 downTo 0) {
             val childId = (parent.getChildAt(index).tag as? NodeTag)?.id
             if (childId == null || childId !in wanted) {
@@ -196,26 +239,32 @@ class RustHost(
             }
         }
 
-        // Put the remaining views into the exact order Rust asked for.
         for ((index, childId) in wanted.withIndex()) {
             val child = views[childId] ?: continue
             if (index >= parent.childCount || parent.getChildAt(index) !== child) {
                 (child.parent as? ViewGroup)?.removeView(child)
                 parent.addView(child, index.coerceAtMost(parent.childCount))
             }
-            applyLayoutParams(parent, child)
         }
-
-        scrollToBottom(parent)
     }
 
-    private fun scrollToBottom(start: View) {
-        var current: View? = start
-        while (current != null && current !is ScrollView) {
-            current = current.parent as? View
+    private fun layout(op: JSONObject) {
+        val id = op.getInt("id")
+        val view = views[id] ?: return
+        val params = view.layoutParams as? FrameLayout.LayoutParams
+            ?: FrameLayout.LayoutParams(0, 0)
+        params.width = dp(op.getDouble("width").toFloat())
+        params.height = dp(op.getDouble("height").toFloat())
+        params.leftMargin = dp(op.getDouble("x").toFloat())
+        params.topMargin = dp(op.getDouble("y").toFloat())
+        view.layoutParams = params
+
+        if (view is ScrollView) {
+            val tag = view.tag as? NodeTag
+            if (tag != null) {
+                view.post { applyScroll(view, tag) }
+            }
         }
-        val scroll = current as? ScrollView ?: return
-        scroll.post { scroll.fullScroll(View.FOCUS_DOWN) }
     }
 
     private fun remove(id: Int) {
@@ -230,7 +279,7 @@ class RustHost(
     }
 
     private fun applyProps(view: View, props: JSONObject) {
-        val tag = view.tag as NodeTag
+        val tag = view.tag as? NodeTag ?: return
 
         if (props.has("text")) {
             val text = props.getString("text")
@@ -254,20 +303,11 @@ class RustHost(
             )
         }
 
-        if (props.has("align")) {
-            val align = props.getString("align")
-            if (view is LinearLayout) {
-                view.gravity = when (align) {
-                    "center" -> Gravity.CENTER_VERTICAL
-                    "end" -> Gravity.END or Gravity.CENTER_VERTICAL
-                    else -> Gravity.START or Gravity.CENTER_VERTICAL
-                }
-            } else if (view is TextView) {
-                view.gravity = when (align) {
-                    "center" -> Gravity.CENTER
-                    "end" -> Gravity.END or Gravity.CENTER_VERTICAL
-                    else -> Gravity.START or Gravity.CENTER_VERTICAL
-                }
+        if (props.has("align") && view is TextView) {
+            view.gravity = when (props.getString("align")) {
+                "center" -> Gravity.CENTER
+                "end" -> Gravity.END or Gravity.CENTER_VERTICAL
+                else -> Gravity.START or Gravity.CENTER_VERTICAL
             }
         }
 
@@ -284,7 +324,7 @@ class RustHost(
             }
         }
 
-        if (props.has("pad") || props.has("padH") || props.has("padV")) {
+        if (view is TextView && (props.has("pad") || props.has("padH") || props.has("padV"))) {
             val base = props.optDouble("pad", 0.0).toFloat()
             val horizontal = dp(props.optDouble("padH", base.toDouble()).toFloat())
             val vertical = dp(props.optDouble("padV", base.toDouble()).toFloat())
@@ -293,18 +333,6 @@ class RustHost(
 
         if (props.has("label")) {
             view.contentDescription = props.getString("label")
-        }
-
-        if (props.has("width")) {
-            tag.widthDp = props.getDouble("width").toFloat()
-        }
-
-        if (props.has("height")) {
-            tag.heightDp = props.getDouble("height").toFloat()
-        }
-
-        if (props.has("weight")) {
-            tag.weight = props.getDouble("weight").toFloat()
         }
 
         if (props.has("placeholder") && view is EditText) {
@@ -321,65 +349,37 @@ class RustHost(
             }
         }
 
-        if (!tag.root) {
-            (view.parent as? ViewGroup)?.let { parent -> applyLayoutParams(parent, view) }
-        }
-    }
-
-    private fun applyLayoutParams(parent: ViewGroup, child: View) {
-        val tag = child.tag as? NodeTag ?: return
-
-        if (tag.root) {
-            child.layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
-            return
-        }
-
-        val layoutParams: ViewGroup.LayoutParams = when (parent) {
-            is LinearLayout -> child.layoutParams as? LinearLayout.LayoutParams
-                ?: LinearLayout.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
-
-            else -> child.layoutParams as? ViewGroup.LayoutParams
-                ?: ViewGroup.LayoutParams(WRAP_CONTENT, WRAP_CONTENT)
-        }
-
-        if (parent is LinearLayout) {
-            val linear = layoutParams as LinearLayout.LayoutParams
-            val vertical = parent.orientation == LinearLayout.VERTICAL
-
-            if (tag.weight > 0f) {
-                if (vertical) {
-                    linear.height = 0
-                    linear.width = tag.widthDp?.let { dimension(it) } ?: MATCH_PARENT
-                } else {
-                    linear.width = 0
-                    linear.height = tag.heightDp?.let { dimension(it) } ?: WRAP_CONTENT
-                }
-                linear.weight = tag.weight
-            } else {
-                linear.width = tag.widthDp?.let { dimension(it) }
-                    ?: if (vertical) MATCH_PARENT else WRAP_CONTENT
-                linear.height = tag.heightDp?.let { dimension(it) } ?: WRAP_CONTENT
-                linear.weight = 0f
+        if (props.has("contentHeight")) {
+            val content = tag.content
+            if (content != null) {
+                val params = content.layoutParams as? FrameLayout.LayoutParams
+                    ?: FrameLayout.LayoutParams(MATCH_PARENT, 0)
+                params.height = dp(props.getDouble("contentHeight").toFloat())
+                content.layoutParams = params
             }
-        } else {
-            layoutParams.width = tag.widthDp?.let { dimension(it) } ?: WRAP_CONTENT
-            layoutParams.height = tag.heightDp?.let { dimension(it) } ?: WRAP_CONTENT
         }
 
-        child.layoutParams = layoutParams
+        if (props.has("scrollTo") && view is ScrollView) {
+            tag.pendingScrollTo = dp(props.getDouble("scrollTo").toFloat()).toFloat()
+            applyScroll(view, tag)
+        }
     }
 
-    private fun dimension(value: Float): Int = when (value) {
-        -1f -> MATCH_PARENT
-        -2f -> WRAP_CONTENT
-        else -> dp(value)
+    private fun applyScroll(view: ScrollView, tag: NodeTag) {
+        val target = tag.pendingScrollTo ?: return
+        if (view.height <= 0) return
+
+        tag.lastScrollTo = target
+        tag.scrollGeneration++
+        tag.scrollEventPending = false
+        view.scrollTo(0, target.toInt())
+
+        if (abs(view.scrollY - target) <= 1f) {
+            tag.pendingScrollTo = null
+        }
     }
 
-    private fun dp(value: Float): Int = TypedValue.applyDimension(
-        TypedValue.COMPLEX_UNIT_DIP,
-        value,
-        context.resources.displayMetrics,
-    ).toInt()
+    private fun dp(value: Float): Int = (value * density).roundToInt()
 
     companion object {
         private val MATCH_PARENT = ViewGroup.LayoutParams.MATCH_PARENT

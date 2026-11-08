@@ -18,7 +18,7 @@ class MainActivity : Activity() {
         setContentView(root)
 
         host = RustHost(this, root)
-        host.start()
+        root.post { host.start() }
     }
 
     override fun onDestroy() {

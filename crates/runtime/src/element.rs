@@ -8,6 +8,7 @@ pub enum Kind {
     Text,
     Button,
     Scroll,
+    List,
     Input,
     Space,
 }
@@ -20,6 +21,7 @@ impl Kind {
             Kind::Text => "text",
             Kind::Button => "button",
             Kind::Scroll => "scroll",
+            Kind::List => "list",
             Kind::Input => "input",
             Kind::Space => "space",
         }
@@ -64,6 +66,22 @@ pub struct Props {
     pub value: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gap: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub align_items: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub justify: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub absolute: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_height: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scroll_to: Option<f32>,
 }
 
 impl Props {
@@ -146,6 +164,46 @@ impl Props {
         self.label = Some(value.into());
         self
     }
+
+    pub fn gap(mut self, value: f32) -> Self {
+        self.gap = Some(value);
+        self
+    }
+
+    pub fn align_items(mut self, value: impl Into<String>) -> Self {
+        self.align_items = Some(value.into());
+        self
+    }
+
+    pub fn justify(mut self, value: impl Into<String>) -> Self {
+        self.justify = Some(value.into());
+        self
+    }
+
+    pub fn absolute(mut self, value: bool) -> Self {
+        self.absolute = Some(value);
+        self
+    }
+
+    pub fn top(mut self, value: f32) -> Self {
+        self.top = Some(value);
+        self
+    }
+
+    pub fn left(mut self, value: f32) -> Self {
+        self.left = Some(value);
+        self
+    }
+
+    pub fn content_height(mut self, value: f32) -> Self {
+        self.content_height = Some(value);
+        self
+    }
+
+    pub fn scroll_to(mut self, value: f32) -> Self {
+        self.scroll_to = Some(value);
+        self
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -178,6 +236,11 @@ impl Element {
 
     pub fn child(mut self, child: Element) -> Self {
         self.children.push(child);
+        self
+    }
+
+    pub fn children(mut self, children: impl IntoIterator<Item = Element>) -> Self {
+        self.children.extend(children);
         self
     }
 
@@ -255,6 +318,46 @@ impl Element {
         self.props.label = Some(value.into());
         self
     }
+
+    pub fn gap(mut self, value: f32) -> Self {
+        self.props.gap = Some(value);
+        self
+    }
+
+    pub fn align_items(mut self, value: impl Into<String>) -> Self {
+        self.props.align_items = Some(value.into());
+        self
+    }
+
+    pub fn justify(mut self, value: impl Into<String>) -> Self {
+        self.props.justify = Some(value.into());
+        self
+    }
+
+    pub fn absolute(mut self) -> Self {
+        self.props.absolute = Some(true);
+        self
+    }
+
+    pub fn top(mut self, value: f32) -> Self {
+        self.props.top = Some(value);
+        self
+    }
+
+    pub fn left(mut self, value: f32) -> Self {
+        self.props.left = Some(value);
+        self
+    }
+
+    pub fn content_height(mut self, value: f32) -> Self {
+        self.props.content_height = Some(value);
+        self
+    }
+
+    pub fn scroll_to(mut self, value: f32) -> Self {
+        self.props.scroll_to = Some(value);
+        self
+    }
 }
 
 pub fn column() -> Element {
@@ -279,6 +382,10 @@ pub fn button(value: impl Into<String>) -> Element {
 
 pub fn scroll() -> Element {
     Element::new(Kind::Scroll)
+}
+
+pub fn list() -> Element {
+    Element::new(Kind::List)
 }
 
 pub fn input(placeholder: impl Into<String>, value: impl Into<String>) -> Element {

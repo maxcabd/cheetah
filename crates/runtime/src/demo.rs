@@ -1,5 +1,6 @@
-use crate::app::{App, Event};
-use crate::element::{button, column, gap_w, input, row, scroll, text, Element};
+use crate::app::{App, Event, Viewport};
+use crate::element::{button, column, input, list, row, text, Element};
+use crate::layout::visible_range;
 
 const BG: &str = "#313338";
 const PANEL: &str = "#2b2d31";
@@ -11,6 +12,11 @@ const ACCENT: &str = "#5865f2";
 const INPUT: &str = "#383a40";
 const PINK: &str = "#eb459e";
 const PINK_BG: &str = "#3d1f2e";
+
+const HEADER_HEIGHT: f32 = 64.0;
+const COMPOSER_HEIGHT: f32 = 68.0;
+const ITEM_HEIGHT: f32 = 78.0;
+const MAX_MESSAGES: usize = 500;
 
 struct Message {
     id: u32,
@@ -26,102 +32,119 @@ pub struct ChatApp {
     messages: Vec<Message>,
     draft: String,
     next_id: u32,
+    scroll_offset: f32,
 }
 
 impl ChatApp {
     pub fn new() -> Self {
+        let authors = ["mara", "lena", "dev", "alex"];
+        let colors = ["#5865f2", "#eb459e", "#23a55a", "#f0b232"];
+        let bodies = [
+            "the rust ui runtime is alive",
+            "no js engine, no bundle, just native views",
+            "taffy computes the layout, the host only draws",
+            "only the visible rows exist as views",
+            "same view tree, different producer",
+            "scrolling materializes and drops rows",
+            "the diff keeps identity across frames",
+            "this list has 200 messages in rust",
+        ];
+
+        let messages = (0..200)
+            .map(|index| Message {
+                id: index as u32 + 1,
+                author: authors[index % authors.len()].into(),
+                body: format!("{} (#{})", bodies[index % bodies.len()], index + 1),
+                time: format!("09:{:02}", index % 60),
+                color: colors[index % colors.len()],
+                likes: (index % 7) as u32,
+                liked: index % 11 == 0,
+            })
+            .collect();
+
         Self {
-            messages: vec![
-                Message {
-                    id: 1,
-                    author: "mara".into(),
-                    body: "the rust ui runtime is alive".into(),
-                    time: "09:41".into(),
-                    color: "#5865f2",
-                    likes: 3,
-                    liked: false,
-                },
-                Message {
-                    id: 2,
-                    author: "lena".into(),
-                    body: "no js engine, no bundle, just native views".into(),
-                    time: "09:42".into(),
-                    color: "#eb459e",
-                    likes: 7,
-                    liked: true,
-                },
-                Message {
-                    id: 3,
-                    author: "dev".into(),
-                    body: "the diff only sends create, update, children, remove".into(),
-                    time: "09:43".into(),
-                    color: "#23a55a",
-                    likes: 2,
-                    liked: false,
-                },
-                Message {
-                    id: 4,
-                    author: "mara".into(),
-                    body: "same view tree, different producer. that is the whole trick.".into(),
-                    time: "09:44".into(),
-                    color: "#5865f2",
-                    likes: 5,
-                    liked: false,
-                },
-                Message {
-                    id: 5,
-                    author: "lena".into(),
-                    body: "so when do we add iOS?".into(),
-                    time: "09:45".into(),
-                    color: "#eb459e",
-                    likes: 1,
-                    liked: false,
-                },
-            ],
+            messages,
             draft: String::new(),
-            next_id: 5,
+            next_id: 200,
+            scroll_offset: f32::MAX,
         }
     }
 
-    fn build_view(&self) -> Element {
-        let mut list = column().pad(12.0);
-        for message in &self.messages {
-            list = list.child(self.message(message));
-        }
+    fn list_height(&self, viewport: Viewport) -> f32 {
+        (viewport.height - HEADER_HEIGHT - COMPOSER_HEIGHT).max(0.0)
+    }
+
+    fn content_height(&self) -> f32 {
+        self.messages.len() as f32 * ITEM_HEIGHT
+    }
+
+    fn build_view(&self, viewport: Viewport) -> Element {
+        let list_height = self.list_height(viewport);
+        let message_height = self.content_height();
+        let content_height = message_height.max(list_height);
+        let bottom_offset = (list_height - message_height).max(0.0);
+        let max_offset = (content_height - list_height).max(0.0);
+        let offset = self.scroll_offset.min(max_offset);
+        let (start, end) = visible_range(offset, list_height, ITEM_HEIGHT, self.messages.len());
+
+        let items = (start..end)
+            .map(|index| self.message(&self.messages[index], index, bottom_offset))
+            .collect::<Vec<_>>();
 
         column()
+            .width(-1.0)
+            .height(-1.0)
             .bg(BG)
             .child(self.header())
-            .child(scroll().weight(1.0).child(list))
+            .child(
+                list()
+                    .key("messages")
+                    .height(list_height)
+                    .content_height(content_height)
+                    .scroll_to(offset)
+                    .children(items),
+            )
             .child(self.composer())
     }
 
     fn header(&self) -> Element {
         row()
+            .height(HEADER_HEIGHT)
             .bg(HEADER)
             .pad_h(16.0)
-            .pad_v(10.0)
-            .align("center")
+            .gap(8.0)
+            .align_items("center")
             .child(
                 column()
                     .weight(1.0)
-                    .child(text("Rust Chat").size(17.0).bold(true).color(TEXT))
-                    .child(text("#rust-mobile · 4 online").size(11.0).color(MUTED)),
+                    .gap(2.0)
+                    .child(
+                        text("Rust Chat")
+                            .size(17.0)
+                            .bold(true)
+                            .color(TEXT)
+                            .height(22.0),
+                    )
+                    .child(
+                        text(format!("#rust-mobile · {} messages", self.messages.len()))
+                            .size(11.0)
+                            .color(MUTED)
+                            .height(15.0),
+                    ),
             )
-            .child(gap_w(8.0))
             .child(
                 button("Clear")
                     .key("clear")
                     .size(12.0)
                     .color(MUTED)
                     .bg(PANEL)
-                    .pad_h(10.0)
-                    .pad_v(6.0)
+                    .width(56.0)
+                    .height(30.0)
                     .radius(8.0),
             )
     }
 
-    fn message(&self, message: &Message) -> Element {
+    fn message(&self, message: &Message, index: usize, bottom_offset: f32) -> Element {
         let initial = message
             .author
             .chars()
@@ -132,8 +155,15 @@ impl ChatApp {
 
         row()
             .key(format!("msg-{}", message.id))
-            .pad_v(7.0)
-            .align("center")
+            .absolute()
+            .top(bottom_offset + index as f32 * ITEM_HEIGHT)
+            .left(0.0)
+            .width(-1.0)
+            .height(ITEM_HEIGHT)
+            .pad_h(12.0)
+            .pad_v(8.0)
+            .gap(10.0)
+            .align_items("center")
             .child(
                 text(initial)
                     .size(15.0)
@@ -146,30 +176,37 @@ impl ChatApp {
                     .radius(19.0)
                     .label(message.author.as_str()),
             )
-            .child(gap_w(10.0))
             .child(
                 column()
                     .weight(1.0)
+                    .gap(2.0)
                     .child(
                         row()
-                            .align("center")
+                            .height(18.0)
+                            .gap(8.0)
+                            .align_items("center")
                             .child(
                                 text(message.author.as_str())
                                     .size(15.0)
                                     .bold(true)
-                                    .color(TEXT),
+                                    .color(TEXT)
+                                    .height(18.0),
                             )
-                            .child(gap_w(8.0))
-                            .child(text(message.time.as_str()).size(11.0).color(MUTED)),
+                            .child(
+                                text(message.time.as_str())
+                                    .size(11.0)
+                                    .color(MUTED)
+                                    .width(40.0)
+                                    .height(14.0),
+                            ),
                     )
                     .child(
                         text(message.body.as_str())
                             .size(15.0)
                             .color(BODY)
-                            .pad_v(2.0),
+                            .height(40.0),
                     ),
             )
-            .child(gap_w(8.0))
             .child(
                 button(if message.liked {
                     format!("\u{2665} {}", message.likes)
@@ -180,8 +217,8 @@ impl ChatApp {
                 .size(12.0)
                 .color(if message.liked { PINK } else { MUTED })
                 .bg(if message.liked { PINK_BG } else { PANEL })
-                .pad_h(9.0)
-                .pad_v(5.0)
+                .width(56.0)
+                .height(28.0)
                 .radius(10.0)
                 .label("Like message"),
             )
@@ -189,30 +226,32 @@ impl ChatApp {
 
     fn composer(&self) -> Element {
         row()
+            .height(COMPOSER_HEIGHT)
             .bg(HEADER)
             .pad(12.0)
-            .align("center")
+            .gap(8.0)
+            .align_items("center")
             .child(
                 input("Message #rust-mobile", self.draft.as_str())
                     .key("composer")
                     .weight(1.0)
+                    .height(40.0)
                     .size(15.0)
                     .color(TEXT)
                     .bg(INPUT)
                     .pad_h(12.0)
-                    .pad_v(10.0)
+                    .align("start")
                     .radius(8.0),
             )
-            .child(gap_w(8.0))
             .child(
                 button("Send")
                     .key("send")
+                    .width(64.0)
+                    .height(40.0)
                     .size(14.0)
                     .bold(true)
                     .color("#ffffff")
                     .bg(ACCENT)
-                    .pad_h(16.0)
-                    .pad_v(10.0)
                     .radius(8.0),
             )
     }
@@ -234,8 +273,9 @@ impl ChatApp {
             liked: false,
         });
         self.draft.clear();
+        self.scroll_offset = f32::MAX;
 
-        if self.messages.len() > 40 {
+        if self.messages.len() > MAX_MESSAGES {
             self.messages.remove(0);
         }
     }
@@ -248,9 +288,17 @@ impl ChatApp {
             "submit" if event.key.as_deref() == Some("composer") => {
                 self.send();
             }
+            "scroll" if event.key.as_deref() == Some("messages") => {
+                if let Ok(offset) = event.payload.parse::<f32>() {
+                    self.scroll_offset = offset.max(0.0);
+                }
+            }
             "click" => match event.key.as_deref() {
                 Some("send") => self.send(),
-                Some("clear") => self.messages.clear(),
+                Some("clear") => {
+                    self.messages.clear();
+                    self.scroll_offset = 0.0;
+                }
                 Some(key) if key.starts_with("like-") => {
                     if let Ok(id) = key[5..].parse::<u32>() {
                         if let Some(message) =
@@ -279,8 +327,8 @@ impl Default for ChatApp {
 }
 
 impl App for ChatApp {
-    fn view(&self) -> Element {
-        self.build_view()
+    fn view(&self, viewport: Viewport) -> Element {
+        self.build_view(viewport)
     }
 
     fn update(&mut self, event: Event) {
