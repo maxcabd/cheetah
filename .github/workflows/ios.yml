@@ -15,6 +15,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - ".github/workflows/ios.yml"
+  workflow_dispatch:
 
 jobs:
   build:
@@ -27,24 +28,51 @@ jobs:
           targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
 
       - name: Build Rust XCFramework
+        shell: bash
         run: |
+          set -o pipefail
           chmod +x ios/build-rust.sh
-          ./ios/build-rust.sh
+          ./ios/build-rust.sh 2>&1 | tee /tmp/rust-ios.log
+          status=${PIPESTATUS[0]}
+          if [ $status -ne 0 ]; then
+            tail -40 /tmp/rust-ios.log
+            echo "::error title=Rust iOS build failed::$(tail -1 /tmp/rust-ios.log)"
+          fi
+          exit $status
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
       - name: Generate Xcode project
-        run: cd ios && xcodegen generate
+        shell: bash
+        run: |
+          set -o pipefail
+          cd ios
+          xcodegen generate 2>&1 | tee /tmp/xcodegen.log
+          status=${PIPESTATUS[0]}
+          if [ $status -ne 0 ]; then
+            tail -40 /tmp/xcodegen.log
+            echo "::error title=XcodeGen failed::$(tail -1 /tmp/xcodegen.log)"
+          fi
+          exit $status
 
       - name: Build iOS app
-        run: >
-          xcodebuild
-          -project ios/Cheetah.xcodeproj
-          -scheme Cheetah
-          -sdk iphoneos
-          -configuration Debug
-          -destination 'generic/platform=iOS'
-          CODE_SIGNING_ALLOWED=NO
-          CODE_SIGNING_REQUIRED=NO
-          build
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/Cheetah.xcodeproj \
+            -scheme Cheetah \
+            -sdk iphoneos \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee /tmp/xcodebuild.log
+          status=${PIPESTATUS[0]}
+          if [ $status -ne 0 ]; then
+            grep -E "error:|fatal error:" /tmp/xcodebuild.log | head -40 | while IFS= read -r line; do
+              echo "::error title=Xcode::${line}"
+            done
+          fi
+          exit $status
