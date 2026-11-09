@@ -28,22 +28,10 @@ jobs:
   build:
     runs-on: macos-15
     timeout-minutes: 35
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.1.1.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
-
-      - name: Select Xcode 26
-        shell: bash
-        run: |
-          if [ -d /Applications/Xcode_26.1.1.app ]; then
-            sudo xcode-select -s /Applications/Xcode_26.1.1.app
-          elif [ -d /Applications/Xcode_26.1.app ]; then
-            sudo xcode-select -s /Applications/Xcode_26.1.app
-          else
-            echo "::error title=Xcode::Xcode 26 is not installed"
-            ls /Applications | grep Xcode || true
-            exit 1
-          fi
-          xcodebuild -version
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -200,6 +188,10 @@ jobs:
               cp "$file" "ci-logs/$(basename "$file")"
             fi
           done
+          DEVICE_ID="${{ steps.simulator.outputs.device }}"
+          if [ -n "$DEVICE_ID" ]; then
+            python3 -c 'import subprocess, sys; subprocess.run(["xcrun", "simctl", "io", sys.argv[1], "screenshot", "ci-logs/uitest-failure.png"], timeout=30)' "$DEVICE_ID" || true
+          fi
           git checkout -B ci-logs
           git add -f ci-logs
           git commit -m "iOS CI failure logs" || true
