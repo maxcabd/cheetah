@@ -39,6 +39,30 @@ final class InsetLabel: UILabel {
     }
 }
 
+enum DebugLog {
+    private static let url = FileManager.default
+        .urls(for: .documentDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("cheetah-debug.log")
+
+    static func reset() {
+        try? FileManager.default.removeItem(at: url)
+    }
+
+    static func write(_ message: String) {
+        guard let data = (message + "\n").data(using: .utf8) else {
+            return
+        }
+
+        if let handle = try? FileHandle(forWritingTo: url) {
+            defer { try? handle.close() }
+            handle.seekToEndOfFile()
+            handle.write(data)
+        } else {
+            try? data.write(to: url)
+        }
+    }
+}
+
 /// Cheetah draws buttons from Rust props rather than UIKit's button styles.
 /// A UIControl with an explicit label keeps captions visible on every iOS
 /// version and avoids UIButton configuration taking over the title.
@@ -54,6 +78,7 @@ final class CheetahButton: UIControl {
         didSet {
             label.text = title
             accessibilityLabel = title
+            setNeedsLayout()
         }
     }
 
@@ -75,6 +100,10 @@ final class CheetahButton: UIControl {
         }
     }
 
+    var debugLabelFrame: CGRect {
+        label.frame
+    }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         isAccessibilityElement = true
@@ -82,6 +111,8 @@ final class CheetahButton: UIControl {
         label.isUserInteractionEnabled = false
         label.numberOfLines = 1
         label.textAlignment = .center
+        label.frame = bounds
+        label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         addSubview(label)
     }
 
