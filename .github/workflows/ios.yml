@@ -84,6 +84,72 @@ jobs:
           fi
           exit $status
 
+      - name: Select simulator
+        id: simulator
+        shell: bash
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone 16 \(" | head -1 | grep -o -E "[0-9A-F-]{36}")
+          if [ -z "$DEVICE_ID" ]; then
+            DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone 15 \(" | head -1 | grep -o -E "[0-9A-F-]{36}")
+          fi
+          if [ -z "$DEVICE_ID" ]; then
+            xcrun simctl list devices available
+            echo "::error title=Simulator::No iPhone simulator available"
+            exit 1
+          fi
+          echo "device=$DEVICE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Build simulator app
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/Cheetah.xcodeproj \
+            -scheme Cheetah \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.device }}" \
+            -derivedDataPath build/sim \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee /tmp/xcodebuild-sim.log
+          status=${PIPESTATUS[0]}
+          if [ $status -ne 0 ]; then
+            grep -E "error:|fatal error:" /tmp/xcodebuild-sim.log | head -40 | while IFS= read -r line; do
+              echo "::error title=Xcode simulator::${line}"
+            done
+          fi
+          exit $status
+
+      - name: Run simulator
+        shell: bash
+        run: |
+          set -o pipefail
+          exec > >(tee /tmp/simulator.log) 2>&1
+          DEVICE_ID="${{ steps.simulator.outputs.device }}"
+          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
+          xcrun simctl bootstatus "$DEVICE_ID" -b
+          xcrun simctl install "$DEVICE_ID" build/sim/Build/Products/Debug-iphonesimulator/Cheetah.app
+          xcrun simctl launch "$DEVICE_ID" com.example.cheetah
+          sleep 8
+          xcrun simctl io "$DEVICE_ID" screenshot /tmp/cheetah-ios.png
+          if ! xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -q com.example.cheetah; then
+            echo "::error title=iOS runtime::Cheetah app is not running"
+            exit 1
+          fi
+
+      - name: Publish iOS preview
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p ci-preview
+          cp /tmp/cheetah-ios.png ci-preview/cheetah-ios.png
+          git checkout -B ios-preview
+          git add -f ci-preview
+          git commit -m "iOS simulator preview" || true
+          git push origin ios-preview --force
+
       - name: Publish iOS failure log
         if: failure()
         shell: bash
@@ -91,7 +157,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p ci-logs
-          for file in /tmp/rust-ios.log /tmp/xcodegen.log /tmp/xcodebuild.log; do
+          for file in /tmp/rust-ios.log /tmp/xcodegen.log /tmp/xcodebuild.log /tmp/xcodebuild-sim.log /tmp/simulator.log; do
             if [ -f "$file" ]; then
               cp "$file" "ci-logs/$(basename "$file")"
             fi
