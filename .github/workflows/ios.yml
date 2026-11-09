@@ -20,9 +20,14 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-15
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -137,13 +142,14 @@ jobs:
           exit $status
 
       - name: Run simulator
+        timeout-minutes: 10
         shell: bash
         run: |
           set -o pipefail
           exec > >(tee /tmp/simulator.log) 2>&1
           DEVICE_ID="${{ steps.simulator.outputs.device }}"
           xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
-          xcrun simctl bootstatus "$DEVICE_ID" -b
+          python3 -c 'import subprocess, sys; subprocess.run(["xcrun", "simctl", "bootstatus", sys.argv[1], "-b"], check=True, timeout=300)' "$DEVICE_ID"
           xcrun simctl install "$DEVICE_ID" build/sim/Build/Products/Debug-iphonesimulator/Cheetah.app
           xcrun simctl launch "$DEVICE_ID" com.example.cheetah
           sleep 8
@@ -162,6 +168,7 @@ jobs:
           git push origin ios-preview --force
 
       - name: Run UI tests
+        timeout-minutes: 15
         shell: bash
         run: |
           set -o pipefail
