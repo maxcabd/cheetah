@@ -16,5 +16,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Chitin"
+rootProject.name = "Cheetah"
 include(":app")

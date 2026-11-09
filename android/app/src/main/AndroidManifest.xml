@@ -3,7 +3,7 @@
 
     <application
         android:allowBackup="false"
-        android:label="Chitin"
+        android:label="Cheetah"
         android:supportsRtl="true"
         android:theme="@style/Theme.RustUi">
 

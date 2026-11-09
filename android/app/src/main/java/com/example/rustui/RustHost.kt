@@ -320,7 +320,7 @@ class RustHost(
         val pool = pools.getOrPut(key) { ArrayDeque() }
         if (pool.size < POOL_LIMIT) {
             pool.addLast(view)
-            Log.d("ChitinPool", "pool $key (${pool.size})")
+            Log.d("CheetahPool", "pool $key (${pool.size})")
         }
     }
 
@@ -328,7 +328,7 @@ class RustHost(
         val key = poolKey(kind) ?: return createView(kind)
         val recycled = pools[key]?.removeLastOrNull() ?: return createView(kind)
         resetView(recycled, kind)
-        Log.d("ChitinPool", "reuse $key (${pools[key]?.size ?: 0} left)")
+        Log.d("CheetahPool", "reuse $key (${pools[key]?.size ?: 0} left)")
         return recycled
     }
 
@@ -389,7 +389,7 @@ class RustHost(
             val text = props.getString("text")
             if (view is TextView && view.text.toString() != text) {
                 if (DEBUG_SLOT_REBINDS && text.length > 10 && view.text.isNotEmpty()) {
-                    Log.d("ChitinSlot", "rebind ${tag.kind} ${tag.id}")
+                    Log.d("CheetahSlot", "rebind ${tag.kind} ${tag.id}")
                 }
                 view.text = text
             }

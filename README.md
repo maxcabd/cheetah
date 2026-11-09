@@ -1,1 +1,1 @@
-Chitin drives native Android views from Rust, with no JavaScript.
+Cheetah drives native Android views from Rust, with no JavaScript.
