@@ -209,14 +209,7 @@ final class RustHost: NSObject {
             return label
 
         case "button":
-            // `.system` adopts the platform button configuration on newer
-            // iOS releases, which ignores setTitle/setTitleColor. Cheetah
-            // draws buttons entirely from Rust props, so use a plain custom
-            // control instead.
-            let button = UIButton(type: .custom)
-            button.configuration = nil
-            button.contentHorizontalAlignment = .center
-            button.titleLabel?.textAlignment = .center
+            let button = CheetahButton()
             button.addTarget(self, action: #selector(buttonTapped(_:)), for: .touchUpInside)
             return button
 
@@ -336,16 +329,16 @@ final class RustHost: NSObject {
             }
         }
 
-        if let button = view as? UIButton {
+        if let button = view as? CheetahButton {
             if let text {
-                button.setTitle(text, for: .normal)
+                button.title = text
             }
-            button.titleLabel?.font = font
+            button.titleFont = font
             if let color = props["color"] as? String {
-                button.setTitleColor(UIColor(hex: color), for: .normal)
+                button.titleColor = UIColor(hex: color)
             }
             if let align = props["align"] as? String {
-                button.contentHorizontalAlignment = contentAlignment(align)
+                button.titleAlignment = textAlignment(align)
             }
         }
 
@@ -391,8 +384,8 @@ final class RustHost: NSObject {
         if let field = view as? InsetTextField {
             field.insets = insets
         }
-        if let button = view as? UIButton {
-            button.contentEdgeInsets = insets
+        if let button = view as? CheetahButton {
+            button.insets = insets
         }
 
         if let label = props["label"] as? String {
@@ -434,7 +427,7 @@ final class RustHost: NSObject {
         }
     }
 
-    @objc private func buttonTapped(_ sender: UIButton) {
+    @objc private func buttonTapped(_ sender: CheetahButton) {
         event(id: UInt32(sender.tag), kind: "click", payload: "")
     }
 
