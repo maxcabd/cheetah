@@ -2,7 +2,7 @@ use crate::actor::{spawn, ActorHandle, Command};
 use crate::app::Viewport;
 use crate::bridge::Host;
 use jni::objects::{GlobalRef, JFloatArray, JObject, JString, JValue};
-use jni::sys::{jfloat, jint, jlong};
+use jni::sys::{jboolean, jfloat, jint, jlong};
 use jni::{JNIEnv, JavaVM};
 use std::sync::Arc;
 
@@ -169,6 +169,21 @@ pub extern "system" fn Java_com_example_rustui_RustBridge_nativeEvent<'local>(
         kind,
         payload,
     });
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_example_rustui_RustBridge_nativeLifecycle<'local>(
+    _env: JNIEnv<'local>,
+    _this: JObject<'local>,
+    handle: jlong,
+    active: jboolean,
+) {
+    if handle == 0 {
+        return;
+    }
+
+    let actor = unsafe { &*(handle as *const ActorHandle) };
+    let _ = actor.sender.send(Command::Lifecycle(active != 0));
 }
 
 #[no_mangle]

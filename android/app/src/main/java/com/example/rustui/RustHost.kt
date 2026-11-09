@@ -61,6 +61,13 @@ class RustHost(
         resizeIfNeeded()
     }
 
+    fun setActive(active: Boolean) {
+        val current = handle
+        if (current != 0L) {
+            RustBridge.nativeLifecycle(current, active)
+        }
+    }
+
     private fun sendHostInfo() {
         if (handle == 0L || hostInfoSent) return
 

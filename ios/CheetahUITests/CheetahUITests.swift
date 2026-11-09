@@ -21,4 +21,22 @@ final class CheetahUITests: XCTestCase {
         let message = app.staticTexts["hello from ios"]
         XCTAssertTrue(message.waitForExistence(timeout: 10), "sent message should render in the list")
     }
+
+    func testDraftSurvivesBackgrounding() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let field = app.textFields["cheetah-composer"]
+        XCTAssertTrue(field.waitForExistence(timeout: 20), "composer should be visible")
+        field.tap()
+        field.typeText("draft survives")
+
+        XCUIDevice.shared.press(.home)
+        sleep(2)
+        app.activate()
+
+        let restored = app.textFields["cheetah-composer"]
+        XCTAssertTrue(restored.waitForExistence(timeout: 15), "composer should return")
+        XCTAssertEqual(restored.value as? String, "draft survives", "draft should survive backgrounding")
+    }
 }

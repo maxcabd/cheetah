@@ -21,6 +21,20 @@ class MainActivity : Activity() {
         root.post { host.start() }
     }
 
+    override fun onStart() {
+        super.onStart()
+        if (::host.isInitialized) {
+            host.setActive(true)
+        }
+    }
+
+    override fun onStop() {
+        if (::host.isInitialized) {
+            host.setActive(false)
+        }
+        super.onStop()
+    }
+
     override fun onDestroy() {
         host.dispose()
         super.onDestroy()

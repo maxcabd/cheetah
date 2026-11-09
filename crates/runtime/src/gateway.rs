@@ -2,34 +2,87 @@ use crate::actor::Command;
 use futures_util::{SinkExt, StreamExt};
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::watch;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
+#[derive(Clone, Copy)]
+struct Lifecycle {
+    active: bool,
+    revision: u64,
+}
+
 pub(crate) struct Gateway {
     outbound: UnboundedSender<String>,
+    lifecycle: watch::Sender<Lifecycle>,
 }
 
 impl Gateway {
     pub(crate) fn send(&self, payload: String) -> Result<(), ()> {
         self.outbound.send(payload).map_err(|_| ())
     }
+
+    pub(crate) fn set_active(&self, active: bool) {
+        self.lifecycle.send_modify(|state| {
+            state.active = active;
+            state.revision = state.revision.wrapping_add(1);
+        });
+    }
 }
 
 pub(crate) fn spawn(url: String, commands: UnboundedSender<Command>) -> Gateway {
     let (outbound, mut receiver) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let (lifecycle, mut lifecycle_rx) = watch::channel(Lifecycle {
+        active: true,
+        revision: 0,
+    });
 
     tokio::spawn(async move {
         let mut backoff = Duration::from_secs(1);
 
         loop {
+            if !lifecycle_rx.borrow().active {
+                let _ = commands.send(Command::Connection(false));
+                if !wait_active(&mut lifecycle_rx).await {
+                    return;
+                }
+                backoff = Duration::from_secs(1);
+                continue;
+            }
+
             match connect_async(url.as_str()).await {
                 Ok((ws, _)) => {
+                    if !lifecycle_rx.borrow().active {
+                        let _ = commands.send(Command::Connection(false));
+                        while receiver.try_recv().is_ok() {}
+                        if !wait_active(&mut lifecycle_rx).await {
+                            return;
+                        }
+                        backoff = Duration::from_secs(1);
+                        continue;
+                    }
+
                     backoff = Duration::from_secs(1);
                     let _ = commands.send(Command::Connection(true));
                     let (mut write, mut read) = ws.split();
+                    let mut paused = false;
 
                     loop {
                         tokio::select! {
+                            changed = lifecycle_rx.changed() => {
+                                if changed.is_err() {
+                                    return;
+                                }
+                                let state = *lifecycle_rx.borrow();
+                                let _ = state.revision;
+                                if !state.active {
+                                    paused = true;
+                                    break;
+                                }
+                                // Reactivated while the socket was still open:
+                                // let the actor flush its outbox again.
+                                let _ = commands.send(Command::Connection(true));
+                            }
                             outgoing = receiver.recv() => {
                                 match outgoing {
                                     Some(payload) => {
@@ -37,7 +90,7 @@ pub(crate) fn spawn(url: String, commands: UnboundedSender<Command>) -> Gateway 
                                             break;
                                         }
                                     }
-                                    None => break,
+                                    None => return,
                                 }
                             }
                             incoming = read.next() => {
@@ -56,20 +109,58 @@ pub(crate) fn spawn(url: String, commands: UnboundedSender<Command>) -> Gateway 
                         }
                     }
 
+                    drop(read);
+                    drop(write);
                     let _ = commands.send(Command::Connection(false));
                     while receiver.try_recv().is_ok() {}
+
+                    if paused {
+                        if !wait_active(&mut lifecycle_rx).await {
+                            return;
+                        }
+                        backoff = Duration::from_secs(1);
+                        continue;
+                    }
                 }
                 Err(_) => {
                     let _ = commands.send(Command::Connection(false));
                 }
             }
 
-            tokio::time::sleep(backoff).await;
+            tokio::select! {
+                _ = tokio::time::sleep(backoff) => {}
+                changed = lifecycle_rx.changed() => {
+                    if changed.is_err() {
+                        return;
+                    }
+                    if !lifecycle_rx.borrow().active {
+                        if !wait_active(&mut lifecycle_rx).await {
+                            return;
+                        }
+                        backoff = Duration::from_secs(1);
+                        continue;
+                    }
+                }
+            }
             backoff = (backoff * 2).min(Duration::from_secs(8));
         }
     });
 
-    Gateway { outbound }
+    Gateway {
+        outbound,
+        lifecycle,
+    }
+}
+
+async fn wait_active(lifecycle: &mut watch::Receiver<Lifecycle>) -> bool {
+    loop {
+        if lifecycle.borrow().active {
+            return true;
+        }
+        if lifecycle.changed().await.is_err() {
+            return false;
+        }
+    }
 }
 
 fn handle_incoming(text: &str, commands: &UnboundedSender<Command>) {

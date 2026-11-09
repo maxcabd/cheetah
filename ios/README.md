@@ -54,18 +54,21 @@ Rust uses `safeTop`, `safeBottom`, and `keyboardInset` to size the floating chro
 
 When the keyboard opens, the controller re-sends the host info with `keyboardInset`, so the composer moves above the keyboard and the list keeps its final rows visible.
 
+The host also sends lifecycle commands through `cheetah_lifecycle` / `nativeLifecycle`. Backgrounding pauses the WebSocket and reconnect loop without destroying the Rust app state. Sending messages are persisted back to `queued`; foregrounding reconnects and flushes the outbox. Draft text and scroll position remain in memory and on screen.
+
 ## What is implemented
 
-- C ABI (`cheetah_new`, `cheetah_resize`, `cheetah_event`, `cheetah_free`) over the shared Rust core.
+- C ABI (`cheetah_new`, `cheetah_resize`, `cheetah_event`, `cheetah_lifecycle`, `cheetah_free`) over the shared Rust core.
 - Ops callback posts JSON to the main queue.
 - CoreText text measurement callback on the actor thread.
 - Native `UILabel`, custom `UIControl` buttons, `UITextField`, and `UIScrollView` views driven by absolute frames.
 - Glass containers, vibrancy through `UIVisualEffectView.contentView`, blur/opaque fallbacks, and interactive glass controls.
 - Overlay header/composer with scroll content insets, so messages scroll beneath the chrome.
 - Host capability handshake for safe areas, keyboard insets, glass availability, and display scale.
+- Lifecycle pause/resume for the gateway, with outbox replay on foreground.
 - Stable accessibility identifiers for Rust-driven controls.
 - Variable-height list slots, scroll callbacks, scroll-to-bottom, connection status, and offline outbox from the shared core.
 
 ## Verification
 
-CI runs on macOS 26 with Xcode 26, builds the Rust XCFramework, builds both device and simulator targets, launches the app in an iOS 26 simulator, publishes the screenshot above, and runs a UI test that types a message and taps Send. The app has not yet been run on a physical device.
+CI runs on macOS 26 with Xcode 26, builds the Rust XCFramework, builds both device and simulator targets, launches the app in an iOS 26 simulator, publishes the screenshot above, and runs UI tests for sending a message and preserving a draft across backgrounding. The app has not yet been run on a physical device.

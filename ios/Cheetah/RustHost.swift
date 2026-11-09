@@ -164,6 +164,13 @@ final class RustHost: NSObject {
         }
     }
 
+    func setActive(_ active: Bool) {
+        guard handle != 0, !disposed else {
+            return
+        }
+        cheetah_lifecycle(handle, active ? 1 : 0)
+    }
+
     func resize(to size: CGSize) {
         guard handle != 0, size.width > 0, size.height > 0 else {
             return

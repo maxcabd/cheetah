@@ -95,6 +95,15 @@ pub unsafe extern "C" fn cheetah_event(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn cheetah_lifecycle(handle: i64, active: c_int) {
+    if handle == 0 {
+        return;
+    }
+    let actor = &*(handle as *const ActorHandle);
+    let _ = actor.sender.send(Command::Lifecycle(active != 0));
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn cheetah_free(handle: i64) {
     if handle == 0 {
         return;

@@ -28,6 +28,7 @@ pub(crate) enum Command {
     },
     Retry,
     Connection(bool),
+    Lifecycle(bool),
     Shutdown,
 }
 
@@ -58,6 +59,8 @@ pub(crate) fn spawn(host: Arc<dyn Host>, store_path: String, gateway_url: String
                 gateway::spawn(gateway_url, actor_sender.clone())
             };
 
+            let mut paused = false;
+
             while let Some(command) = receiver.blocking_recv() {
                 match command {
                     Command::Resize(viewport) => {
@@ -76,6 +79,9 @@ pub(crate) fn spawn(host: Arc<dyn Host>, store_path: String, gateway_url: String
                         );
                     }
                     Command::Incoming { author, body } => {
+                        if paused {
+                            continue;
+                        }
                         let event = Event {
                             id: 0,
                             key: None,
@@ -86,6 +92,9 @@ pub(crate) fn spawn(host: Arc<dyn Host>, store_path: String, gateway_url: String
                         emit(host.as_ref(), ops);
                     }
                     Command::Ack { id } => {
+                        if paused {
+                            continue;
+                        }
                         let event = Event {
                             id: 0,
                             key: None,
@@ -96,6 +105,9 @@ pub(crate) fn spawn(host: Arc<dyn Host>, store_path: String, gateway_url: String
                         emit(host.as_ref(), ops);
                     }
                     Command::SendTimeout { id } => {
+                        if paused {
+                            continue;
+                        }
                         let event = Event {
                             id: 0,
                             key: None,
@@ -110,6 +122,9 @@ pub(crate) fn spawn(host: Arc<dyn Host>, store_path: String, gateway_url: String
                         }
                     }
                     Command::Retry => {
+                        if paused {
+                            continue;
+                        }
                         let event = Event {
                             id: 0,
                             key: None,
@@ -127,6 +142,9 @@ pub(crate) fn spawn(host: Arc<dyn Host>, store_path: String, gateway_url: String
                         );
                     }
                     Command::Connection(online) => {
+                        if paused {
+                            continue;
+                        }
                         let event = Event {
                             id: 0,
                             key: None,
@@ -142,6 +160,21 @@ pub(crate) fn spawn(host: Arc<dyn Host>, store_path: String, gateway_url: String
                             &gateway,
                             &actor_sender,
                         );
+                    }
+                    Command::Lifecycle(active) => {
+                        if active == !paused {
+                            continue;
+                        }
+                        paused = !active;
+                        gateway.set_active(active);
+                        let event = Event {
+                            id: 0,
+                            key: None,
+                            kind: "connection".into(),
+                            payload: if active { "connecting" } else { "offline" }.into(),
+                        };
+                        let ops = runtime.dispatch(event);
+                        emit(host.as_ref(), ops);
                     }
                     Command::Shutdown => break,
                 }

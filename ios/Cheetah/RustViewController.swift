@@ -3,6 +3,7 @@ import UIKit
 final class RustViewController: UIViewController {
     private var host: RustHost?
     private var keyboardObserver: NSObjectProtocol?
+    private var lifecycleObservers: [NSObjectProtocol] = []
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
         .lightContent
@@ -34,6 +35,28 @@ final class RustViewController: UIViewController {
             self?.view.layoutIfNeeded()
             self?.updateHost()
         }
+
+        lifecycleObservers = [
+            NotificationCenter.default.addObserver(
+                forName: UIApplication.didEnterBackgroundNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.host?.setActive(false)
+            },
+            NotificationCenter.default.addObserver(
+                forName: UIApplication.willEnterForegroundNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else {
+                    return
+                }
+                self.view.layoutIfNeeded()
+                self.updateHost()
+                self.host?.setActive(true)
+            },
+        ]
     }
 
     override func viewDidLayoutSubviews() {
@@ -81,6 +104,9 @@ final class RustViewController: UIViewController {
     deinit {
         if let keyboardObserver {
             NotificationCenter.default.removeObserver(keyboardObserver)
+        }
+        for observer in lifecycleObservers {
+            NotificationCenter.default.removeObserver(observer)
         }
         host?.dispose()
     }
