@@ -388,6 +388,9 @@ class RustHost(
         if (props.has("text")) {
             val text = props.getString("text")
             if (view is TextView && view.text.toString() != text) {
+                if (DEBUG_SLOT_REBINDS && text.length > 10 && view.text.isNotEmpty()) {
+                    Log.d("ChitinSlot", "rebind ${tag.kind} ${tag.id}")
+                }
                 view.text = text
             }
         }
@@ -487,6 +490,7 @@ class RustHost(
 
     companion object {
         private const val POOL_LIMIT = 64
+        private const val DEBUG_SLOT_REBINDS = false
         private val MATCH_PARENT = ViewGroup.LayoutParams.MATCH_PARENT
         private val WRAP_CONTENT = ViewGroup.LayoutParams.WRAP_CONTENT
     }

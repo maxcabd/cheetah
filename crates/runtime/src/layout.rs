@@ -235,7 +235,7 @@ fn measure(
     Size { width, height }
 }
 
-fn rough_measure(text: &str, font_size: f32, max_width: f32) -> (f32, f32) {
+pub(crate) fn rough_measure(text: &str, font_size: f32, max_width: f32) -> (f32, f32) {
     let font_size = font_size.max(1.0);
     let line_height = font_size * 1.3;
     let char_width = font_size * 0.55;
@@ -273,6 +273,29 @@ fn collect(
 }
 
 /// Inclusive start, exclusive end, with one item of overscan on each side.
+pub fn visible_range_prefix(offset: f32, viewport_height: f32, prefix: &[f32]) -> (usize, usize) {
+    let count = prefix.len().saturating_sub(1);
+    if count == 0 || viewport_height <= 0.0 {
+        return (0, 0);
+    }
+
+    let total = prefix[count];
+    let max_offset = (total - viewport_height).max(0.0);
+    let offset = offset.clamp(0.0, max_offset);
+
+    let first = prefix
+        .partition_point(|&bottom| bottom <= offset)
+        .saturating_sub(1)
+        .min(count - 1);
+    let end_offset = offset + viewport_height;
+    let end_index = prefix.partition_point(|&top| top < end_offset).min(count);
+
+    let start = first.saturating_sub(1);
+    let end = (end_index + 1).min(count);
+    (start, end)
+}
+
+/// Inclusive start, exclusive end, with one item of overscan on each side.
 pub fn visible_range(
     offset: f32,
     viewport_height: f32,
@@ -292,7 +315,7 @@ pub fn visible_range(
 
 #[cfg(test)]
 mod tests {
-    use super::{compute, visible_range};
+    use super::{compute, visible_range, visible_range_prefix};
     use crate::{build, column, list, row, text};
 
     fn assert_close(actual: f32, expected: f32) {
@@ -356,6 +379,16 @@ mod tests {
         assert_close(frame.y, 156.0);
         assert_close(frame.width, 300.0);
         assert_close(frame.height, 78.0);
+    }
+
+    #[test]
+    fn prefix_range_handles_variable_heights() {
+        let prefix = [0.0, 50.0, 150.0, 200.0, 260.0];
+        assert_eq!(visible_range_prefix(0.0, 100.0, &prefix), (0, 3));
+        assert_eq!(visible_range_prefix(150.0, 50.0, &prefix), (1, 4));
+        assert_eq!(visible_range_prefix(10_000.0, 100.0, &prefix), (1, 4));
+        assert_eq!(visible_range_prefix(0.0, 1_000.0, &prefix), (0, 4));
+        assert_eq!(visible_range_prefix(0.0, 100.0, &[0.0]), (0, 0));
     }
 
     #[test]

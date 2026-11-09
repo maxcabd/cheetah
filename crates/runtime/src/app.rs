@@ -18,8 +18,26 @@ pub struct Event {
     pub payload: String,
 }
 
+pub struct ViewContext<'a> {
+    pub viewport: Viewport,
+    measurer: Option<&'a dyn TextMeasurer>,
+}
+
+impl<'a> ViewContext<'a> {
+    pub fn new(viewport: Viewport, measurer: Option<&'a dyn TextMeasurer>) -> Self {
+        Self { viewport, measurer }
+    }
+
+    pub fn measure_text(&self, text: &str, size: f32, bold: bool, max_width: f32) -> (f32, f32) {
+        match self.measurer {
+            Some(measurer) => measurer.measure(text, size, bold, max_width),
+            None => crate::layout::rough_measure(text, size, max_width),
+        }
+    }
+}
+
 pub trait App {
-    fn view(&self, viewport: Viewport) -> Element;
+    fn view(&self, context: &ViewContext) -> Element;
     fn update(&mut self, event: Event);
 }
 
@@ -48,7 +66,10 @@ impl Runtime {
 
     pub fn render(&mut self, viewport: Viewport) -> Vec<Op> {
         self.viewport = viewport;
-        let root = build(self.app.view(viewport));
+        let root = {
+            let context = ViewContext::new(viewport, self.text_measurer.as_deref());
+            build(self.app.view(&context))
+        };
         let flat = flatten(&root);
         let frames = compute(
             &root,
