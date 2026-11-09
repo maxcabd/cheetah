@@ -1,0 +1,180 @@
+name: iOS 18 Fallback
+
+on:
+  push:
+    paths:
+      - "ios/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/ios-fallback.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+      - "crates/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/ios-fallback.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-fallback-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fallback:
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 16.4
+        shell: bash
+        run: |
+          if [ ! -d /Applications/Xcode_16.4.app ]; then
+            echo "::error title=Xcode::Xcode 16.4 is not installed"
+            ls /Applications | grep Xcode || true
+            exit 1
+          fi
+          sudo xcode-select -s /Applications/Xcode_16.4.app
+          xcodebuild -version
+          xcrun simctl list runtimes | grep -E "iOS 18" || true
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
+
+      - name: Build Rust XCFramework
+        shell: bash
+        run: |
+          set -o pipefail
+          chmod +x ios/build-rust.sh
+          ./ios/build-rust.sh 2>&1 | tee /tmp/rust-ios18.log
+          status=${PIPESTATUS[0]}
+          if [ $status -ne 0 ]; then
+            tail -60 /tmp/rust-ios18.log
+          fi
+          exit $status
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        shell: bash
+        run: |
+          set -o pipefail
+          cd ios
+          xcodegen generate 2>&1 | tee /tmp/xcodegen-ios18.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Build iOS app
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/Cheetah.xcodeproj \
+            -scheme Cheetah \
+            -sdk iphoneos \
+            -configuration Debug \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee /tmp/xcodebuild-ios18.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Select iOS 18 simulator
+        id: simulator
+        shell: bash
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available | awk '
+            /-- iOS 18/ { in_ios18 = 1; next }
+            /^-- / { in_ios18 = 0 }
+            in_ios18 && /iPhone/ { print; exit }
+          ' | grep -o -E '[0-9A-F-]{36}') || true
+          if [ -z "$DEVICE_ID" ]; then
+            xcrun simctl list devices available
+            echo "::error title=Simulator::No iOS 18 iPhone simulator available"
+            exit 1
+          fi
+          echo "device=$DEVICE_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Build simulator app
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ios/Cheetah.xcodeproj \
+            -scheme Cheetah \
+            -sdk iphonesimulator \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.device }}" \
+            -derivedDataPath build/sim-ios18 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            build 2>&1 | tee /tmp/xcodebuild-sim-ios18.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Run simulator
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -o pipefail
+          exec > >(tee /tmp/simulator-ios18.log) 2>&1
+          DEVICE_ID="${{ steps.simulator.outputs.device }}"
+          xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
+          python3 -c 'import subprocess, sys; subprocess.run(["xcrun", "simctl", "bootstatus", sys.argv[1], "-b"], check=True, timeout=300)' "$DEVICE_ID"
+          xcrun simctl install "$DEVICE_ID" build/sim-ios18/Build/Products/Debug-iphonesimulator/Cheetah.app
+          xcrun simctl launch "$DEVICE_ID" com.example.cheetah
+          sleep 8
+          xcrun simctl io "$DEVICE_ID" screenshot /tmp/cheetah-ios18.png
+
+      - name: Publish fallback preview
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p ci-preview
+          cp /tmp/cheetah-ios18.png ci-preview/ios-18.png
+          git checkout -B ios-18-preview
+          git add -f ci-preview
+          git commit -m "iOS 18 fallback preview" || true
+          git push origin ios-18-preview --force
+
+      - name: Run UI tests
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project ios/Cheetah.xcodeproj \
+            -scheme Cheetah \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.device }}" \
+            -derivedDataPath build/uitest-ios18 \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO 2>&1 | tee /tmp/xcodebuild-uitest-ios18.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Publish fallback failure log
+        if: failure()
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p ci-logs-ios18
+          for file in /tmp/rust-ios18.log /tmp/xcodegen-ios18.log /tmp/xcodebuild-ios18.log /tmp/xcodebuild-sim-ios18.log /tmp/simulator-ios18.log /tmp/xcodebuild-uitest-ios18.log; do
+            if [ -f "$file" ]; then
+              cp "$file" "ci-logs-ios18/$(basename "$file")"
+            fi
+          done
+          DEVICE_ID="${{ steps.simulator.outputs.device }}"
+          if [ -n "$DEVICE_ID" ]; then
+            python3 -c 'import subprocess, sys; subprocess.run(["xcrun", "simctl", "io", sys.argv[1], "screenshot", "ci-logs-ios18/failure.png"], timeout=30)' "$DEVICE_ID" || true
+          fi
+          git checkout -B ci-logs-ios18
+          git add -f ci-logs-ios18
+          git commit -m "iOS 18 fallback failure logs" || true
+          git push origin ci-logs-ios18 --force
