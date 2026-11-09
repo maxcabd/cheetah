@@ -398,6 +398,7 @@ final class RustHost: NSObject {
             if let props = node.mapProps {
                 applyMap(map, props: props)
             }
+            print("CHEETAH_MAP frame=\(map.frame) bounds=\(map.bounds) window=\(map.window != nil) annotations=\(map.annotations.count)")
         }
     }
 
@@ -490,7 +491,12 @@ final class RustHost: NSObject {
 
         if let map = view as? MKMapView {
             node.mapProps = props
-            applyMap(map, props: props)
+            // A map created during the create pass has no superview yet. Let
+            // the first layout pass install it in the window before MapKit
+            // initializes its Metal-backed map layer.
+            if map.superview != nil {
+                applyMap(map, props: props)
+            }
         }
 
         let radius = number(props["radius"])
