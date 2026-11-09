@@ -69,6 +69,8 @@ pub struct Props {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub test_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub gap: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub align_items: Option<String>,
@@ -176,6 +178,11 @@ impl Props {
 
     pub fn label(mut self, value: impl Into<String>) -> Self {
         self.label = Some(value.into());
+        self
+    }
+
+    pub fn test_id(mut self, value: impl Into<String>) -> Self {
+        self.test_id = Some(value.into());
         self
     }
 
@@ -360,6 +367,11 @@ impl Element {
 
     pub fn label(mut self, value: impl Into<String>) -> Self {
         self.props.label = Some(value.into());
+        self
+    }
+
+    pub fn test_id(mut self, value: impl Into<String>) -> Self {
+        self.props.test_id = Some(value.into());
         self
     }
 

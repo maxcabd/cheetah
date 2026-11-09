@@ -408,6 +408,10 @@ final class RustHost: NSObject {
             view.accessibilityLabel = label
         }
 
+        if let testID = props["testId"] as? String {
+            view.accessibilityIdentifier = testID
+        }
+
         if let scroll = view as? UIScrollView {
             if props["contentInsetTop"] != nil || props["contentInsetBottom"] != nil {
                 let top = props["contentInsetTop"] != nil

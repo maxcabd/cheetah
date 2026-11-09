@@ -347,6 +347,7 @@ impl ChatApp {
         } else {
             button("Clear")
                 .key("clear")
+                .test_id("cheetah-clear")
                 .size(12.0)
                 .color(MUTED)
                 .bg(PANEL)
@@ -403,6 +404,7 @@ impl ChatApp {
             .child(
                 button(label)
                     .key(key)
+                    .test_id(format!("cheetah-{key}"))
                     .width(-1.0)
                     .height(-1.0)
                     .size(size)
@@ -543,6 +545,7 @@ impl ChatApp {
         } else {
             button("Send")
                 .key("send")
+                .test_id("cheetah-send")
                 .width(64.0)
                 .height(40.0)
                 .size(14.0)
@@ -562,6 +565,7 @@ impl ChatApp {
             .child(
                 input("Message #rust-mobile", self.draft.as_str())
                     .key("composer")
+                    .test_id("cheetah-composer")
                     .weight(1.0)
                     .height(40.0)
                     .size(15.0)

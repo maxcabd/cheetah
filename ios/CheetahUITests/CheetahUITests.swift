@@ -9,12 +9,12 @@ final class CheetahUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        let field = app.textFields.firstMatch
+        let field = app.textFields["cheetah-composer"]
         XCTAssertTrue(field.waitForExistence(timeout: 20), "composer should be visible")
         field.tap()
         field.typeText("hello from ios")
 
-        let send = app.buttons["Send"]
+        let send = app.buttons["cheetah-send"]
         XCTAssertTrue(send.waitForExistence(timeout: 5), "send button should be visible")
         send.tap()
 
