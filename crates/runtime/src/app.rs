@@ -1,5 +1,5 @@
 use crate::diff::{diff, Op};
-use crate::element::Element;
+use crate::element::{Element, Props};
 use crate::layout::{compute, Frame, TextMeasurer};
 use crate::tree::{build, flatten, FlatTree};
 use serde::Deserialize;
@@ -116,35 +116,45 @@ impl Runtime {
             return Vec::new();
         }
 
-        self.viewport = viewport;
-        self.layout_dirty = false;
-        let frames = compute(
-            &root,
-            viewport.width,
-            viewport.height,
-            self.text_measurer.as_deref(),
-        );
-
         let mut ops = diff(self.previous.as_ref(), &flat);
-        for (id, frame) in &frames {
-            let changed = self
-                .frames
-                .get(id)
-                .map(|previous| previous != frame)
-                .unwrap_or(true);
-            if changed {
-                ops.push(Op::Layout {
-                    id: *id,
-                    x: frame.x,
-                    y: frame.y,
-                    width: frame.width,
-                    height: frame.height,
-                });
+        let layout_needed = self.layout_dirty
+            || viewport != self.viewport
+            || self
+                .previous
+                .as_ref()
+                .is_none_or(|previous| layout_required(previous, &flat));
+
+        if layout_needed {
+            self.viewport = viewport;
+            self.layout_dirty = false;
+            let frames = compute(
+                &root,
+                viewport.width,
+                viewport.height,
+                self.text_measurer.as_deref(),
+            );
+
+            for (id, frame) in &frames {
+                let changed = self
+                    .frames
+                    .get(id)
+                    .map(|previous| previous != frame)
+                    .unwrap_or(true);
+                if changed {
+                    ops.push(Op::Layout {
+                        id: *id,
+                        x: frame.x,
+                        y: frame.y,
+                        width: frame.width,
+                        height: frame.height,
+                    });
+                }
             }
+
+            self.frames = frames;
         }
 
         self.previous = Some(flat);
-        self.frames = frames;
         ops
     }
 
@@ -186,10 +196,59 @@ impl Runtime {
     }
 }
 
+fn layout_required(previous: &FlatTree, next: &FlatTree) -> bool {
+    if previous.len() != next.len() {
+        return true;
+    }
+
+    for (id, node) in next {
+        let Some(old) = previous.get(id) else {
+            return true;
+        };
+        if old.kind != node.kind
+            || old.parent != node.parent
+            || old.children != node.children
+            || props_affect_layout(&old.props, &node.props)
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
+fn props_affect_layout(previous: &Props, next: &Props) -> bool {
+    if previous.width != next.width
+        || previous.height != next.height
+        || previous.pad != next.pad
+        || previous.pad_h != next.pad_h
+        || previous.pad_v != next.pad_v
+        || previous.weight != next.weight
+        || previous.gap != next.gap
+        || previous.align_items != next.align_items
+        || previous.justify != next.justify
+        || previous.absolute != next.absolute
+        || previous.top != next.top
+        || previous.left != next.left
+        || previous.bottom != next.bottom
+        || previous.size != next.size
+        || previous.bold != next.bold
+        || previous.placeholder != next.placeholder
+    {
+        return true;
+    }
+
+    previous.text != next.text && !(has_fixed_size(previous) && has_fixed_size(next))
+}
+
+fn has_fixed_size(props: &Props) -> bool {
+    props.width.is_some() && props.height.is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use super::{App, Event, HostInfo, Runtime, Viewport};
-    use crate::element::{column, text, Element};
+    use crate::element::{button, column, text, Element};
     use crate::layout::TextMeasurer;
     use std::cell::Cell;
     use std::rc::Rc;
@@ -213,6 +272,36 @@ mod tests {
         }
 
         fn update(&mut self, _: Event) {}
+    }
+
+    struct ColoredTextApp {
+        red: bool,
+    }
+
+    impl App for ColoredTextApp {
+        fn view(&self, _: &crate::app::ViewContext) -> Element {
+            text("hello").color(if self.red { "#ff0000" } else { "#0000ff" })
+        }
+
+        fn update(&mut self, _: Event) {
+            self.red = !self.red;
+        }
+    }
+
+    struct FixedButtonApp {
+        label: &'static str,
+    }
+
+    impl App for FixedButtonApp {
+        fn view(&self, _: &crate::app::ViewContext) -> Element {
+            column()
+                .child(text("measure me"))
+                .child(button(self.label).width(50.0).height(20.0))
+        }
+
+        fn update(&mut self, _: Event) {
+            self.label = if self.label == "off" { "on" } else { "off" };
+        }
     }
 
     #[test]
@@ -264,6 +353,61 @@ mod tests {
 
         let second = runtime.render(viewport);
         assert!(second.is_empty());
+        assert_eq!(measurer.calls.get(), calls_after_first);
+    }
+
+    #[test]
+    fn non_layout_prop_change_skips_layout() {
+        let measurer = Rc::new(CountingMeasurer {
+            calls: Cell::new(0),
+        });
+        let mut runtime = Runtime::new(ColoredTextApp { red: false });
+        runtime.set_text_measurer(measurer.clone());
+        let viewport = Viewport {
+            width: 300.0,
+            height: 600.0,
+        };
+
+        let first = runtime.render(viewport);
+        assert!(!first.is_empty());
+        let calls_after_first = measurer.calls.get();
+
+        let ops = runtime.dispatch(Event {
+            id: 0,
+            key: None,
+            kind: "click".into(),
+            payload: String::new(),
+        });
+
+        assert!(!ops.is_empty());
+        assert_eq!(measurer.calls.get(), calls_after_first);
+    }
+
+    #[test]
+    fn fixed_size_text_change_skips_layout() {
+        let measurer = Rc::new(CountingMeasurer {
+            calls: Cell::new(0),
+        });
+        let mut runtime = Runtime::new(FixedButtonApp { label: "off" });
+        runtime.set_text_measurer(measurer.clone());
+        let viewport = Viewport {
+            width: 300.0,
+            height: 600.0,
+        };
+
+        let first = runtime.render(viewport);
+        assert!(!first.is_empty());
+        let calls_after_first = measurer.calls.get();
+        assert!(calls_after_first > 0);
+
+        let ops = runtime.dispatch(Event {
+            id: 0,
+            key: None,
+            kind: "click".into(),
+            payload: String::new(),
+        });
+
+        assert!(!ops.is_empty());
         assert_eq!(measurer.calls.get(), calls_after_first);
     }
 }
