@@ -68,6 +68,7 @@ private final class NodeTag {
     var contentHeight: CGFloat = 0
     var pendingScrollTo: CGFloat?
     var lastScrollTo: CGFloat?
+    var lastValue: String?
     var updating = false
 
     init(id: UInt32, kind: String, view: UIView) {
@@ -359,10 +360,23 @@ final class RustHost: NSObject {
             if let align = props["align"] as? String {
                 field.textAlignment = textAlignment(align)
             }
-            if let value = props["value"] as? String, field.text != value {
-                node.updating = true
-                field.text = value
-                node.updating = false
+            if let value = props["value"] as? String {
+                let previous = node.lastValue
+                node.lastValue = value
+                if field.isFirstResponder {
+                    // Do not echo a stale Rust value back into the field while
+                    // the user is typing ahead of the actor. An explicit clear
+                    // after send is the one update we must apply immediately.
+                    if let previous, !previous.isEmpty, value.isEmpty {
+                        node.updating = true
+                        field.text = value
+                        node.updating = false
+                    }
+                } else if field.text != value {
+                    node.updating = true
+                    field.text = value
+                    node.updating = false
+                }
             }
         }
 
