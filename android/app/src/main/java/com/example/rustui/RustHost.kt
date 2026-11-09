@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.text.Editable
@@ -16,6 +17,7 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.FrameLayout
@@ -31,6 +33,7 @@ import kotlin.math.roundToInt
 class RustHost(
     private val context: Context,
     private val root: FrameLayout,
+    private val edgeToEdge: Boolean,
 ) {
     private var handle: Long = RustBridge.nativeNew(
         this,
@@ -42,7 +45,10 @@ class RustHost(
     private val mainHandler = Handler(Looper.getMainLooper())
     private var lastWidth = 0f
     private var lastHeight = 0f
-    private var hostInfoSent = false
+    private var safeTop = 0.0
+    private var safeBottom = 0.0
+    private var keyboardInset = 0.0
+    private var lastHostInfo: String? = null
     private val pools = HashMap<String, ArrayDeque<View>>()
 
     init {
@@ -68,20 +74,35 @@ class RustHost(
         }
     }
 
+    fun onWindowInsets(insets: WindowInsets) {
+        if (!edgeToEdge || handle == 0L || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            return
+        }
+
+        val bars = insets.getInsets(WindowInsets.Type.systemBars())
+        val ime = insets.getInsets(WindowInsets.Type.ime())
+        safeTop = bars.top / density.toDouble()
+        safeBottom = bars.bottom / density.toDouble()
+        keyboardInset = ime.bottom / density.toDouble()
+        sendHostInfo()
+        root.post { resizeIfNeeded() }
+    }
+
     private fun sendHostInfo() {
-        if (handle == 0L || hostInfoSent) return
+        if (handle == 0L) return
 
         val payload = JSONObject().apply {
-            put("safeTop", 0.0)
-            put("safeBottom", 0.0)
-            put("keyboardInset", 0.0)
-            put("overlayChrome", false)
+            put("safeTop", safeTop)
+            put("safeBottom", safeBottom)
+            put("keyboardInset", keyboardInset)
+            put("overlayChrome", edgeToEdge)
             put("glass", false)
             put("scale", density.toDouble())
         }.toString()
 
+        if (payload == lastHostInfo) return
+        lastHostInfo = payload
         RustBridge.nativeEvent(handle, 0, "host", payload)
-        hostInfoSent = true
     }
 
     private fun resizeIfNeeded() {
@@ -461,13 +482,24 @@ class RustHost(
             }
         }
 
-        if (props.has("bg") || props.has("radius")) {
-            val color = if (props.has("bg")) {
-                Color.parseColor(props.getString("bg"))
-            } else {
-                Color.TRANSPARENT
-            }
+        if (props.has("bg") || props.has("radius") || (tag.kind == "glass" && props.has("glassTint"))) {
             val radius = dp(props.optDouble("radius", 0.0).toFloat()).toFloat()
+            var color = when {
+                props.has("bg") -> parseColor(props.getString("bg"))
+                tag.kind == "glass" && props.has("glassTint") ->
+                    parseColor(props.getString("glassTint"))
+                else -> Color.TRANSPARENT
+            }
+            if (tag.kind == "glass" && radius == 0f) {
+                // Android has no UIGlassEffect blur here. Use an opaque
+                // fallback for the large floating bars so scrolling rows
+                // never ghost through the header or composer.
+                color = Color.rgb(
+                    Color.red(color),
+                    Color.green(color),
+                    Color.blue(color),
+                )
+            }
             view.background = GradientDrawable().apply {
                 setColor(color)
                 cornerRadius = radius
@@ -497,6 +529,20 @@ class RustHost(
                 view.setSelection(view.text.length)
                 tag.updating = false
             }
+        }
+
+        if (view is ScrollView && (props.has("contentInsetTop") || props.has("contentInsetBottom"))) {
+            val top = if (props.has("contentInsetTop")) {
+                dp(props.getDouble("contentInsetTop").toFloat())
+            } else {
+                view.paddingTop
+            }
+            val bottom = if (props.has("contentInsetBottom")) {
+                dp(props.getDouble("contentInsetBottom").toFloat())
+            } else {
+                view.paddingBottom
+            }
+            view.setPadding(0, top, 0, bottom)
         }
 
         if (props.has("contentHeight")) {
@@ -530,6 +576,18 @@ class RustHost(
     }
 
     private fun dp(value: Float): Int = (value * density).roundToInt()
+
+    private fun parseColor(value: String): Int {
+        val hex = value.removePrefix("#")
+        if (hex.length != 8) {
+            return Color.parseColor(value)
+        }
+        val red = hex.substring(0, 2).toInt(16)
+        val green = hex.substring(2, 4).toInt(16)
+        val blue = hex.substring(4, 6).toInt(16)
+        val alpha = hex.substring(6, 8).toInt(16)
+        return Color.argb(alpha, red, green, blue)
+    }
 
     companion object {
         private const val POOL_LIMIT = 64

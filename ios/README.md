@@ -50,7 +50,7 @@ Before the first resize, the host sends a `host` event. iOS sends it full-screen
 }
 ```
 
-Rust uses `safeTop`, `safeBottom`, and `keyboardInset` to size the floating chrome, set list content insets, and clamp scroll offsets. `overlayChrome` selects the floating-chrome layout; Android currently sends `false` because its root uses `fitsSystemWindows` and native resize handling. The demo no longer branches on the target OS.
+Rust uses `safeTop`, `safeBottom`, and `keyboardInset` to size the floating chrome, set list content insets, and clamp scroll offsets. `overlayChrome` selects the floating-chrome layout; Android sends `true` on API 30+ with system-bar and IME insets, and `false` on older devices that use `fitsSystemWindows`. The demo no longer branches on the target OS.
 
 When the keyboard opens, the controller re-sends the host info with `keyboardInset`, so the composer moves above the keyboard and the list keeps its final rows visible.
 
