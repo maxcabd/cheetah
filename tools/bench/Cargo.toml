@@ -1,0 +1,8 @@
+[package]
+name = "cheetah-bench"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+runtime = { path = "../../crates/runtime" }
+serde_json = "1"

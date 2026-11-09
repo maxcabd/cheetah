@@ -1,0 +1,50 @@
+name: Runtime Bench
+
+on:
+  push:
+    paths:
+      - "crates/**"
+      - "tools/bench/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/bench.yml"
+  pull_request:
+    paths:
+      - "crates/**"
+      - "tools/bench/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - ".github/workflows/bench.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bench-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Run runtime benchmark
+        shell: bash
+        run: |
+          set -o pipefail
+          cargo run -p cheetah-bench --release 2>&1 | tee bench.txt
+
+      - name: Publish benchmark summary
+        shell: bash
+        run: |
+          {
+            echo "## Cheetah runtime benchmark"
+            echo '```text'
+            cat bench.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
