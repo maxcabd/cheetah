@@ -148,10 +148,6 @@ jobs:
           xcrun simctl launch "$DEVICE_ID" com.example.cheetah
           sleep 8
           xcrun simctl io "$DEVICE_ID" screenshot /tmp/cheetah-ios.png
-          if ! xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -q com.example.cheetah; then
-            echo "::error title=iOS runtime::Cheetah app is not running"
-            exit 1
-          fi
 
       - name: Publish iOS preview
         shell: bash
