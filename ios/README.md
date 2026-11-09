@@ -2,6 +2,8 @@
 
 The iOS app is a UIKit host for the same Rust actor and op protocol used on Android. It does not use SwiftUI or React Native.
 
+![Cheetah running in the iOS Simulator](../docs/ios.png)
+
 ## Build on a Mac
 
 ```bash
@@ -32,9 +34,10 @@ The iOS Simulator shares the Mac's loopback, so `ws://127.0.0.1:9001` works as-i
 - C ABI (`cheetah_new`, `cheetah_resize`, `cheetah_event`, `cheetah_free`) over the shared Rust core.
 - Ops callback posts JSON to the main queue.
 - CoreText text measurement callback on the actor thread.
-- Native `UILabel`, `UIButton`, `UITextField`, `UIScrollView` views driven by absolute frames.
+- Native `UILabel`, custom `UIControl` buttons, `UITextField`, and `UIScrollView` views driven by absolute frames.
 - Variable-height list slots, scroll callbacks, scroll-to-bottom, connection status, and offline outbox from the shared core.
 
-## Not verified here
+## Verification
 
-This workspace runs on Windows, so the Swift app has only been type-checked at the Rust boundary (`cargo check --target aarch64-apple-ios`). The Xcode build runs in `.github/workflows/ios.yml` on a macOS runner.
+CI builds the Rust XCFramework, generates the Xcode project, builds both device and simulator targets, launches the app in an iPhone simulator, and publishes the screenshot above. The app has not yet been run on a physical device.
+

@@ -39,30 +39,6 @@ final class InsetLabel: UILabel {
     }
 }
 
-enum DebugLog {
-    private static let url = FileManager.default
-        .urls(for: .documentDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("cheetah-debug.log")
-
-    static func reset() {
-        try? FileManager.default.removeItem(at: url)
-    }
-
-    static func write(_ message: String) {
-        guard let data = (message + "\n").data(using: .utf8) else {
-            return
-        }
-
-        if let handle = try? FileHandle(forWritingTo: url) {
-            defer { try? handle.close() }
-            handle.seekToEndOfFile()
-            handle.write(data)
-        } else {
-            try? data.write(to: url)
-        }
-    }
-}
-
 /// Cheetah draws buttons from Rust props rather than UIKit's button styles.
 /// The caption is rendered directly so it does not depend on a subview
 /// layout pass, and no UIButton configuration can take over the title.

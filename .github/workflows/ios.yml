@@ -133,8 +133,6 @@ jobs:
           xcrun simctl launch "$DEVICE_ID" com.example.cheetah
           sleep 8
           xcrun simctl io "$DEVICE_ID" screenshot /tmp/cheetah-ios.png
-          CONTAINER=$(xcrun simctl get_app_container "$DEVICE_ID" com.example.cheetah data)
-          cp "$CONTAINER/Documents/cheetah-debug.log" /tmp/cheetah-debug.log || true
           if ! xcrun simctl spawn "$DEVICE_ID" launchctl list | grep -q com.example.cheetah; then
             echo "::error title=iOS runtime::Cheetah app is not running"
             exit 1
@@ -147,7 +145,6 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p ci-preview
           cp /tmp/cheetah-ios.png ci-preview/cheetah-ios.png
-          cp /tmp/cheetah-debug.log ci-preview/cheetah-debug.log || true
           git checkout -B ios-preview
           git add -f ci-preview
           git commit -m "iOS simulator preview" || true
@@ -160,7 +157,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p ci-logs
-          for file in /tmp/rust-ios.log /tmp/xcodegen.log /tmp/xcodebuild.log /tmp/xcodebuild-sim.log /tmp/simulator.log /tmp/cheetah-debug.log; do
+          for file in /tmp/rust-ios.log /tmp/xcodegen.log /tmp/xcodebuild.log /tmp/xcodebuild-sim.log /tmp/simulator.log; do
             if [ -f "$file" ]; then
               cp "$file" "ci-logs/$(basename "$file")"
             fi

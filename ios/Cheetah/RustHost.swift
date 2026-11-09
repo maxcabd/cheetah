@@ -103,7 +103,6 @@ final class RustHost: NSObject {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let storePath = documents.appendingPathComponent("cheetah.redb").path
 
-        DebugLog.reset()
         handle = storePath.withCString { store in
             "ws://127.0.0.1:9001".withCString { gateway in
                 cheetah_new(store, gateway, cheetahOpsCallback, cheetahMeasureCallback, contextPointer)
@@ -199,12 +198,6 @@ final class RustHost: NSObject {
         }
 
         applyProps(view, node: node, props: op["props"] as? [String: Any] ?? [:])
-
-        if let button = view as? CheetahButton {
-            DebugLog.write(
-                "button id=\(id) title=\(button.title ?? "nil") frame=\(view.frame)"
-            )
-        }
     }
 
     private func makeView(_ kind: String) -> UIView {
