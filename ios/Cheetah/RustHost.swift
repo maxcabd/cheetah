@@ -209,7 +209,14 @@ final class RustHost: NSObject {
             return label
 
         case "button":
-            let button = UIButton(type: .system)
+            // `.system` adopts the platform button configuration on newer
+            // iOS releases, which ignores setTitle/setTitleColor. Cheetah
+            // draws buttons entirely from Rust props, so use a plain custom
+            // control instead.
+            let button = UIButton(type: .custom)
+            button.configuration = nil
+            button.contentHorizontalAlignment = .center
+            button.titleLabel?.textAlignment = .center
             button.addTarget(self, action: #selector(buttonTapped(_:)), for: .touchUpInside)
             return button
 
@@ -366,7 +373,13 @@ final class RustHost: NSObject {
 
         let radius = number(props["radius"])
         view.layer.cornerRadius = radius
-        view.clipsToBounds = radius > 0
+        if let scroll = view as? UIScrollView {
+            // Rows include overscan outside the viewport. UIScrollView must
+            // clip even when it has no corner radius.
+            scroll.clipsToBounds = true
+        } else {
+            view.clipsToBounds = radius > 0
+        }
 
         let base = number(props["pad"])
         let horizontal = number(props["padH"], fallback: base)
