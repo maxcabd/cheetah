@@ -158,6 +158,22 @@ jobs:
             CODE_SIGNING_REQUIRED=NO 2>&1 | tee /tmp/xcodebuild-uitest-ios18.log
           exit ${PIPESTATUS[0]}
 
+      - name: Publish fallback performance report
+        if: success()
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p ci-preview
+          {
+            echo "iOS 18.5 simulator scroll performance (blur fallback)"
+            grep -E "testScrollPerformance|measured|XCTOSSignpost|frame|hitch" /tmp/xcodebuild-uitest-ios18.log | tail -100 || true
+          } > ci-preview/ios-18-performance.txt
+          git checkout -B ios-18-preview
+          git add -f ci-preview
+          git commit -m "iOS 18 performance report" || true
+          git push origin ios-18-preview --force
+
       - name: Publish fallback failure log
         if: failure()
         shell: bash

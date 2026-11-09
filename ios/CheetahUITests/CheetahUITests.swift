@@ -39,4 +39,16 @@ final class CheetahUITests: XCTestCase {
         XCTAssertTrue(restored.waitForExistence(timeout: 15), "composer should return")
         XCTAssertEqual(restored.value as? String, "draft survives", "draft should survive backgrounding")
     }
+
+    func testScrollPerformance() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let list = app.scrollViews.firstMatch
+        XCTAssertTrue(list.waitForExistence(timeout: 20), "message list should be visible")
+
+        measure(metrics: [XCTOSSignpostMetric.scrollingAndDecelerationMetric]) {
+            list.swipeUp(velocity: .fast)
+        }
+    }
 }
