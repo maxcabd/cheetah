@@ -7,3 +7,7 @@
 /android/.idea
 *.iml
 /android/app/src/main/jniLibs/**/*.so
+/ios/Cheetah.xcodeproj
+/ios/build
+/ios/DerivedData
+/ios/Libs

@@ -1,10 +1,17 @@
+#[cfg(any(target_os = "android", target_os = "ios"))]
 mod actor;
 pub mod app;
+#[cfg(any(target_os = "android", target_os = "ios"))]
+mod bridge;
 pub mod demo;
 pub mod diff;
 pub mod element;
+#[cfg(target_os = "android")]
 mod ffi;
+#[cfg(any(target_os = "android", target_os = "ios"))]
 mod gateway;
+#[cfg(target_os = "ios")]
+mod ios;
 pub mod layout;
 pub mod model;
 pub mod store;

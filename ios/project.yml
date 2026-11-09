@@ -1,0 +1,35 @@
+name: Cheetah
+options:
+  bundleIdPrefix: com.example
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+
+targets:
+  Cheetah:
+    type: application
+    platform: iOS
+    sources:
+      - path: Cheetah
+        excludes:
+          - Info.plist
+          - Cheetah-Bridging-Header.h
+          - CheetahFFI.h
+    dependencies:
+      - framework: Libs/Runtime.xcframework
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.cheetah
+        PRODUCT_NAME: Cheetah
+        INFOPLIST_FILE: Cheetah/Info.plist
+        SWIFT_OBJC_BRIDGING_HEADER: Cheetah/Cheetah-Bridging-Header.h
+        HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Cheetah"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        CODE_SIGN_STYLE: Automatic
+    scheme:
+      gatherCoverageData: false

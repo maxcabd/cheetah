@@ -1,6 +1,6 @@
 use crate::app::{Action, Event, Runtime, Viewport};
+use crate::bridge::{CachedTextMeasurer, Host};
 use crate::demo::ChatApp;
-use crate::ffi::{CachedTextMeasurer, JniHost};
 use crate::gateway::{self, Gateway};
 use crate::Op;
 use std::rc::Rc;
@@ -36,14 +36,14 @@ pub(crate) struct ActorHandle {
     pub(crate) join: Option<JoinHandle<()>>,
 }
 
-pub(crate) fn spawn(host: Arc<JniHost>, store_path: String, gateway_url: String) -> ActorHandle {
+pub(crate) fn spawn(host: Arc<dyn Host>, store_path: String, gateway_url: String) -> ActorHandle {
     let (sender, mut receiver) = unbounded_channel();
     let actor_sender = sender.clone();
 
     let join = std::thread::Builder::new()
         .name("cheetah-ui".into())
         .spawn(move || {
-            host.attach_current_thread();
+            host.attach();
 
             let mut runtime = Runtime::new(ChatApp::new(&store_path));
             runtime.set_text_measurer(Rc::new(CachedTextMeasurer::new(Arc::clone(&host))));
@@ -62,14 +62,14 @@ pub(crate) fn spawn(host: Arc<JniHost>, store_path: String, gateway_url: String)
                 match command {
                     Command::Resize(viewport) => {
                         let ops = runtime.render(viewport);
-                        emit(&host, ops);
+                        emit(host.as_ref(), ops);
                     }
                     Command::Event { id, kind, payload } => {
                         let ops = runtime.event(id, &kind, &payload);
-                        emit(&host, ops);
+                        emit(host.as_ref(), ops);
                         process_actions(
                             &mut runtime,
-                            &host,
+                            host.as_ref(),
                             &tokio_runtime,
                             &gateway,
                             &actor_sender,
@@ -83,7 +83,7 @@ pub(crate) fn spawn(host: Arc<JniHost>, store_path: String, gateway_url: String)
                             payload: format!("{author}\u{1f}{body}"),
                         };
                         let ops = runtime.dispatch(event);
-                        emit(&host, ops);
+                        emit(host.as_ref(), ops);
                     }
                     Command::Ack { id } => {
                         let event = Event {
@@ -93,7 +93,7 @@ pub(crate) fn spawn(host: Arc<JniHost>, store_path: String, gateway_url: String)
                             payload: id.to_string(),
                         };
                         let ops = runtime.dispatch(event);
-                        emit(&host, ops);
+                        emit(host.as_ref(), ops);
                     }
                     Command::SendTimeout { id } => {
                         let event = Event {
@@ -103,7 +103,7 @@ pub(crate) fn spawn(host: Arc<JniHost>, store_path: String, gateway_url: String)
                             payload: id.to_string(),
                         };
                         let ops = runtime.dispatch(event);
-                        emit(&host, ops);
+                        emit(host.as_ref(), ops);
 
                         if runtime.has_queued() {
                             spawn_retry(&tokio_runtime, actor_sender.clone());
@@ -117,10 +117,10 @@ pub(crate) fn spawn(host: Arc<JniHost>, store_path: String, gateway_url: String)
                             payload: String::new(),
                         };
                         let ops = runtime.dispatch(event);
-                        emit(&host, ops);
+                        emit(host.as_ref(), ops);
                         process_actions(
                             &mut runtime,
-                            &host,
+                            host.as_ref(),
                             &tokio_runtime,
                             &gateway,
                             &actor_sender,
@@ -134,10 +134,10 @@ pub(crate) fn spawn(host: Arc<JniHost>, store_path: String, gateway_url: String)
                             payload: if online { "online" } else { "offline" }.into(),
                         };
                         let ops = runtime.dispatch(event);
-                        emit(&host, ops);
+                        emit(host.as_ref(), ops);
                         process_actions(
                             &mut runtime,
-                            &host,
+                            host.as_ref(),
                             &tokio_runtime,
                             &gateway,
                             &actor_sender,
@@ -155,7 +155,7 @@ pub(crate) fn spawn(host: Arc<JniHost>, store_path: String, gateway_url: String)
     }
 }
 
-fn emit(host: &JniHost, ops: Vec<Op>) {
+fn emit(host: &dyn Host, ops: Vec<Op>) {
     if ops.is_empty() {
         return;
     }
@@ -166,7 +166,7 @@ fn emit(host: &JniHost, ops: Vec<Op>) {
 
 fn process_actions(
     runtime: &mut Runtime,
-    host: &JniHost,
+    host: &dyn Host,
     tokio_runtime: &tokio::runtime::Runtime,
     gateway: &Gateway,
     sender: &UnboundedSender<Command>,

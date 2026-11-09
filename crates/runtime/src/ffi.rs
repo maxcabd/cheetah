@@ -1,15 +1,10 @@
 use crate::actor::{spawn, ActorHandle, Command};
 use crate::app::Viewport;
-use crate::layout::TextMeasurer;
+use crate::bridge::Host;
 use jni::objects::{GlobalRef, JFloatArray, JObject, JString, JValue};
 use jni::sys::{jfloat, jint, jlong};
 use jni::{JNIEnv, JavaVM};
-use std::cell::RefCell;
-use std::collections::HashMap;
 use std::sync::Arc;
-
-type MeasurementKey = (String, u32, bool, u32);
-type Measurement = (f32, f32);
 
 pub(crate) struct JniHost {
     vm: JavaVM,
@@ -93,40 +88,17 @@ impl JniHost {
     }
 }
 
-pub(crate) struct CachedTextMeasurer {
-    host: Arc<JniHost>,
-    cache: RefCell<HashMap<MeasurementKey, Measurement>>,
-}
-
-impl CachedTextMeasurer {
-    pub(crate) fn new(host: Arc<JniHost>) -> Self {
-        Self {
-            host,
-            cache: RefCell::new(HashMap::new()),
-        }
+impl Host for JniHost {
+    fn attach(&self) {
+        self.attach_current_thread();
     }
-}
 
-impl TextMeasurer for CachedTextMeasurer {
-    fn measure(&self, text: &str, font_size: f32, bold: bool, max_width: f32) -> (f32, f32) {
-        let key = (
-            text.to_string(),
-            font_size.to_bits(),
-            bold,
-            max_width.to_bits(),
-        );
+    fn measure_text(&self, text: &str, font_size: f32, bold: bool, max_width: f32) -> (f32, f32) {
+        JniHost::measure_text(self, text, font_size, bold, max_width)
+    }
 
-        if let Some(value) = self.cache.borrow().get(&key) {
-            return *value;
-        }
-
-        let value = self.host.measure_text(text, font_size, bold, max_width);
-        let mut cache = self.cache.borrow_mut();
-        if cache.len() > 4096 {
-            cache.clear();
-        }
-        cache.insert(key, value);
-        value
+    fn emit_ops(&self, json: &str) {
+        JniHost::emit_ops(self, json);
     }
 }
 
@@ -141,7 +113,7 @@ pub extern "system" fn Java_com_example_rustui_RustBridge_nativeNew<'local>(
         Ok(path) => path.into(),
         Err(_) => return 0,
     };
-    let host = match JniHost::new(&mut env, host) {
+    let host: Arc<dyn Host> = match JniHost::new(&mut env, host) {
         Ok(host) => Arc::new(host),
         Err(_) => return 0,
     };
