@@ -188,7 +188,32 @@ impl Runtime {
 
 #[cfg(test)]
 mod tests {
-    use super::HostInfo;
+    use super::{App, Event, HostInfo, Runtime, Viewport};
+    use crate::element::{column, text, Element};
+    use crate::layout::TextMeasurer;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    struct CountingMeasurer {
+        calls: Cell<usize>,
+    }
+
+    impl TextMeasurer for CountingMeasurer {
+        fn measure(&self, _: &str, _: f32, _: bool, max_width: f32) -> (f32, f32) {
+            self.calls.set(self.calls.get() + 1);
+            (max_width.min(50.0), 20.0)
+        }
+    }
+
+    struct StaticApp;
+
+    impl App for StaticApp {
+        fn view(&self, _: &crate::app::ViewContext) -> Element {
+            column().width(300.0).height(600.0).child(text("hello"))
+        }
+
+        fn update(&mut self, _: Event) {}
+    }
 
     #[test]
     fn host_info_is_parsed_from_the_host_payload() {
@@ -218,5 +243,27 @@ mod tests {
         assert!(!info.overlay_chrome);
         assert!(!info.glass);
         assert_eq!(info.scale, 1.0);
+    }
+
+    #[test]
+    fn unchanged_frame_skips_layout() {
+        let measurer = Rc::new(CountingMeasurer {
+            calls: Cell::new(0),
+        });
+        let mut runtime = Runtime::new(StaticApp);
+        runtime.set_text_measurer(measurer.clone());
+        let viewport = Viewport {
+            width: 300.0,
+            height: 600.0,
+        };
+
+        let first = runtime.render(viewport);
+        assert!(!first.is_empty());
+        let calls_after_first = measurer.calls.get();
+        assert!(calls_after_first > 0);
+
+        let second = runtime.render(viewport);
+        assert!(second.is_empty());
+        assert_eq!(measurer.calls.get(), calls_after_first);
     }
 }
