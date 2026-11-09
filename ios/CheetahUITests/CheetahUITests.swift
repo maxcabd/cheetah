@@ -40,6 +40,16 @@ final class CheetahUITests: XCTestCase {
         XCTAssertEqual(restored.value as? String, "draft survives", "draft should survive backgrounding")
     }
 
+    func testNightshadeMapShell() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--nightshade"]
+        app.launch()
+
+        let map = app.descendants(matching: .any)["nightshade-map"]
+        XCTAssertTrue(map.waitForExistence(timeout: 20), "native map should be present")
+        print(app.debugDescription)
+    }
+
     func testScrollPerformance() throws {
         let app = XCUIApplication()
         app.launch()

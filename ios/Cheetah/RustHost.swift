@@ -316,10 +316,13 @@ final class RustHost: NSObject {
 
         case "map":
             let map = MKMapView()
+            map.backgroundColor = UIColor(hex: "#101826")
+            map.isOpaque = true
             map.showsCompass = false
             map.showsScale = false
             map.isRotateEnabled = false
             map.isPitchEnabled = false
+            map.delegate = self
             return map
 
         default:
@@ -558,6 +561,11 @@ final class RustHost: NSObject {
                 )
             )
             map.setRegion(region, animated: false)
+            // MapKit may discard an early region update while the view is
+            // still zero-sized. Re-apply once the first layout pass is done.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak map] in
+                map?.setRegion(region, animated: false)
+            }
         }
 
         guard
@@ -709,6 +717,25 @@ extension RustHost: UIScrollViewDelegate {
                 payload: String(Double(scrollView.contentOffset.y + scrollView.contentInset.top))
             )
         }
+    }
+}
+
+extension RustHost: MKMapViewDelegate {
+    func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+        guard annotation is MKPointAnnotation else {
+            return nil
+        }
+
+        let identifier = "cheetah-place"
+        let marker = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+            as? MKMarkerAnnotationView
+            ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+        marker.annotation = annotation
+        marker.markerTintColor = UIColor(hex: "#e5522f")
+        marker.glyphImage = UIImage(systemName: "fork.knife")
+        marker.canShowCallout = true
+        marker.displayPriority = .required
+        return marker
     }
 }
 

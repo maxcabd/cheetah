@@ -161,10 +161,14 @@ jobs:
           xcrun simctl launch "$DEVICE_ID" com.example.cheetah --nightshade
           sleep 8
           xcrun simctl io "$DEVICE_ID" screenshot /tmp/nightshade-ios.png
+          xcrun simctl spawn "$DEVICE_ID" log show --last 2m --style compact \
+            --predicate 'process == "Cheetah" OR subsystem CONTAINS[c] "MapKit" OR subsystem CONTAINS[c] "GeoServices"' \
+            > /tmp/nightshade-mapkit.log 2>&1 || true
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p ci-preview
           cp /tmp/nightshade-ios.png ci-preview/nightshade-ios.png
+          cp /tmp/nightshade-mapkit.log ci-preview/nightshade-mapkit.log 2>/dev/null || true
           git checkout -B nightshade-preview
           git add -f ci-preview
           git commit -m "Nightshade simulator preview" || true

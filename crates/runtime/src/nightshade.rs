@@ -139,6 +139,8 @@ impl App for NightshadeApp {
                 map()
                     .width(-1.0)
                     .height(-1.0)
+                    .bg("#101826")
+                    .test_id("nightshade-map")
                     .map_region(37.7749, -122.4194, 0.025, 0.025)
                     .map_markers(MARKERS)
                     .map_dark(true),
