@@ -1,1 +1,1 @@
-Cheetah drives native Android views from Rust, with no JavaScript.
+Rust runtime that drives native Android views with no JavaScript.
