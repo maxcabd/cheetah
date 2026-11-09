@@ -34,10 +34,12 @@ class RustHost(
     private val context: Context,
     private val root: FrameLayout,
     private val edgeToEdge: Boolean,
+    app: String = "chat",
 ) {
-    private var handle: Long = RustBridge.nativeNew(
+    private var handle: Long = RustBridge.nativeNewApp(
         this,
         File(context.filesDir, "cheetah.redb").absolutePath,
+        app,
     )
     private val views = HashMap<Int, View>()
     private val tags = HashMap<Int, NodeTag>()
@@ -239,6 +241,10 @@ class RustHost(
 
     private fun createView(kind: String): View = when (kind) {
         "column", "row", "glass" -> FrameLayout(context)
+
+        "map" -> FrameLayout(context).apply {
+            setBackgroundColor(Color.parseColor("#0b0b0f"))
+        }
 
         "text" -> TextView(context).apply {
             setTextColor(Color.WHITE)

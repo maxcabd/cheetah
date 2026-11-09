@@ -113,13 +113,36 @@ pub extern "system" fn Java_com_example_rustui_RustBridge_nativeNew<'local>(
         Ok(path) => path.into(),
         Err(_) => return 0,
     };
-    let host: Arc<dyn Host> = match JniHost::new(&mut env, host) {
+    new_actor(&mut env, host, store_path, "chat".to_string())
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_example_rustui_RustBridge_nativeNewApp<'local>(
+    mut env: JNIEnv<'local>,
+    _this: JObject<'local>,
+    host: JObject<'local>,
+    store_path: JString<'local>,
+    app: JString<'local>,
+) -> jlong {
+    let store_path: String = match env.get_string(&store_path) {
+        Ok(path) => path.into(),
+        Err(_) => return 0,
+    };
+    let app: String = match env.get_string(&app) {
+        Ok(value) => value.into(),
+        Err(_) => return 0,
+    };
+    new_actor(&mut env, host, store_path, app)
+}
+
+fn new_actor(env: &mut JNIEnv, host: JObject, store_path: String, app: String) -> jlong {
+    let host: Arc<dyn Host> = match JniHost::new(env, host) {
         Ok(host) => Arc::new(host),
         Err(_) => return 0,
     };
 
     // `adb reverse tcp:9001 tcp:9001` maps this to the local gateway.
-    let actor = spawn(host, store_path, "ws://127.0.0.1:9001".to_string());
+    let actor = spawn(host, store_path, "ws://127.0.0.1:9001".to_string(), app);
     Box::into_raw(Box::new(actor)) as jlong
 }
 

@@ -22,6 +22,15 @@ int64_t cheetah_new(
     void *context
 );
 
+int64_t cheetah_new_app(
+    const char *store_path,
+    const char *gateway_url,
+    const char *app,
+    CheetahOpsCallback ops,
+    CheetahMeasureCallback measure,
+    void *context
+);
+
 void cheetah_resize(int64_t handle, float width, float height);
 void cheetah_event(int64_t handle, uint32_t id, const char *kind, const char *payload);
 void cheetah_lifecycle(int64_t handle, int active);

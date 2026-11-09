@@ -51,6 +51,33 @@ pub unsafe extern "C" fn cheetah_new(
     measure: MeasureCallback,
     context: *mut c_void,
 ) -> i64 {
+    new_actor(store_path, gateway_url, "chat", ops, measure, context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn cheetah_new_app(
+    store_path: *const c_char,
+    gateway_url: *const c_char,
+    app: *const c_char,
+    ops: OpsCallback,
+    measure: MeasureCallback,
+    context: *mut c_void,
+) -> i64 {
+    if app.is_null() {
+        return 0;
+    }
+    let app = CStr::from_ptr(app).to_string_lossy().into_owned();
+    new_actor(store_path, gateway_url, &app, ops, measure, context)
+}
+
+unsafe fn new_actor(
+    store_path: *const c_char,
+    gateway_url: *const c_char,
+    app: &str,
+    ops: OpsCallback,
+    measure: MeasureCallback,
+    context: *mut c_void,
+) -> i64 {
     if store_path.is_null() || gateway_url.is_null() {
         return 0;
     }
@@ -62,7 +89,7 @@ pub unsafe extern "C" fn cheetah_new(
         measure,
         context,
     });
-    let actor = spawn(host, store_path, gateway_url);
+    let actor = spawn(host, store_path, gateway_url, app.to_string());
     Box::into_raw(Box::new(actor)) as i64
 }
 

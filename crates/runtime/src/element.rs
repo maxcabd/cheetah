@@ -10,6 +10,7 @@ pub enum Kind {
     Scroll,
     List,
     Glass,
+    Map,
     Input,
     Space,
 }
@@ -24,6 +25,7 @@ impl Kind {
             Kind::Scroll => "scroll",
             Kind::List => "list",
             Kind::Glass => "glass",
+            Kind::Map => "map",
             Kind::Input => "input",
             Kind::Space => "space",
         }
@@ -98,6 +100,18 @@ pub struct Props {
     pub content_inset_bottom: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bottom: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub map_latitude: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub map_longitude: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub map_latitude_delta: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub map_longitude_delta: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub map_markers: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub map_dark: Option<bool>,
 }
 
 impl Props {
@@ -253,6 +267,30 @@ impl Props {
 
     pub fn bottom(mut self, value: f32) -> Self {
         self.bottom = Some(value);
+        self
+    }
+
+    pub fn map_region(
+        mut self,
+        latitude: f32,
+        longitude: f32,
+        latitude_delta: f32,
+        longitude_delta: f32,
+    ) -> Self {
+        self.map_latitude = Some(latitude);
+        self.map_longitude = Some(longitude);
+        self.map_latitude_delta = Some(latitude_delta);
+        self.map_longitude_delta = Some(longitude_delta);
+        self
+    }
+
+    pub fn map_markers(mut self, value: impl Into<String>) -> Self {
+        self.map_markers = Some(value.into());
+        self
+    }
+
+    pub fn map_dark(mut self, value: bool) -> Self {
+        self.map_dark = Some(value);
         self
     }
 }
@@ -444,6 +482,30 @@ impl Element {
         self.props.bottom = Some(value);
         self
     }
+
+    pub fn map_region(
+        mut self,
+        latitude: f32,
+        longitude: f32,
+        latitude_delta: f32,
+        longitude_delta: f32,
+    ) -> Self {
+        self.props.map_latitude = Some(latitude);
+        self.props.map_longitude = Some(longitude);
+        self.props.map_latitude_delta = Some(latitude_delta);
+        self.props.map_longitude_delta = Some(longitude_delta);
+        self
+    }
+
+    pub fn map_markers(mut self, value: impl Into<String>) -> Self {
+        self.props.map_markers = Some(value.into());
+        self
+    }
+
+    pub fn map_dark(mut self, value: bool) -> Self {
+        self.props.map_dark = Some(value);
+        self
+    }
 }
 
 pub fn column() -> Element {
@@ -476,6 +538,10 @@ pub fn list() -> Element {
 
 pub fn glass() -> Element {
     Element::new(Kind::Glass)
+}
+
+pub fn map() -> Element {
+    Element::new(Kind::Map)
 }
 
 pub fn input(placeholder: impl Into<String>, value: impl Into<String>) -> Element {

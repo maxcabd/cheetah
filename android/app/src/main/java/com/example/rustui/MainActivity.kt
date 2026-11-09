@@ -27,7 +27,12 @@ class MainActivity : Activity() {
         }
         setContentView(root)
 
-        host = RustHost(this, root, edgeToEdge)
+        host = RustHost(
+            this,
+            root,
+            edgeToEdge,
+            intent.getStringExtra("app") ?: "chat",
+        )
         root.setOnApplyWindowInsetsListener { _, insets ->
             if (edgeToEdge) {
                 host.onWindowInsets(insets)

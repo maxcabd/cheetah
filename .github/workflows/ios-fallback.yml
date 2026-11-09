@@ -143,6 +143,23 @@ jobs:
           git commit -m "iOS 18 fallback preview" || true
           git push origin ios-18-preview --force
 
+      - name: Publish Nightshade 18 preview
+        shell: bash
+        run: |
+          DEVICE_ID="${{ steps.simulator.outputs.device }}"
+          xcrun simctl terminate "$DEVICE_ID" com.example.cheetah 2>/dev/null || true
+          xcrun simctl launch "$DEVICE_ID" com.example.cheetah --nightshade
+          sleep 8
+          xcrun simctl io "$DEVICE_ID" screenshot /tmp/nightshade-ios18.png
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          mkdir -p ci-preview
+          cp /tmp/nightshade-ios18.png ci-preview/nightshade-ios18.png
+          git checkout -B nightshade-18-preview
+          git add -f ci-preview
+          git commit -m "Nightshade iOS 18 preview" || true
+          git push origin nightshade-18-preview --force
+
       - name: Run UI tests
         timeout-minutes: 15
         shell: bash

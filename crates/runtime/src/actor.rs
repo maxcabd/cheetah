@@ -2,6 +2,7 @@ use crate::app::{Action, Event, Runtime, Viewport};
 use crate::bridge::{CachedTextMeasurer, Host};
 use crate::demo::ChatApp;
 use crate::gateway::{self, Gateway};
+use crate::nightshade::NightshadeApp;
 use crate::Op;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -37,7 +38,12 @@ pub(crate) struct ActorHandle {
     pub(crate) join: Option<JoinHandle<()>>,
 }
 
-pub(crate) fn spawn(host: Arc<dyn Host>, store_path: String, gateway_url: String) -> ActorHandle {
+pub(crate) fn spawn(
+    host: Arc<dyn Host>,
+    store_path: String,
+    gateway_url: String,
+    app: String,
+) -> ActorHandle {
     let (sender, mut receiver) = unbounded_channel();
     let actor_sender = sender.clone();
 
@@ -46,7 +52,11 @@ pub(crate) fn spawn(host: Arc<dyn Host>, store_path: String, gateway_url: String
         .spawn(move || {
             host.attach();
 
-            let mut runtime = Runtime::new(ChatApp::new(&store_path));
+            let mut runtime = if app == "nightshade" {
+                Runtime::new(NightshadeApp::new())
+            } else {
+                Runtime::new(ChatApp::new(&store_path))
+            };
             runtime.set_text_measurer(Rc::new(CachedTextMeasurer::new(Arc::clone(&host))));
 
             let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
