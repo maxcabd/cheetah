@@ -18,6 +18,12 @@ final class CheetahUITests: XCTestCase {
         XCTAssertTrue(send.waitForExistence(timeout: 5), "send button should be visible")
         send.tap()
 
+        sleep(2)
+        print("FIELD VALUE AFTER SEND: \(String(describing: field.value))")
+        let labels = app.staticTexts.allElementsBoundByIndex.map { $0.label }
+        print("STATIC LABELS: \(labels)")
+        print("APP HIERARCHY:\n\(app.debugDescription)")
+
         let message = app.staticTexts["hello from ios"]
         XCTAssertTrue(message.waitForExistence(timeout: 10), "sent message should render in the list")
     }
