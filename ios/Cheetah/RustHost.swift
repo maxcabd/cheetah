@@ -71,6 +71,7 @@ private final class NodeTag {
     var lastScrollTo: CGFloat?
     var lastValue: String?
     var updating = false
+    var mapProps: [String: Any]?
 
     init(id: UInt32, kind: String, view: UIView) {
         self.id = id
@@ -315,7 +316,10 @@ final class RustHost: NSObject {
             return GlassView()
 
         case "map":
-            let map = MKMapView()
+            let initialFrame = container.bounds.width > 0 && container.bounds.height > 0
+                ? container.bounds
+                : CGRect(x: 0, y: 0, width: 1, height: 1)
+            let map = MKMapView(frame: initialFrame)
             map.backgroundColor = UIColor(hex: "#101826")
             map.isOpaque = true
             map.showsCompass = false
@@ -386,6 +390,14 @@ final class RustHost: NSObject {
         if let node = tags[id], node.scrollView != nil {
             updateScrollContent(node)
             applyScroll(node)
+        }
+
+        if let map = view as? MKMapView, let node = tags[id] {
+            map.setNeedsLayout()
+            map.layoutIfNeeded()
+            if let props = node.mapProps {
+                applyMap(map, props: props)
+            }
         }
     }
 
@@ -477,6 +489,7 @@ final class RustHost: NSObject {
         }
 
         if let map = view as? MKMapView {
+            node.mapProps = props
             applyMap(map, props: props)
         }
 
