@@ -1,7 +1,7 @@
 use crate::element::{Element, Kind, Props};
 use std::collections::{HashMap, HashSet};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct UiNode {
     pub id: u32,
     pub key: Option<String>,
@@ -10,7 +10,7 @@ pub struct UiNode {
     pub children: Vec<UiNode>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct FlatNode {
     pub id: u32,
     pub key: Option<String>,

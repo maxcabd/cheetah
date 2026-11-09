@@ -6,7 +6,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Viewport {
     pub width: f32,
     pub height: f32,
@@ -82,6 +82,7 @@ pub struct Runtime {
     frames: HashMap<u32, Frame>,
     viewport: Viewport,
     text_measurer: Option<Rc<dyn TextMeasurer>>,
+    layout_dirty: bool,
 }
 
 impl Runtime {
@@ -92,20 +93,31 @@ impl Runtime {
             frames: HashMap::new(),
             viewport: Viewport::default(),
             text_measurer: None,
+            layout_dirty: true,
         }
     }
 
     pub fn set_text_measurer(&mut self, measurer: Rc<dyn TextMeasurer>) {
         self.text_measurer = Some(measurer);
+        self.layout_dirty = true;
     }
 
     pub fn render(&mut self, viewport: Viewport) -> Vec<Op> {
-        self.viewport = viewport;
         let root = {
             let context = ViewContext::new(viewport, self.text_measurer.as_deref());
             build(self.app.view(&context))
         };
         let flat = flatten(&root);
+
+        // Scrolling and typing still rebuild the view tree, but an unchanged
+        // tree with an unchanged viewport must not pay for Taffy again.
+        if !self.layout_dirty && viewport == self.viewport && self.previous.as_ref() == Some(&flat)
+        {
+            return Vec::new();
+        }
+
+        self.viewport = viewport;
+        self.layout_dirty = false;
         let frames = compute(
             &root,
             viewport.width,
