@@ -33,7 +33,26 @@ The iOS Simulator shares the Mac's loopback, so `ws://127.0.0.1:9001` works as-i
 
 On iOS 26, the header and composer are rendered as Liquid Glass containers using `UIGlassEffect`. The list extends underneath both bars and scrolls behind the material. Clear and Send are interactive glass controls.
 
-The same Rust `glass()` nodes fall back to `UIBlurEffect` on iOS 16â€“25. When Reduce Transparency is enabled, they render as an opaque panel instead. The app does not set `UIDesignRequiresCompatibility`, so system components on iOS 26 are free to adopt the new design as well.
+The same Rust `glass()` nodes fall back to `UIBlurEffect` on iOS 16–25. When Reduce Transparency is enabled, they render as an opaque panel instead. The app does not set `UIDesignRequiresCompatibility`, so system components on iOS 26 are free to adopt the new design as well.
+
+## Host layout contract
+
+Before the first resize, the host sends a `host` event. iOS sends it full-screen with the real safe-area and keyboard insets:
+
+```json
+{
+  "safeTop": 59,
+  "safeBottom": 34,
+  "keyboardInset": 0,
+  "overlayChrome": true,
+  "glass": true,
+  "scale": 3
+}
+```
+
+Rust uses `safeTop`, `safeBottom`, and `keyboardInset` to size the floating chrome, set list content insets, and clamp scroll offsets. `overlayChrome` selects the floating-chrome layout; Android currently sends `false` because its root uses `fitsSystemWindows` and native resize handling. The demo no longer branches on the target OS.
+
+When the keyboard opens, the controller re-sends the host info with `keyboardInset`, so the composer moves above the keyboard and the list keeps its final rows visible.
 
 ## What is implemented
 
@@ -43,6 +62,7 @@ The same Rust `glass()` nodes fall back to `UIBlurEffect` on iOS 16â€“25. W
 - Native `UILabel`, custom `UIControl` buttons, `UITextField`, and `UIScrollView` views driven by absolute frames.
 - Glass containers, vibrancy through `UIVisualEffectView.contentView`, blur/opaque fallbacks, and interactive glass controls.
 - Overlay header/composer with scroll content insets, so messages scroll beneath the chrome.
+- Host capability handshake for safe areas, keyboard insets, glass availability, and display scale.
 - Stable accessibility identifiers for Rust-driven controls.
 - Variable-height list slots, scroll callbacks, scroll-to-bottom, connection status, and offline outbox from the shared core.
 
