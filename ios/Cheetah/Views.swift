@@ -99,6 +99,7 @@ final class GlassView: UIView {
         if UIAccessibility.isReduceTransparencyEnabled {
             UIView.performWithoutAnimation {
                 effectView.effect = nil
+                effectView.contentView.backgroundColor = .clear
                 backgroundColor = UIColor(hex: "#1e1f22")
             }
             return
@@ -113,6 +114,7 @@ final class GlassView: UIView {
                 effect.tintColor = UIColor(hex: tint)
             }
             backgroundColor = .clear
+            effectView.contentView.backgroundColor = .clear
             UIView.animate(withDuration: 0.2) {
                 self.effectView.effect = effect
             }
@@ -121,6 +123,7 @@ final class GlassView: UIView {
         #endif
 
         backgroundColor = .clear
+        effectView.contentView.backgroundColor = tint.map { UIColor(hex: $0) } ?? .clear
         effectView.effect = UIBlurEffect(style: .systemThinMaterialDark)
     }
 }

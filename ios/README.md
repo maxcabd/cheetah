@@ -33,7 +33,7 @@ The iOS Simulator shares the Mac's loopback, so `ws://127.0.0.1:9001` works as-i
 
 On iOS 26, the header and composer are rendered as Liquid Glass containers using `UIGlassEffect`. The list extends underneath both bars and scrolls behind the material. Clear and Send are interactive glass controls.
 
-The same Rust `glass()` nodes fall back to `UIBlurEffect` on iOS 16–25. When Reduce Transparency is enabled, they render as an opaque panel instead. The app does not set `UIDesignRequiresCompatibility`, so system components on iOS 26 are free to adopt the new design as well.
+The same Rust `glass()` nodes fall back to `UIBlurEffect` on iOS 16–25. When Reduce Transparency is enabled, they render as an opaque panel instead. The app does not set `UIDesignRequiresCompatibility`, so system components on iOS 26 are free to adopt the new design as well. The iOS 18.5 fallback screenshot is at [`../docs/ios18.png`](../docs/ios18.png).
 
 ## Host layout contract
 
@@ -71,4 +71,4 @@ The host also sends lifecycle commands through `cheetah_lifecycle` / `nativeLife
 
 ## Verification
 
-CI runs on macOS 26 with Xcode 26, builds the Rust XCFramework, builds both device and simulator targets, launches the app in an iOS 26 simulator, publishes the screenshot above, and runs UI tests for sending a message and preserving a draft across backgrounding. The app has not yet been run on a physical device.
+CI runs two iOS paths: macOS 26 / Xcode 26 / iOS 26 for Liquid Glass, and macOS 15 / Xcode 16.4 / iOS 18.5 for the blur fallback. Both build the Rust XCFramework, build device and simulator targets, launch the app, publish screenshots, and run UI tests for sending a message and preserving a draft across backgrounding. The app has not yet been run on a physical device.
