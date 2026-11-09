@@ -4,8 +4,13 @@ final class RustViewController: UIViewController {
     private var host: RustHost?
     private var keyboardObserver: NSObjectProtocol?
 
+    override var preferredStatusBarStyle: UIStatusBarStyle {
+        .lightContent
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        overrideUserInterfaceStyle = .dark
         view.backgroundColor = UIColor(hex: "#313338")
 
         let container = UIView()

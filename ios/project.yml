@@ -31,5 +31,11 @@ targets:
         HEADER_SEARCH_PATHS: "$(inherited) $(SRCROOT)/Cheetah"
         TARGETED_DEVICE_FAMILY: "1,2"
         CODE_SIGN_STYLE: Automatic
-    scheme:
-      gatherCoverageData: false
+
+schemes:
+  Cheetah:
+    build:
+      targets:
+        Cheetah: all
+    run:
+      config: Debug

@@ -1,1 +1,1 @@
-Rust runtime that drives native Android views with no JavaScript.
+Rust runtime that drives native Android and iOS views with no JavaScript.
