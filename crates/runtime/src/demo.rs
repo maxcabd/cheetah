@@ -24,6 +24,7 @@ const MIN_ITEM_HEIGHT: f32 = 56.0;
 const ITEM_CHROME_HEIGHT: f32 = 36.0;
 const ITEM_CHROME_WIDTH: f32 = 138.0;
 const MAX_MESSAGES: usize = 500;
+const MAX_ATTEMPTS: u32 = 3;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ConnectionStatus {
@@ -66,6 +67,7 @@ fn seed_messages() -> Vec<Message> {
             likes: (index % 7) as u32,
             liked: index % 11 == 0,
             status: MessageStatus::Sent,
+            attempts: 0,
         })
         .collect()
 }
@@ -130,8 +132,8 @@ impl ChatApp {
 
         for message in &mut messages {
             if message.status == MessageStatus::Sending {
-                message.status = MessageStatus::Failed;
-                message.time = "failed".into();
+                message.status = MessageStatus::Queued;
+                message.time = "queued".into();
                 healed = true;
             }
         }
@@ -379,10 +381,10 @@ impl ChatApp {
                 MessageStatus::Sent,
             ),
         };
-        let time_color = if status == MessageStatus::Failed {
-            "#ed4245"
-        } else {
-            MUTED
+        let time_color = match status {
+            MessageStatus::Failed => "#ed4245",
+            MessageStatus::Queued => "#f0b232",
+            _ => MUTED,
         };
 
         row()
@@ -490,15 +492,16 @@ impl ChatApp {
             id,
             author: "you".into(),
             body: body.clone(),
-            time: if online { "sending" } else { "failed" }.into(),
+            time: if online { "sending" } else { "queued" }.into(),
             color: ACCENT.into(),
             likes: 0,
             liked: false,
             status: if online {
                 MessageStatus::Sending
             } else {
-                MessageStatus::Failed
+                MessageStatus::Queued
             },
+            attempts: 0,
         };
 
         self.store.save(&message);
@@ -516,6 +519,28 @@ impl ChatApp {
             let removed = self.messages.remove(0);
             self.store.delete(removed.id);
             self.heights.borrow_mut().values.remove(&removed.id);
+        }
+    }
+
+    fn flush_queue(&mut self) {
+        if self.connection != ConnectionStatus::Online {
+            return;
+        }
+
+        let mut outgoing = Vec::new();
+        for message in &mut self.messages {
+            if message.status == MessageStatus::Queued {
+                message.status = MessageStatus::Sending;
+                message.time = "sending".into();
+                outgoing.push((message.id, message.body.clone(), message.clone()));
+            }
+        }
+
+        for (_, _, message) in &outgoing {
+            self.store.save(message);
+        }
+        for (id, body, _) in outgoing {
+            self.actions.push(Action::SendMessage { id, body });
         }
     }
 
@@ -562,8 +587,14 @@ impl ChatApp {
                         self.messages.iter_mut().find(|message| message.id == id)
                     {
                         if message.status == MessageStatus::Sending {
-                            message.status = MessageStatus::Failed;
-                            message.time = "failed".into();
+                            message.attempts += 1;
+                            if message.attempts >= MAX_ATTEMPTS {
+                                message.status = MessageStatus::Failed;
+                                message.time = "failed".into();
+                            } else {
+                                message.status = MessageStatus::Queued;
+                                message.time = "queued".into();
+                            }
                             Some(message.clone())
                         } else {
                             None
@@ -584,12 +615,14 @@ impl ChatApp {
                     _ => ConnectionStatus::Connecting,
                 };
 
-                if self.connection == ConnectionStatus::Offline {
+                if self.connection == ConnectionStatus::Online {
+                    self.flush_queue();
+                } else if self.connection == ConnectionStatus::Offline {
                     let mut changed = false;
                     for message in &mut self.messages {
                         if message.status == MessageStatus::Sending {
-                            message.status = MessageStatus::Failed;
-                            message.time = "failed".into();
+                            message.status = MessageStatus::Queued;
+                            message.time = "queued".into();
                             changed = true;
                         }
                     }
@@ -597,6 +630,9 @@ impl ChatApp {
                         self.store.save_all(&self.messages);
                     }
                 }
+            }
+            "flush" => {
+                self.flush_queue();
             }
             "incoming" => {
                 if let Some((author, body)) = event.payload.split_once('\u{1f}') {
@@ -617,6 +653,7 @@ impl ChatApp {
                             likes: 0,
                             liked: false,
                             status: MessageStatus::Sent,
+                            attempts: 0,
                         };
                         self.store.save(&message);
                         self.messages.push(message);
@@ -688,5 +725,11 @@ impl App for ChatApp {
 
     fn take_actions(&mut self) -> Vec<Action> {
         std::mem::take(&mut self.actions)
+    }
+
+    fn has_queued(&self) -> bool {
+        self.messages
+            .iter()
+            .any(|message| message.status == MessageStatus::Queued)
     }
 }

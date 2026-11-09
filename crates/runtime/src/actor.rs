@@ -1,7 +1,7 @@
 use crate::app::{Action, Event, Runtime, Viewport};
 use crate::demo::ChatApp;
 use crate::ffi::{CachedTextMeasurer, JniHost};
-use crate::gateway;
+use crate::gateway::{self, Gateway};
 use crate::Op;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -26,6 +26,7 @@ pub(crate) enum Command {
     SendTimeout {
         id: u32,
     },
+    Retry,
     Connection(bool),
     Shutdown,
 }
@@ -66,29 +67,13 @@ pub(crate) fn spawn(host: Arc<JniHost>, store_path: String, gateway_url: String)
                     Command::Event { id, kind, payload } => {
                         let ops = runtime.event(id, &kind, &payload);
                         emit(&host, ops);
-
-                        for action in runtime.take_actions() {
-                            match action {
-                                Action::SendMessage { id, body } => {
-                                    let payload = serde_json::json!({
-                                        "type": "send",
-                                        "id": id,
-                                        "body": body,
-                                    })
-                                    .to_string();
-
-                                    if gateway.send(payload).is_err() {
-                                        dispatch_fail(&mut runtime, &host, id);
-                                    } else {
-                                        spawn_send_timeout(
-                                            &tokio_runtime,
-                                            actor_sender.clone(),
-                                            id,
-                                        );
-                                    }
-                                }
-                            }
-                        }
+                        process_actions(
+                            &mut runtime,
+                            &host,
+                            &tokio_runtime,
+                            &gateway,
+                            &actor_sender,
+                        );
                     }
                     Command::Incoming { author, body } => {
                         let event = Event {
@@ -111,7 +96,35 @@ pub(crate) fn spawn(host: Arc<JniHost>, store_path: String, gateway_url: String)
                         emit(&host, ops);
                     }
                     Command::SendTimeout { id } => {
-                        dispatch_fail(&mut runtime, &host, id);
+                        let event = Event {
+                            id: 0,
+                            key: None,
+                            kind: "fail".into(),
+                            payload: id.to_string(),
+                        };
+                        let ops = runtime.dispatch(event);
+                        emit(&host, ops);
+
+                        if runtime.has_queued() {
+                            spawn_retry(&tokio_runtime, actor_sender.clone());
+                        }
+                    }
+                    Command::Retry => {
+                        let event = Event {
+                            id: 0,
+                            key: None,
+                            kind: "flush".into(),
+                            payload: String::new(),
+                        };
+                        let ops = runtime.dispatch(event);
+                        emit(&host, ops);
+                        process_actions(
+                            &mut runtime,
+                            &host,
+                            &tokio_runtime,
+                            &gateway,
+                            &actor_sender,
+                        );
                     }
                     Command::Connection(online) => {
                         let event = Event {
@@ -122,6 +135,13 @@ pub(crate) fn spawn(host: Arc<JniHost>, store_path: String, gateway_url: String)
                         };
                         let ops = runtime.dispatch(event);
                         emit(&host, ops);
+                        process_actions(
+                            &mut runtime,
+                            &host,
+                            &tokio_runtime,
+                            &gateway,
+                            &actor_sender,
+                        );
                     }
                     Command::Shutdown => break,
                 }
@@ -144,15 +164,42 @@ fn emit(host: &JniHost, ops: Vec<Op>) {
     }
 }
 
-fn dispatch_fail(runtime: &mut Runtime, host: &JniHost, id: u32) {
-    let event = Event {
-        id: 0,
-        key: None,
-        kind: "fail".into(),
-        payload: id.to_string(),
-    };
-    let ops = runtime.dispatch(event);
-    emit(host, ops);
+fn process_actions(
+    runtime: &mut Runtime,
+    host: &JniHost,
+    tokio_runtime: &tokio::runtime::Runtime,
+    gateway: &Gateway,
+    sender: &UnboundedSender<Command>,
+) {
+    for action in runtime.take_actions() {
+        match action {
+            Action::SendMessage { id, body } => {
+                let payload = serde_json::json!({
+                    "type": "send",
+                    "id": id,
+                    "body": body,
+                })
+                .to_string();
+
+                if gateway.send(payload).is_err() {
+                    let event = Event {
+                        id: 0,
+                        key: None,
+                        kind: "fail".into(),
+                        payload: id.to_string(),
+                    };
+                    let ops = runtime.dispatch(event);
+                    emit(host, ops);
+
+                    if runtime.has_queued() {
+                        spawn_retry(tokio_runtime, sender.clone());
+                    }
+                } else {
+                    spawn_send_timeout(tokio_runtime, sender.clone(), id);
+                }
+            }
+        }
+    }
 }
 
 fn spawn_send_timeout(
@@ -163,5 +210,12 @@ fn spawn_send_timeout(
     runtime.spawn(async move {
         tokio::time::sleep(Duration::from_secs(6)).await;
         let _ = sender.send(Command::SendTimeout { id });
+    });
+}
+
+fn spawn_retry(runtime: &tokio::runtime::Runtime, sender: UnboundedSender<Command>) {
+    runtime.spawn(async move {
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        let _ = sender.send(Command::Retry);
     });
 }

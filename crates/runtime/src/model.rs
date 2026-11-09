@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum MessageStatus {
+    #[default]
     Sent,
+    Queued,
     Sending,
     Failed,
 }
@@ -16,5 +18,8 @@ pub struct Message {
     pub color: String,
     pub likes: u32,
     pub liked: bool,
+    #[serde(default)]
     pub status: MessageStatus,
+    #[serde(default)]
+    pub attempts: u32,
 }

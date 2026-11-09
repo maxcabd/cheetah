@@ -46,6 +46,9 @@ pub trait App {
     fn take_actions(&mut self) -> Vec<Action> {
         Vec::new()
     }
+    fn has_queued(&self) -> bool {
+        false
+    }
 }
 
 pub struct Runtime {
@@ -132,5 +135,9 @@ impl Runtime {
 
     pub fn take_actions(&mut self) -> Vec<Action> {
         self.app.take_actions()
+    }
+
+    pub fn has_queued(&self) -> bool {
+        self.app.has_queued()
     }
 }
