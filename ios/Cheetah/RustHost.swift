@@ -202,8 +202,7 @@ final class RustHost: NSObject {
 
         if let button = view as? CheetahButton {
             DebugLog.write(
-                "button id=\(id) title=\(button.title ?? "nil") " +
-                "frame=\(view.frame) labelFrame=\(button.debugLabelFrame)"
+                "button id=\(id) title=\(button.title ?? "nil") frame=\(view.frame)"
             )
         }
     }

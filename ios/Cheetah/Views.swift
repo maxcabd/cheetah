@@ -64,65 +64,86 @@ enum DebugLog {
 }
 
 /// Cheetah draws buttons from Rust props rather than UIKit's button styles.
-/// A UIControl with an explicit label keeps captions visible on every iOS
-/// version and avoids UIButton configuration taking over the title.
+/// The caption is rendered directly so it does not depend on a subview
+/// layout pass, and no UIButton configuration can take over the title.
 final class CheetahButton: UIControl {
-    private let label = UILabel()
     var insets = UIEdgeInsets.zero {
         didSet {
-            setNeedsLayout()
+            setNeedsDisplay()
         }
     }
 
     var title: String? {
         didSet {
-            label.text = title
             accessibilityLabel = title
-            setNeedsLayout()
+            setNeedsDisplay()
         }
     }
 
     var titleFont: UIFont = .systemFont(ofSize: 14) {
         didSet {
-            label.font = titleFont
+            setNeedsDisplay()
         }
     }
 
     var titleColor: UIColor = .white {
         didSet {
-            label.textColor = titleColor
+            setNeedsDisplay()
         }
     }
 
     var titleAlignment: NSTextAlignment = .center {
         didSet {
-            label.textAlignment = titleAlignment
+            setNeedsDisplay()
         }
-    }
-
-    var debugLabelFrame: CGRect {
-        label.frame
     }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         isAccessibilityElement = true
         accessibilityTraits = .button
-        label.isUserInteractionEnabled = false
-        label.numberOfLines = 1
-        label.textAlignment = .center
-        label.frame = bounds
-        label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        addSubview(label)
+        isOpaque = false
+        contentMode = .redraw
+        backgroundColor = .clear
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        label.frame = bounds.inset(by: insets)
+    override func draw(_ rect: CGRect) {
+        super.draw(rect)
+
+        guard let title, !title.isEmpty else {
+            return
+        }
+
+        let content = bounds.inset(by: insets)
+        guard content.width > 0, content.height > 0 else {
+            return
+        }
+
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = titleAlignment
+        paragraph.lineBreakMode = .byClipping
+
+        let attributed = NSAttributedString(
+            string: title,
+            attributes: [
+                .font: titleFont,
+                .foregroundColor: titleColor,
+                .paragraphStyle: paragraph,
+            ]
+        )
+        let size = attributed.size()
+        attributed.draw(
+            in: CGRect(
+                x: content.minX,
+                y: content.midY - size.height / 2,
+                width: content.width,
+                height: size.height
+            )
+        )
     }
 
     override var isHighlighted: Bool {
