@@ -1,3 +1,4 @@
+﻿# Workspace includes the runtime benchmark under tools/bench.
 [workspace]
 members = ["crates/runtime", "tools/gateway", "tools/bench"]
 resolver = "2"
