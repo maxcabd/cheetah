@@ -185,6 +185,10 @@ jobs:
             echo "iOS 26 simulator scroll performance"
             grep -E "testScrollPerformance|measured|XCTOSSignpost|frame|hitch" /tmp/xcodebuild-uitest.log | tail -100 || true
           } > ci-preview/ios-performance.txt
+          RESULT=$(find build/uitest/Logs/Test -maxdepth 1 -name '*.xcresult' | sort | tail -1)
+          if [ -n "$RESULT" ]; then
+            xcrun xcresulttool get test-results metrics --path "$RESULT" --compact > ci-preview/ios-performance.json || true
+          fi
           git checkout -B ios-preview
           git add -f ci-preview
           git commit -m "iOS performance report" || true

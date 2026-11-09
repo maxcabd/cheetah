@@ -169,6 +169,10 @@ jobs:
             echo "iOS 18.5 simulator scroll performance (blur fallback)"
             grep -E "testScrollPerformance|measured|XCTOSSignpost|frame|hitch" /tmp/xcodebuild-uitest-ios18.log | tail -100 || true
           } > ci-preview/ios-18-performance.txt
+          RESULT=$(find build/uitest-ios18/Logs/Test -maxdepth 1 -name '*.xcresult' | sort | tail -1)
+          if [ -n "$RESULT" ]; then
+            xcrun xcresulttool get test-results metrics --path "$RESULT" --compact > ci-preview/ios-18-performance.json || true
+          fi
           git checkout -B ios-18-preview
           git add -f ci-preview
           git commit -m "iOS 18 performance report" || true
