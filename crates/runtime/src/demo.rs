@@ -1,7 +1,7 @@
-use crate::app::{App, Event, ViewContext, Viewport};
+use crate::app::{Action, App, Event, ViewContext, Viewport};
 use crate::element::{button, column, input, list, row, text, Element};
-use crate::layout::visible_range_prefix;
-use std::cell::RefCell;
+use crate::layout::{rough_measure, visible_range_prefix};
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 
 const BG: &str = "#313338";
@@ -43,6 +43,33 @@ struct Metrics {
     prefix: Vec<f32>,
 }
 
+fn prefix_for(heights: &[f32]) -> Vec<f32> {
+    let mut prefix = Vec::with_capacity(heights.len() + 1);
+    prefix.push(0.0);
+    for height in heights {
+        prefix.push(prefix.last().copied().unwrap_or(0.0) + height);
+    }
+    prefix
+}
+
+fn estimate_item(message: &Message, column_width: f32) -> (f32, f32) {
+    let (_, measured) = rough_measure(&message.body, 15.0, column_width);
+    let text_height = measured.max(18.0);
+    (
+        (ITEM_CHROME_HEIGHT + text_height).max(MIN_ITEM_HEIGHT),
+        text_height,
+    )
+}
+
+fn measure_item(context: &ViewContext, message: &Message, column_width: f32) -> (f32, f32) {
+    let (_, measured) = context.measure_text(&message.body, 15.0, false, column_width);
+    let text_height = measured.max(18.0);
+    (
+        (ITEM_CHROME_HEIGHT + text_height).max(MIN_ITEM_HEIGHT),
+        text_height,
+    )
+}
+
 pub struct ChatApp {
     messages: Vec<Message>,
     draft: String,
@@ -50,6 +77,9 @@ pub struct ChatApp {
     scroll_offset: f32,
     heights: RefCell<HeightCache>,
     slots: RefCell<Vec<Option<u32>>>,
+    actions: Vec<Action>,
+    stick_to_bottom: Cell<bool>,
+    last_max_offset: Cell<f32>,
 }
 
 impl ChatApp {
@@ -89,6 +119,9 @@ impl ChatApp {
                 values: HashMap::new(),
             }),
             slots: RefCell::new(Vec::new()),
+            actions: Vec::new(),
+            stick_to_bottom: Cell::new(true),
+            last_max_offset: Cell::new(0.0),
         }
     }
 
@@ -99,6 +132,7 @@ impl ChatApp {
     fn metrics(&self, context: &ViewContext) -> Metrics {
         let width = context.viewport.width.max(1.0);
         let column_width = (width - ITEM_CHROME_WIDTH).max(80.0);
+        let list_height = self.list_height(context.viewport);
 
         let mut cache = self.heights.borrow_mut();
         if (cache.width - width).abs() > 0.5 {
@@ -108,28 +142,54 @@ impl ChatApp {
 
         let mut heights = Vec::with_capacity(self.messages.len());
         let mut text_heights = Vec::with_capacity(self.messages.len());
-
         for message in &self.messages {
-            let (item_height, text_height) = match cache.values.get(&message.id) {
-                Some(value) => *value,
-                None => {
-                    let (_, measured) =
-                        context.measure_text(&message.body, 15.0, false, column_width);
-                    let text_height = measured.max(18.0);
-                    let item_height = (ITEM_CHROME_HEIGHT + text_height).max(MIN_ITEM_HEIGHT);
-                    cache.values.insert(message.id, (item_height, text_height));
-                    (item_height, text_height)
+            match cache.values.get(&message.id) {
+                Some((item_height, text_height)) => {
+                    heights.push(*item_height);
+                    text_heights.push(*text_height);
                 }
-            };
-
-            heights.push(item_height);
-            text_heights.push(text_height);
+                None => {
+                    let (item_height, text_height) = estimate_item(message, column_width);
+                    heights.push(item_height);
+                    text_heights.push(text_height);
+                }
+            }
         }
 
-        let mut prefix = Vec::with_capacity(heights.len() + 1);
-        prefix.push(0.0);
-        for height in &heights {
-            prefix.push(prefix.last().copied().unwrap_or(0.0) + height);
+        let mut prefix = prefix_for(&heights);
+        let mut offset = self
+            .scroll_offset
+            .min((prefix.last().copied().unwrap_or(0.0) - list_height).max(0.0));
+        let (mut start, mut end) = visible_range_prefix(offset, list_height, &prefix);
+
+        // Measure only what is about to be rendered, plus neighbors that the
+        // corrected heights pull into view.
+        for _ in 0..4 {
+            let mut changed = false;
+            for index in start..end {
+                let message = &self.messages[index];
+                if let std::collections::hash_map::Entry::Vacant(entry) =
+                    cache.values.entry(message.id)
+                {
+                    let value = measure_item(context, message, column_width);
+                    entry.insert(value);
+                    heights[index] = value.0;
+                    text_heights[index] = value.1;
+                    changed = true;
+                }
+            }
+
+            if !changed {
+                break;
+            }
+
+            prefix = prefix_for(&heights);
+            offset = self
+                .scroll_offset
+                .min((prefix.last().copied().unwrap_or(0.0) - list_height).max(0.0));
+            let (new_start, new_end) = visible_range_prefix(offset, list_height, &prefix);
+            start = new_start;
+            end = new_end;
         }
 
         Metrics {
@@ -147,6 +207,7 @@ impl ChatApp {
         let content_height = total_height.max(list_height);
         let bottom_offset = (list_height - total_height).max(0.0);
         let max_offset = (total_height - list_height).max(0.0);
+        self.last_max_offset.set(max_offset);
         let offset = self.scroll_offset.min(max_offset);
         let (start, end) = visible_range_prefix(offset, list_height, &metrics.prefix);
         let visible_count = end.saturating_sub(start);
@@ -212,10 +273,13 @@ impl ChatApp {
                             .height(22.0),
                     )
                     .child(
-                        text(format!("#rust-mobile · {} messages", self.messages.len()))
-                            .size(11.0)
-                            .color(MUTED)
-                            .height(15.0),
+                        text(format!(
+                            "#rust-mobile · {} messages · live",
+                            self.messages.len()
+                        ))
+                        .size(11.0)
+                        .color(MUTED)
+                        .height(15.0),
                     ),
             )
             .child(
@@ -354,16 +418,19 @@ impl ChatApp {
         }
 
         self.next_id += 1;
+        let id = self.next_id;
         self.messages.push(Message {
-            id: self.next_id,
+            id,
             author: "you".into(),
             body,
-            time: "now".into(),
+            time: "sending".into(),
             color: ACCENT,
             likes: 0,
             liked: false,
         });
         self.draft.clear();
+        self.actions.push(Action::SendMessage { id });
+        self.stick_to_bottom.set(true);
         self.scroll_offset = f32::MAX;
 
         if self.messages.len() > MAX_MESSAGES {
@@ -382,7 +449,49 @@ impl ChatApp {
             }
             "scroll" if event.key.as_deref() == Some("messages") => {
                 if let Ok(offset) = event.payload.parse::<f32>() {
-                    self.scroll_offset = offset.max(0.0);
+                    let offset = offset.max(0.0);
+                    self.stick_to_bottom
+                        .set(offset >= self.last_max_offset.get() - 1.0);
+                    self.scroll_offset = offset;
+                }
+            }
+            "ack" => {
+                if let Ok(id) = event.payload.parse::<u32>() {
+                    if let Some(message) = self.messages.iter_mut().find(|message| message.id == id)
+                    {
+                        message.time = "now".into();
+                    }
+                }
+            }
+            "incoming" => {
+                if let Some((author, body)) = event.payload.split_once('\u{1f}') {
+                    if !body.is_empty() {
+                        self.next_id += 1;
+                        let color = match author {
+                            "mara" => "#5865f2",
+                            "lena" => "#eb459e",
+                            "dev" => "#23a55a",
+                            _ => "#f0b232",
+                        };
+                        self.messages.push(Message {
+                            id: self.next_id,
+                            author: author.to_string(),
+                            body: body.to_string(),
+                            time: "now".into(),
+                            color,
+                            likes: 0,
+                            liked: false,
+                        });
+
+                        if self.stick_to_bottom.get() {
+                            self.scroll_offset = f32::MAX;
+                        }
+
+                        if self.messages.len() > MAX_MESSAGES {
+                            let removed = self.messages.remove(0);
+                            self.heights.borrow_mut().values.remove(&removed.id);
+                        }
+                    }
                 }
             }
             "click" => match event.key.as_deref() {
@@ -390,6 +499,7 @@ impl ChatApp {
                 Some("clear") => {
                     self.messages.clear();
                     self.scroll_offset = 0.0;
+                    self.stick_to_bottom.set(true);
                     self.heights.borrow_mut().values.clear();
                     self.slots.borrow_mut().clear();
                 }
@@ -433,5 +543,9 @@ impl App for ChatApp {
 
     fn update(&mut self, event: Event) {
         self.handle(event);
+    }
+
+    fn take_actions(&mut self) -> Vec<Action> {
+        std::mem::take(&mut self.actions)
     }
 }

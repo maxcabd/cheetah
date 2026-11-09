@@ -4,6 +4,8 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.os.Handler
+import android.os.Looper
 import android.text.Editable
 import android.text.InputType
 import android.text.StaticLayout
@@ -33,6 +35,7 @@ class RustHost(
     private val views = HashMap<Int, View>()
     private val tags = HashMap<Int, NodeTag>()
     private val density = context.resources.displayMetrics.density
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var lastWidth = 0f
     private var lastHeight = 0f
     private val pools = HashMap<String, ArrayDeque<View>>()
@@ -63,7 +66,16 @@ class RustHost(
 
         lastWidth = width
         lastHeight = height
-        applyOps(RustBridge.nativeRender(handle, width, height))
+        RustBridge.nativeResize(handle, width, height)
+    }
+
+    fun onOps(json: String) {
+        if (handle == 0L) return
+        mainHandler.post {
+            if (handle != 0L) {
+                applyOps(json)
+            }
+        }
     }
 
     fun measureText(text: String, size: Float, bold: Boolean, maxWidth: Float): FloatArray {
@@ -102,9 +114,11 @@ class RustHost(
     }
 
     fun dispose() {
-        if (handle != 0L) {
-            RustBridge.nativeFree(handle)
+        val current = handle
+        if (current != 0L) {
             handle = 0L
+            mainHandler.removeCallbacksAndMessages(null)
+            RustBridge.nativeFree(current)
         }
     }
 
@@ -379,7 +393,7 @@ class RustHost(
 
     private fun event(id: Int, kind: String, payload: String) {
         if (handle == 0L) return
-        applyOps(RustBridge.nativeEvent(handle, id, kind, payload))
+        RustBridge.nativeEvent(handle, id, kind, payload)
     }
 
     private fun applyProps(view: View, props: JSONObject) {

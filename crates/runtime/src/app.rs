@@ -18,6 +18,10 @@ pub struct Event {
     pub payload: String,
 }
 
+pub enum Action {
+    SendMessage { id: u32 },
+}
+
 pub struct ViewContext<'a> {
     pub viewport: Viewport,
     measurer: Option<&'a dyn TextMeasurer>,
@@ -39,6 +43,9 @@ impl<'a> ViewContext<'a> {
 pub trait App {
     fn view(&self, context: &ViewContext) -> Element;
     fn update(&mut self, event: Event);
+    fn take_actions(&mut self) -> Vec<Action> {
+        Vec::new()
+    }
 }
 
 pub struct Runtime {
@@ -116,5 +123,14 @@ impl Runtime {
         });
 
         self.render(self.viewport)
+    }
+
+    pub fn dispatch(&mut self, event: Event) -> Vec<Op> {
+        self.app.update(event);
+        self.render(self.viewport)
+    }
+
+    pub fn take_actions(&mut self) -> Vec<Action> {
+        self.app.take_actions()
     }
 }
