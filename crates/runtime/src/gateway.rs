@@ -193,3 +193,69 @@ fn handle_incoming(text: &str, commands: &UnboundedSender<Command>) {
         _ => {}
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::spawn;
+    use crate::actor::Command;
+    use futures_util::StreamExt;
+    use tokio::net::TcpListener;
+    use tokio::sync::mpsc::unbounded_channel;
+    use tokio::sync::mpsc::UnboundedReceiver;
+    use tokio::time::{timeout, Duration};
+    use tokio_tungstenite::accept_async;
+
+    async fn expect_connection(receiver: &mut UnboundedReceiver<Command>, online: bool) {
+        loop {
+            if let Some(Command::Connection(value)) = receiver.recv().await {
+                if value == online {
+                    return;
+                }
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn pauses_and_reconnects() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.expect("listener");
+        let address = listener.local_addr().expect("address");
+
+        let server = tokio::spawn(async move {
+            let (stream, _) = listener.accept().await.expect("first connection");
+            let mut first = accept_async(stream).await.expect("first handshake");
+            while first.next().await.is_some() {}
+
+            let (stream, _) = listener.accept().await.expect("second connection");
+            let _second = accept_async(stream).await.expect("second handshake");
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        });
+
+        let (commands, mut receiver) = unbounded_channel();
+        let gateway = spawn(format!("ws://{address}"), commands);
+
+        timeout(
+            Duration::from_secs(5),
+            expect_connection(&mut receiver, true),
+        )
+        .await
+        .expect("initial connection");
+
+        gateway.set_active(false);
+        timeout(
+            Duration::from_secs(5),
+            expect_connection(&mut receiver, false),
+        )
+        .await
+        .expect("pause should drop the socket");
+
+        gateway.set_active(true);
+        timeout(
+            Duration::from_secs(5),
+            expect_connection(&mut receiver, true),
+        )
+        .await
+        .expect("resume should reconnect");
+
+        server.abort();
+    }
+}

@@ -1,14 +1,17 @@
-#[cfg(any(target_os = "android", target_os = "ios"))]
+#[cfg(any(target_os = "android", target_os = "ios", test))]
+#[cfg_attr(test, allow(dead_code))]
 mod actor;
 pub mod app;
-#[cfg(any(target_os = "android", target_os = "ios"))]
+#[cfg(any(target_os = "android", target_os = "ios", test))]
+#[cfg_attr(test, allow(dead_code))]
 mod bridge;
 pub mod demo;
 pub mod diff;
 pub mod element;
 #[cfg(target_os = "android")]
 mod ffi;
-#[cfg(any(target_os = "android", target_os = "ios"))]
+#[cfg(any(target_os = "android", target_os = "ios", test))]
+#[cfg_attr(test, allow(dead_code))]
 mod gateway;
 #[cfg(target_os = "ios")]
 mod ios;
