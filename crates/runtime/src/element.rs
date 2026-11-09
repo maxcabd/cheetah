@@ -9,6 +9,7 @@ pub enum Kind {
     Button,
     Scroll,
     List,
+    Glass,
     Input,
     Space,
 }
@@ -22,6 +23,7 @@ impl Kind {
             Kind::Button => "button",
             Kind::Scroll => "scroll",
             Kind::List => "list",
+            Kind::Glass => "glass",
             Kind::Input => "input",
             Kind::Space => "space",
         }
@@ -82,6 +84,18 @@ pub struct Props {
     pub content_height: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scroll_to: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub glass_style: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub glass_tint: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub glass_interactive: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_inset_top: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_inset_bottom: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bottom: Option<f32>,
 }
 
 impl Props {
@@ -202,6 +216,36 @@ impl Props {
 
     pub fn scroll_to(mut self, value: f32) -> Self {
         self.scroll_to = Some(value);
+        self
+    }
+
+    pub fn glass_style(mut self, value: impl Into<String>) -> Self {
+        self.glass_style = Some(value.into());
+        self
+    }
+
+    pub fn glass_tint(mut self, value: impl Into<String>) -> Self {
+        self.glass_tint = Some(value.into());
+        self
+    }
+
+    pub fn glass_interactive(mut self, value: bool) -> Self {
+        self.glass_interactive = Some(value);
+        self
+    }
+
+    pub fn content_inset_top(mut self, value: f32) -> Self {
+        self.content_inset_top = Some(value);
+        self
+    }
+
+    pub fn content_inset_bottom(mut self, value: f32) -> Self {
+        self.content_inset_bottom = Some(value);
+        self
+    }
+
+    pub fn bottom(mut self, value: f32) -> Self {
+        self.bottom = Some(value);
         self
     }
 }
@@ -358,6 +402,36 @@ impl Element {
         self.props.scroll_to = Some(value);
         self
     }
+
+    pub fn glass_style(mut self, value: impl Into<String>) -> Self {
+        self.props.glass_style = Some(value.into());
+        self
+    }
+
+    pub fn glass_tint(mut self, value: impl Into<String>) -> Self {
+        self.props.glass_tint = Some(value.into());
+        self
+    }
+
+    pub fn glass_interactive(mut self, value: bool) -> Self {
+        self.props.glass_interactive = Some(value);
+        self
+    }
+
+    pub fn content_inset_top(mut self, value: f32) -> Self {
+        self.props.content_inset_top = Some(value);
+        self
+    }
+
+    pub fn content_inset_bottom(mut self, value: f32) -> Self {
+        self.props.content_inset_bottom = Some(value);
+        self
+    }
+
+    pub fn bottom(mut self, value: f32) -> Self {
+        self.props.bottom = Some(value);
+        self
+    }
 }
 
 pub fn column() -> Element {
@@ -386,6 +460,10 @@ pub fn scroll() -> Element {
 
 pub fn list() -> Element {
     Element::new(Kind::List)
+}
+
+pub fn glass() -> Element {
+    Element::new(Kind::Glass)
 }
 
 pub fn input(placeholder: impl Into<String>, value: impl Into<String>) -> Element {

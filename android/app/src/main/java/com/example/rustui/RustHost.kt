@@ -192,7 +192,7 @@ class RustHost(
     }
 
     private fun createView(kind: String): View = when (kind) {
-        "column", "row" -> FrameLayout(context)
+        "column", "row", "glass" -> FrameLayout(context)
 
         "text" -> TextView(context).apply {
             setTextColor(Color.WHITE)

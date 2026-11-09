@@ -26,6 +26,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Select Xcode 26
+        shell: bash
+        run: |
+          if [ -d /Applications/Xcode_26.1.1.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.1.1.app
+          elif [ -d /Applications/Xcode_26.1.app ]; then
+            sudo xcode-select -s /Applications/Xcode_26.1.app
+          else
+            echo "::error title=Xcode::Xcode 26 is not installed"
+            ls /Applications | grep Xcode || true
+            exit 1
+          fi
+          xcodebuild -version
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
@@ -88,13 +102,14 @@ jobs:
         id: simulator
         shell: bash
         run: |
-          DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone 16 \(" | head -1 | grep -o -E "[0-9A-F-]{36}")
-          if [ -z "$DEVICE_ID" ]; then
-            DEVICE_ID=$(xcrun simctl list devices available | grep -E "iPhone 15 \(" | head -1 | grep -o -E "[0-9A-F-]{36}")
-          fi
+          DEVICE_ID=$(xcrun simctl list devices available | awk '
+            /-- iOS 26/ { in_ios26 = 1; next }
+            /^-- / { in_ios26 = 0 }
+            in_ios26 && /iPhone/ { print; exit }
+          ' | grep -o -E '[0-9A-F-]{36}') || true
           if [ -z "$DEVICE_ID" ]; then
             xcrun simctl list devices available
-            echo "::error title=Simulator::No iPhone simulator available"
+            echo "::error title=Simulator::No iOS 26 iPhone simulator available"
             exit 1
           fi
           echo "device=$DEVICE_ID" >> "$GITHUB_OUTPUT"

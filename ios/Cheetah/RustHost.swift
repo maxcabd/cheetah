@@ -186,6 +186,8 @@ final class RustHost: NSObject {
             node.container = content
             node.scrollView = scroll
             scrollTags[ObjectIdentifier(scroll)] = node
+        } else if let glass = view as? GlassView {
+            node.container = glass.contentView
         } else if kind == "column" || kind == "row" {
             node.container = view
         }
@@ -230,9 +232,13 @@ final class RustHost: NSObject {
             scroll.keyboardDismissMode = .interactive
             scroll.delegate = self
             scroll.clipsToBounds = true
+            scroll.contentInsetAdjustmentBehavior = .never
             let content = UIView()
             scroll.addSubview(content)
             return scroll
+
+        case "glass":
+            return GlassView()
 
         default:
             let view = UIView()
@@ -364,12 +370,22 @@ final class RustHost: NSObject {
             view.backgroundColor = UIColor(hex: background)
         }
 
+        if let glass = view as? GlassView {
+            glass.apply(
+                style: props["glassStyle"] as? String ?? "regular",
+                tint: props["glassTint"] as? String,
+                interactive: bool(props["glassInteractive"])
+            )
+        }
+
         let radius = number(props["radius"])
         view.layer.cornerRadius = radius
         if let scroll = view as? UIScrollView {
             // Rows include overscan outside the viewport. UIScrollView must
             // clip even when it has no corner radius.
             scroll.clipsToBounds = true
+        } else if let glass = view as? GlassView {
+            glass.updateShape(radius: radius)
         } else {
             view.clipsToBounds = radius > 0
         }
@@ -393,6 +409,20 @@ final class RustHost: NSObject {
         }
 
         if let scroll = view as? UIScrollView {
+            if props["contentInsetTop"] != nil || props["contentInsetBottom"] != nil {
+                let top = props["contentInsetTop"] != nil
+                    ? number(props["contentInsetTop"])
+                    : scroll.contentInset.top
+                let bottom = props["contentInsetBottom"] != nil
+                    ? number(props["contentInsetBottom"])
+                    : scroll.contentInset.bottom
+                scroll.contentInset = UIEdgeInsets(
+                    top: top,
+                    left: 0,
+                    bottom: bottom,
+                    right: 0
+                )
+            }
             if let contentHeight = props["contentHeight"] {
                 node.contentHeight = number(contentHeight)
                 updateScrollContent(node)
@@ -410,7 +440,7 @@ final class RustHost: NSObject {
         }
 
         let width = max(scroll.bounds.width, 1)
-        let height = max(node.contentHeight, scroll.bounds.height)
+        let height = max(node.contentHeight, 1)
         content.frame = CGRect(x: 0, y: 0, width: width, height: height)
         scroll.contentSize = CGSize(width: width, height: height)
     }
@@ -420,9 +450,10 @@ final class RustHost: NSObject {
             return
         }
 
+        let contentOffset = target - scroll.contentInset.top
         node.lastScrollTo = target
-        scroll.setContentOffset(CGPoint(x: 0, y: target), animated: false)
-        if abs(scroll.contentOffset.y - target) <= 1 {
+        scroll.setContentOffset(CGPoint(x: 0, y: contentOffset), animated: false)
+        if abs(scroll.contentOffset.y - contentOffset) <= 1 {
             node.pendingScrollTo = nil
         }
     }
@@ -501,7 +532,7 @@ extension RustHost: UIScrollViewDelegate {
             return
         }
 
-        let offset = scrollView.contentOffset.y
+        let offset = scrollView.contentOffset.y + scrollView.contentInset.top
         if let last = node.lastScrollTo, abs(offset - last) < 1 {
             return
         }
@@ -521,7 +552,7 @@ extension RustHost: UIScrollViewDelegate {
             self.event(
                 id: node.id,
                 kind: "scroll",
-                payload: String(Double(scrollView.contentOffset.y))
+                payload: String(Double(scrollView.contentOffset.y + scrollView.contentInset.top))
             )
         }
     }

@@ -39,6 +39,92 @@ final class InsetLabel: UILabel {
     }
 }
 
+/// A material container whose children live in the UIVisualEffectView's
+/// contentView, so labels and controls get UIKit vibrancy automatically.
+final class GlassView: UIView {
+    let effectView = UIVisualEffectView(effect: nil)
+    var contentView: UIView { effectView.contentView }
+
+    private var style = "regular"
+    private var tint: String?
+    private var interactive = false
+    private var transparencyObserver: NSObjectProtocol?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        effectView.frame = bounds
+        effectView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        addSubview(effectView)
+        transparencyObserver = NotificationCenter.default.addObserver(
+            forName: UIAccessibility.reduceTransparencyStatusDidChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.refresh()
+        }
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    deinit {
+        if let transparencyObserver {
+            NotificationCenter.default.removeObserver(transparencyObserver)
+        }
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        effectView.frame = bounds
+        updateShape(radius: layer.cornerRadius)
+    }
+
+    func apply(style: String, tint: String?, interactive: Bool) {
+        self.style = style
+        self.tint = tint
+        self.interactive = interactive
+        refresh()
+    }
+
+    func updateShape(radius: CGFloat) {
+        layer.cornerRadius = radius
+        clipsToBounds = radius > 0
+        effectView.layer.cornerRadius = radius
+        effectView.clipsToBounds = radius > 0
+    }
+
+    private func refresh() {
+        if UIAccessibility.isReduceTransparencyEnabled {
+            UIView.performWithoutAnimation {
+                effectView.effect = nil
+                backgroundColor = UIColor(hex: "#1e1f22")
+            }
+            return
+        }
+
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            let glassStyle: UIGlassEffect.Style = style == "clear" ? .clear : .regular
+            let effect = UIGlassEffect(style: glassStyle)
+            effect.isInteractive = interactive
+            if let tint {
+                effect.tintColor = UIColor(hex: tint)
+            }
+            backgroundColor = .clear
+            UIView.animate(withDuration: 0.2) {
+                self.effectView.effect = effect
+            }
+            return
+        }
+        #endif
+
+        backgroundColor = .clear
+        effectView.effect = UIBlurEffect(style: .systemThinMaterialDark)
+    }
+}
+
 /// Cheetah draws buttons from Rust props rather than UIKit's button styles.
 /// The caption is rendered directly so it does not depend on a subview
 /// layout pass, and no UIButton configuration can take over the title.

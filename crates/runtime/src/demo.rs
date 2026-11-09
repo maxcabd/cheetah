@@ -1,5 +1,5 @@
 use crate::app::{Action, App, Event, ViewContext, Viewport};
-use crate::element::{button, column, input, list, row, text, Element};
+use crate::element::{button, column, glass, input, list, row, text, Element};
 use crate::layout::{rough_measure, visible_range_prefix};
 use crate::model::{Message, MessageStatus};
 use crate::store::Store;
@@ -25,6 +25,9 @@ const ITEM_CHROME_HEIGHT: f32 = 36.0;
 const ITEM_CHROME_WIDTH: f32 = 138.0;
 const MAX_MESSAGES: usize = 500;
 const MAX_ATTEMPTS: u32 = 3;
+const HEADER_TINT: &str = "#1e1f2280";
+const SEND_TINT: &str = "#5865f299";
+const CHROME_OVERLAY: bool = cfg!(target_os = "ios");
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ConnectionStatus {
@@ -170,14 +173,23 @@ impl ChatApp {
         }
     }
 
-    fn list_height(&self, viewport: Viewport) -> f32 {
+    fn scroll_height(&self, viewport: Viewport) -> f32 {
         (viewport.height - HEADER_HEIGHT - COMPOSER_HEIGHT).max(0.0)
+    }
+
+    fn visible_height(&self, viewport: Viewport) -> f32 {
+        if CHROME_OVERLAY {
+            viewport.height.max(1.0)
+        } else {
+            self.scroll_height(viewport)
+        }
     }
 
     fn metrics(&self, context: &ViewContext) -> Metrics {
         let width = context.viewport.width.max(1.0);
         let column_width = (width - ITEM_CHROME_WIDTH).max(80.0);
-        let list_height = self.list_height(context.viewport);
+        let scroll_height = self.scroll_height(context.viewport);
+        let visible_height = self.visible_height(context.viewport);
 
         let mut cache = self.heights.borrow_mut();
         if (cache.width - width).abs() > 0.5 {
@@ -204,8 +216,8 @@ impl ChatApp {
         let mut prefix = prefix_for(&heights);
         let mut offset = self
             .scroll_offset
-            .min((prefix.last().copied().unwrap_or(0.0) - list_height).max(0.0));
-        let (mut start, mut end) = visible_range_prefix(offset, list_height, &prefix);
+            .min((prefix.last().copied().unwrap_or(0.0) - scroll_height).max(0.0));
+        let (mut start, mut end) = visible_range_prefix(offset, visible_height, &prefix);
 
         // Measure only what is about to be rendered, plus neighbors that the
         // corrected heights pull into view.
@@ -231,8 +243,8 @@ impl ChatApp {
             prefix = prefix_for(&heights);
             offset = self
                 .scroll_offset
-                .min((prefix.last().copied().unwrap_or(0.0) - list_height).max(0.0));
-            let (new_start, new_end) = visible_range_prefix(offset, list_height, &prefix);
+                .min((prefix.last().copied().unwrap_or(0.0) - scroll_height).max(0.0));
+            let (new_start, new_end) = visible_range_prefix(offset, visible_height, &prefix);
             start = new_start;
             end = new_end;
         }
@@ -246,18 +258,19 @@ impl ChatApp {
 
     fn build_view(&self, context: &ViewContext) -> Element {
         let viewport = context.viewport;
-        let list_height = self.list_height(viewport);
+        let scroll_height = self.scroll_height(viewport);
+        let visible_height = self.visible_height(viewport);
         let metrics = self.metrics(context);
         let total_height = metrics.prefix.last().copied().unwrap_or(0.0);
-        let content_height = total_height.max(list_height);
-        let bottom_offset = (list_height - total_height).max(0.0);
-        let max_offset = (total_height - list_height).max(0.0);
+        let content_height = total_height.max(scroll_height);
+        let bottom_offset = (scroll_height - total_height).max(0.0);
+        let max_offset = (total_height - scroll_height).max(0.0);
         self.last_max_offset.set(max_offset);
         let offset = self.scroll_offset.min(max_offset);
-        let (start, end) = visible_range_prefix(offset, list_height, &metrics.prefix);
+        let (start, end) = visible_range_prefix(offset, visible_height, &metrics.prefix);
         let visible_count = end.saturating_sub(start);
 
-        let slot_count = (((list_height / MIN_ITEM_HEIGHT).ceil() as usize) + 4).clamp(8, 48);
+        let slot_count = (((visible_height / MIN_ITEM_HEIGHT).ceil() as usize) + 4).clamp(8, 48);
         let mut slots = self.slots.borrow_mut();
         slots.resize(slot_count, None);
 
@@ -283,26 +296,69 @@ impl ChatApp {
             items.push(self.slot_row(slot, None, 0.0, 0.0, 0.0));
         }
 
-        column()
-            .width(-1.0)
-            .height(-1.0)
-            .bg(BG)
-            .child(self.header())
-            .child(
-                list()
-                    .key("messages")
-                    .height(list_height)
-                    .content_height(content_height)
-                    .scroll_to(offset)
-                    .children(items),
-            )
-            .child(self.composer())
+        let mut messages = list()
+            .key("messages")
+            .height(if CHROME_OVERLAY { -1.0 } else { scroll_height })
+            .content_height(content_height)
+            .scroll_to(offset)
+            .children(items);
+
+        if CHROME_OVERLAY {
+            messages = messages
+                .content_inset_top(HEADER_HEIGHT)
+                .content_inset_bottom(COMPOSER_HEIGHT);
+        }
+
+        let mut root = column().width(-1.0).height(-1.0).bg(BG);
+        if CHROME_OVERLAY {
+            root = root
+                .child(messages)
+                .child(self.header())
+                .child(self.composer());
+        } else {
+            root = root
+                .child(self.header())
+                .child(messages)
+                .child(self.composer());
+        }
+        root
     }
 
     fn header(&self) -> Element {
+        if CHROME_OVERLAY {
+            glass()
+                .key("header")
+                .glass_style("regular")
+                .glass_tint(HEADER_TINT)
+                .absolute()
+                .top(0.0)
+                .left(0.0)
+                .width(-1.0)
+                .height(HEADER_HEIGHT)
+                .child(self.header_content(true))
+        } else {
+            self.header_content(false)
+        }
+    }
+
+    fn header_content(&self, glass_mode: bool) -> Element {
+        let clear = if glass_mode {
+            self.glass_button("Clear", "clear", 56.0, 30.0, PANEL)
+        } else {
+            button("Clear")
+                .key("clear")
+                .size(12.0)
+                .color(MUTED)
+                .bg(PANEL)
+                .width(56.0)
+                .height(30.0)
+                .radius(8.0)
+        };
+
         row()
-            .height(HEADER_HEIGHT)
-            .bg(HEADER)
+            .width(-1.0)
+            .height(if glass_mode { -1.0 } else { HEADER_HEIGHT })
+            .bg(if glass_mode { "#00000000" } else { HEADER })
             .pad_h(16.0)
             .gap(8.0)
             .align_items("center")
@@ -328,14 +384,31 @@ impl ChatApp {
                         .height(15.0),
                     ),
             )
+            .child(clear)
+    }
+
+    fn glass_button(&self, label: &str, key: &str, width: f32, height: f32, tint: &str) -> Element {
+        let primary = label == "Send";
+        let color = if primary { "#ffffff" } else { MUTED };
+        let size = if primary { 14.0 } else { 12.0 };
+
+        glass()
+            .key(format!("{key}-glass"))
+            .glass_style("regular")
+            .glass_tint(tint)
+            .glass_interactive(true)
+            .width(width)
+            .height(height)
+            .radius(8.0)
             .child(
-                button("Clear")
-                    .key("clear")
-                    .size(12.0)
-                    .color(MUTED)
-                    .bg(PANEL)
-                    .width(56.0)
-                    .height(30.0)
+                button(label)
+                    .key(key)
+                    .width(-1.0)
+                    .height(-1.0)
+                    .size(size)
+                    .bold(primary)
+                    .color(color)
+                    .bg("#00000000")
                     .radius(8.0),
             )
     }
@@ -448,9 +521,41 @@ impl ChatApp {
     }
 
     fn composer(&self) -> Element {
+        if CHROME_OVERLAY {
+            glass()
+                .key("composer")
+                .glass_style("regular")
+                .glass_tint(HEADER_TINT)
+                .absolute()
+                .bottom(0.0)
+                .left(0.0)
+                .width(-1.0)
+                .height(COMPOSER_HEIGHT)
+                .child(self.composer_content(true))
+        } else {
+            self.composer_content(false)
+        }
+    }
+
+    fn composer_content(&self, glass_mode: bool) -> Element {
+        let send = if glass_mode {
+            self.glass_button("Send", "send", 64.0, 40.0, SEND_TINT)
+        } else {
+            button("Send")
+                .key("send")
+                .width(64.0)
+                .height(40.0)
+                .size(14.0)
+                .bold(true)
+                .color("#ffffff")
+                .bg(ACCENT)
+                .radius(8.0)
+        };
+
         row()
-            .height(COMPOSER_HEIGHT)
-            .bg(HEADER)
+            .width(-1.0)
+            .height(if glass_mode { -1.0 } else { COMPOSER_HEIGHT })
+            .bg(if glass_mode { "#00000000" } else { HEADER })
             .pad(12.0)
             .gap(8.0)
             .align_items("center")
@@ -466,17 +571,7 @@ impl ChatApp {
                     .align("start")
                     .radius(8.0),
             )
-            .child(
-                button("Send")
-                    .key("send")
-                    .width(64.0)
-                    .height(40.0)
-                    .size(14.0)
-                    .bold(true)
-                    .color("#ffffff")
-                    .bg(ACCENT)
-                    .radius(8.0),
-            )
+            .child(send)
     }
 
     fn send(&mut self) {

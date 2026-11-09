@@ -128,15 +128,23 @@ fn style_for(kind: Kind, props: &Props) -> Style {
 
     if props.absolute.unwrap_or(false) {
         style.position = Position::Absolute;
+        let top = if props.bottom.is_some() && props.top.is_none() {
+            LengthPercentageAuto::auto()
+        } else {
+            LengthPercentageAuto::length(props.top.unwrap_or(0.0))
+        };
         style.inset = Rect {
             left: LengthPercentageAuto::length(props.left.unwrap_or(0.0)),
             right: LengthPercentageAuto::auto(),
-            top: LengthPercentageAuto::length(props.top.unwrap_or(0.0)),
-            bottom: LengthPercentageAuto::auto(),
+            top,
+            bottom: props
+                .bottom
+                .map(LengthPercentageAuto::length)
+                .unwrap_or(LengthPercentageAuto::auto()),
         };
     }
 
-    if matches!(kind, Kind::List | Kind::Scroll) {
+    if matches!(kind, Kind::List | Kind::Scroll | Kind::Glass) {
         style.overflow = Point {
             x: Overflow::Hidden,
             y: Overflow::Hidden,
@@ -316,13 +324,38 @@ pub fn visible_range(
 #[cfg(test)]
 mod tests {
     use super::{compute, visible_range, visible_range_prefix};
-    use crate::{build, column, list, row, text};
+    use crate::{build, column, glass, list, row, text};
 
     fn assert_close(actual: f32, expected: f32) {
         assert!(
             (actual - expected).abs() < 0.01,
             "expected {expected}, got {actual}"
         );
+    }
+
+    #[test]
+    fn absolute_chrome_anchors_to_bottom() {
+        let root = build(
+            column()
+                .width(300.0)
+                .height(600.0)
+                .child(row().width(300.0).height(600.0))
+                .child(
+                    glass()
+                        .absolute()
+                        .bottom(0.0)
+                        .left(0.0)
+                        .width(300.0)
+                        .height(68.0),
+                ),
+        );
+        let frames = compute(&root, 300.0, 600.0, None);
+        let frame = frames[&root.children[1].id];
+
+        assert_close(frame.x, 0.0);
+        assert_close(frame.y, 532.0);
+        assert_close(frame.width, 300.0);
+        assert_close(frame.height, 68.0);
     }
 
     #[test]
