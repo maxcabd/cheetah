@@ -2,6 +2,7 @@ use crate::diff::{diff, Op};
 use crate::element::Element;
 use crate::layout::{compute, Frame, TextMeasurer};
 use crate::tree::{build, flatten, FlatTree};
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -9,6 +10,30 @@ use std::rc::Rc;
 pub struct Viewport {
     pub width: f32,
     pub height: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct HostInfo {
+    pub safe_top: f32,
+    pub safe_bottom: f32,
+    pub keyboard_inset: f32,
+    pub overlay_chrome: bool,
+    pub glass: bool,
+    pub scale: f32,
+}
+
+impl Default for HostInfo {
+    fn default() -> Self {
+        Self {
+            safe_top: 0.0,
+            safe_bottom: 0.0,
+            keyboard_inset: 0.0,
+            overlay_chrome: false,
+            glass: false,
+            scale: 1.0,
+        }
+    }
 }
 
 pub struct Event {
@@ -125,11 +150,18 @@ impl Runtime {
             payload: payload.to_string(),
         });
 
+        if self.viewport.width <= 0.0 || self.viewport.height <= 0.0 {
+            return Vec::new();
+        }
+
         self.render(self.viewport)
     }
 
     pub fn dispatch(&mut self, event: Event) -> Vec<Op> {
         self.app.update(event);
+        if self.viewport.width <= 0.0 || self.viewport.height <= 0.0 {
+            return Vec::new();
+        }
         self.render(self.viewport)
     }
 
@@ -139,5 +171,40 @@ impl Runtime {
 
     pub fn has_queued(&self) -> bool {
         self.app.has_queued()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::HostInfo;
+
+    #[test]
+    fn host_info_is_parsed_from_the_host_payload() {
+        let info: HostInfo = serde_json::from_str(
+            r#"{
+                "safeTop": 59.0,
+                "safeBottom": 34.0,
+                "keyboardInset": 336.0,
+                "overlayChrome": true,
+                "glass": true,
+                "scale": 3.0
+            }"#,
+        )
+        .expect("host info");
+
+        assert_eq!(info.safe_top, 59.0);
+        assert_eq!(info.safe_bottom, 34.0);
+        assert_eq!(info.keyboard_inset, 336.0);
+        assert!(info.overlay_chrome);
+        assert!(info.glass);
+        assert_eq!(info.scale, 3.0);
+    }
+
+    #[test]
+    fn host_info_defaults_are_conservative() {
+        let info = HostInfo::default();
+        assert!(!info.overlay_chrome);
+        assert!(!info.glass);
+        assert_eq!(info.scale, 1.0);
     }
 }

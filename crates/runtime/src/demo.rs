@@ -1,4 +1,4 @@
-use crate::app::{Action, App, Event, ViewContext, Viewport};
+use crate::app::{Action, App, Event, HostInfo, ViewContext, Viewport};
 use crate::element::{button, column, glass, input, list, row, text, Element};
 use crate::layout::{rough_measure, visible_range_prefix};
 use crate::model::{Message, MessageStatus};
@@ -27,7 +27,6 @@ const MAX_MESSAGES: usize = 500;
 const MAX_ATTEMPTS: u32 = 3;
 const HEADER_TINT: &str = "#1e1f2280";
 const SEND_TINT: &str = "#5865f299";
-const CHROME_OVERLAY: bool = cfg!(target_os = "ios");
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ConnectionStatus {
@@ -120,6 +119,7 @@ pub struct ChatApp {
     draft: String,
     next_id: u32,
     scroll_offset: f32,
+    host: HostInfo,
     heights: RefCell<HeightCache>,
     slots: RefCell<Vec<Option<u32>>>,
     actions: Vec<Action>,
@@ -162,6 +162,7 @@ impl ChatApp {
             draft: String::new(),
             next_id,
             scroll_offset: f32::MAX,
+            host: HostInfo::default(),
             heights: RefCell::new(HeightCache {
                 width: 0.0,
                 values: HashMap::new(),
@@ -173,12 +174,44 @@ impl ChatApp {
         }
     }
 
+    fn overlay_chrome(&self) -> bool {
+        self.host.overlay_chrome
+    }
+
+    fn header_inset(&self) -> f32 {
+        if self.overlay_chrome() {
+            self.host.safe_top.max(0.0) + HEADER_HEIGHT
+        } else {
+            0.0
+        }
+    }
+
+    fn composer_padding(&self) -> f32 {
+        if self.overlay_chrome() && self.host.keyboard_inset <= 0.0 {
+            self.host.safe_bottom.max(0.0)
+        } else {
+            0.0
+        }
+    }
+
+    fn composer_inset(&self) -> f32 {
+        if self.overlay_chrome() {
+            self.host.keyboard_inset.max(0.0) + COMPOSER_HEIGHT + self.composer_padding()
+        } else {
+            0.0
+        }
+    }
+
     fn scroll_height(&self, viewport: Viewport) -> f32 {
-        (viewport.height - HEADER_HEIGHT - COMPOSER_HEIGHT).max(0.0)
+        if self.overlay_chrome() {
+            (viewport.height - self.header_inset() - self.composer_inset()).max(0.0)
+        } else {
+            (viewport.height - HEADER_HEIGHT - COMPOSER_HEIGHT).max(0.0)
+        }
     }
 
     fn visible_height(&self, viewport: Viewport) -> f32 {
-        if CHROME_OVERLAY {
+        if self.overlay_chrome() {
             viewport.height.max(1.0)
         } else {
             self.scroll_height(viewport)
@@ -298,19 +331,23 @@ impl ChatApp {
 
         let mut messages = list()
             .key("messages")
-            .height(if CHROME_OVERLAY { -1.0 } else { scroll_height })
+            .height(if self.overlay_chrome() {
+                -1.0
+            } else {
+                scroll_height
+            })
             .content_height(content_height)
             .scroll_to(offset)
             .children(items);
 
-        if CHROME_OVERLAY {
+        if self.overlay_chrome() {
             messages = messages
-                .content_inset_top(HEADER_HEIGHT)
-                .content_inset_bottom(COMPOSER_HEIGHT);
+                .content_inset_top(self.header_inset())
+                .content_inset_bottom(self.composer_inset());
         }
 
         let mut root = column().width(-1.0).height(-1.0).bg(BG);
-        if CHROME_OVERLAY {
+        if self.overlay_chrome() {
             root = root
                 .child(messages)
                 .child(self.header())
@@ -325,7 +362,8 @@ impl ChatApp {
     }
 
     fn header(&self) -> Element {
-        if CHROME_OVERLAY {
+        if self.overlay_chrome() {
+            let safe_top = self.host.safe_top.max(0.0);
             glass()
                 .key("header")
                 .glass_style("regular")
@@ -334,8 +372,14 @@ impl ChatApp {
                 .top(0.0)
                 .left(0.0)
                 .width(-1.0)
-                .height(HEADER_HEIGHT)
-                .child(self.header_content(true))
+                .height(safe_top + HEADER_HEIGHT)
+                .child(
+                    column()
+                        .width(-1.0)
+                        .height(-1.0)
+                        .child(row().width(-1.0).height(safe_top))
+                        .child(self.header_content(true)),
+                )
         } else {
             self.header_content(false)
         }
@@ -358,7 +402,7 @@ impl ChatApp {
 
         row()
             .width(-1.0)
-            .height(if glass_mode { -1.0 } else { HEADER_HEIGHT })
+            .height(HEADER_HEIGHT)
             .bg(if glass_mode { "#00000000" } else { HEADER })
             .pad_h(16.0)
             .gap(8.0)
@@ -523,17 +567,25 @@ impl ChatApp {
     }
 
     fn composer(&self) -> Element {
-        if CHROME_OVERLAY {
+        if self.overlay_chrome() {
+            let keyboard = self.host.keyboard_inset.max(0.0);
+            let padding = self.composer_padding();
             glass()
                 .key("composer")
                 .glass_style("regular")
                 .glass_tint(HEADER_TINT)
                 .absolute()
-                .bottom(0.0)
+                .bottom(keyboard)
                 .left(0.0)
                 .width(-1.0)
-                .height(COMPOSER_HEIGHT)
-                .child(self.composer_content(true))
+                .height(COMPOSER_HEIGHT + padding)
+                .child(
+                    column()
+                        .width(-1.0)
+                        .height(-1.0)
+                        .child(self.composer_content(true))
+                        .child(row().width(-1.0).height(padding)),
+                )
         } else {
             self.composer_content(false)
         }
@@ -557,7 +609,7 @@ impl ChatApp {
 
         row()
             .width(-1.0)
-            .height(if glass_mode { -1.0 } else { COMPOSER_HEIGHT })
+            .height(COMPOSER_HEIGHT)
             .bg(if glass_mode { "#00000000" } else { HEADER })
             .pad(12.0)
             .gap(8.0)
@@ -707,13 +759,17 @@ impl ChatApp {
                     }
                 }
             }
+            "host" => {
+                if let Ok(host) = serde_json::from_str::<HostInfo>(&event.payload) {
+                    self.host = host;
+                }
+            }
             "connection" => {
                 self.connection = match event.payload.as_str() {
                     "online" => ConnectionStatus::Online,
                     "offline" => ConnectionStatus::Offline,
                     _ => ConnectionStatus::Connecting,
                 };
-
                 if self.connection == ConnectionStatus::Online {
                     self.flush_queue();
                 } else if self.connection == ConnectionStatus::Offline {

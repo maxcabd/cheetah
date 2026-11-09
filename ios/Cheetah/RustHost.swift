@@ -85,6 +85,10 @@ final class RustHost: NSObject {
     private var handle: Int64 = 0
     private var disposed = false
     private var lastSize: CGSize = .zero
+    private var lastSafeTop: CGFloat = -1
+    private var lastSafeBottom: CGFloat = -1
+    private var lastKeyboardInset: CGFloat = -1
+    private var lastGlass: Bool?
     private var views: [UInt32: UIView] = [:]
     private var tags: [UInt32: NodeTag] = [:]
     private var scrollTags: [ObjectIdentifier: NodeTag] = [:]
@@ -107,6 +111,55 @@ final class RustHost: NSObject {
         handle = storePath.withCString { store in
             "ws://127.0.0.1:9001".withCString { gateway in
                 cheetah_new(store, gateway, cheetahOpsCallback, cheetahMeasureCallback, contextPointer)
+            }
+        }
+    }
+
+    func updateHostInfo(
+        safeTop: CGFloat,
+        safeBottom: CGFloat,
+        keyboardInset: CGFloat,
+        glass: Bool
+    ) {
+        guard handle != 0 else {
+            return
+        }
+
+        let safeTop = max(safeTop, 0)
+        let safeBottom = max(safeBottom, 0)
+        let keyboardInset = max(keyboardInset, 0)
+
+        if abs(safeTop - lastSafeTop) < 0.5,
+           abs(safeBottom - lastSafeBottom) < 0.5,
+           abs(keyboardInset - lastKeyboardInset) < 0.5,
+           lastGlass == glass
+        {
+            return
+        }
+        lastSafeTop = safeTop
+        lastSafeBottom = safeBottom
+        lastKeyboardInset = keyboardInset
+        lastGlass = glass
+
+        let info: [String: Any] = [
+            "safeTop": Double(safeTop),
+            "safeBottom": Double(safeBottom),
+            "keyboardInset": Double(keyboardInset),
+            "overlayChrome": true,
+            "glass": glass,
+            "scale": Double(UIScreen.main.scale),
+        ]
+
+        guard
+            let data = try? JSONSerialization.data(withJSONObject: info),
+            let json = String(data: data, encoding: .utf8)
+        else {
+            return
+        }
+
+        "host".withCString { kind in
+            json.withCString { payload in
+                cheetah_event(handle, 0, kind, payload)
             }
         }
     }

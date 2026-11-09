@@ -17,7 +17,7 @@ pub mod model;
 pub mod store;
 pub mod tree;
 
-pub use app::{Action, App, Event, Runtime, ViewContext, Viewport};
+pub use app::{Action, App, Event, HostInfo, Runtime, ViewContext, Viewport};
 pub use diff::Op;
 pub use element::{
     button, column, gap_w, glass, input, list, row, scroll, spacer, text, Element, Kind, Props,

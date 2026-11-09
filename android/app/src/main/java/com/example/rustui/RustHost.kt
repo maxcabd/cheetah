@@ -42,6 +42,7 @@ class RustHost(
     private val mainHandler = Handler(Looper.getMainLooper())
     private var lastWidth = 0f
     private var lastHeight = 0f
+    private var hostInfoSent = false
     private val pools = HashMap<String, ArrayDeque<View>>()
 
     init {
@@ -56,7 +57,24 @@ class RustHost(
             root.post { start() }
             return
         }
+        sendHostInfo()
         resizeIfNeeded()
+    }
+
+    private fun sendHostInfo() {
+        if (handle == 0L || hostInfoSent) return
+
+        val payload = JSONObject().apply {
+            put("safeTop", 0.0)
+            put("safeBottom", 0.0)
+            put("keyboardInset", 0.0)
+            put("overlayChrome", false)
+            put("glass", false)
+            put("scale", density.toDouble())
+        }.toString()
+
+        RustBridge.nativeEvent(handle, 0, "host", payload)
+        hostInfoSent = true
     }
 
     private fun resizeIfNeeded() {

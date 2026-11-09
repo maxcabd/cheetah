@@ -18,10 +18,10 @@ final class RustViewController: UIViewController {
         view.addSubview(container)
 
         NSLayoutConstraint.activate([
-            container.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            container.topAnchor.constraint(equalTo: view.topAnchor),
             container.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             container.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            container.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
+            container.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
 
         host = RustHost(container: container)
@@ -32,19 +32,46 @@ final class RustViewController: UIViewController {
             queue: .main
         ) { [weak self] _ in
             self?.view.layoutIfNeeded()
-            self?.resizeHost()
+            self?.updateHost()
         }
     }
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        resizeHost()
+        updateHost()
     }
 
-    private func resizeHost() {
+    private func updateHost() {
         guard let host else {
             return
         }
+
+        let keyboardFrame = view.keyboardLayoutGuide.layoutFrame
+        let keyboardInset: CGFloat
+        if keyboardFrame.minY > 0, keyboardFrame.minY < view.bounds.maxY {
+            keyboardInset = max(0, view.bounds.maxY - keyboardFrame.minY)
+        } else {
+            keyboardInset = 0
+        }
+
+        let glass: Bool
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            glass = true
+        } else {
+            glass = false
+        }
+        #else
+        glass = false
+        #endif
+
+        host.updateHostInfo(
+            safeTop: view.safeAreaInsets.top,
+            safeBottom: view.safeAreaInsets.bottom,
+            keyboardInset: keyboardInset,
+            glass: glass
+        )
+
         let size = host.containerSize
         if size.width > 0, size.height > 0 {
             host.resize(to: size)
