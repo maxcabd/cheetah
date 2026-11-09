@@ -165,6 +165,26 @@ jobs:
           git commit -m "iOS simulator preview" || true
           git push origin ios-preview --force
 
+      - name: Run UI tests
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project ios/Cheetah.xcodeproj \
+            -scheme Cheetah \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.device }}" \
+            -derivedDataPath build/uitest \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO 2>&1 | tee /tmp/xcodebuild-uitest.log
+          status=${PIPESTATUS[0]}
+          if [ $status -ne 0 ]; then
+            grep -E "error:|failed|Failing tests" /tmp/xcodebuild-uitest.log | head -40 | while IFS= read -r line; do
+              echo "::error title=iOS UI test::${line}"
+            done
+          fi
+          exit $status
+
       - name: Publish iOS failure log
         if: failure()
         shell: bash
@@ -172,7 +192,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p ci-logs
-          for file in /tmp/rust-ios.log /tmp/xcodegen.log /tmp/xcodebuild.log /tmp/xcodebuild-sim.log /tmp/simulator.log; do
+          for file in /tmp/rust-ios.log /tmp/xcodegen.log /tmp/xcodebuild.log /tmp/xcodebuild-sim.log /tmp/simulator.log /tmp/xcodebuild-uitest.log; do
             if [ -f "$file" ]; then
               cp "$file" "ci-logs/$(basename "$file")"
             fi
