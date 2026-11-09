@@ -135,13 +135,19 @@ pub extern "system" fn Java_com_example_rustui_RustBridge_nativeNew<'local>(
     mut env: JNIEnv<'local>,
     _this: JObject<'local>,
     host: JObject<'local>,
+    store_path: JString<'local>,
 ) -> jlong {
+    let store_path: String = match env.get_string(&store_path) {
+        Ok(path) => path.into(),
+        Err(_) => return 0,
+    };
     let host = match JniHost::new(&mut env, host) {
         Ok(host) => Arc::new(host),
         Err(_) => return 0,
     };
 
-    let actor = spawn(host);
+    // `adb reverse tcp:9001 tcp:9001` maps this to the local gateway.
+    let actor = spawn(host, store_path, "ws://127.0.0.1:9001".to_string());
     Box::into_raw(Box::new(actor)) as jlong
 }
 

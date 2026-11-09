@@ -1,6 +1,7 @@
 use crate::app::{Action, Event, Runtime, Viewport};
 use crate::demo::ChatApp;
 use crate::ffi::{CachedTextMeasurer, JniHost};
+use crate::gateway;
 use crate::Op;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -22,6 +23,10 @@ pub(crate) enum Command {
     Ack {
         id: u32,
     },
+    SendTimeout {
+        id: u32,
+    },
+    Connection(bool),
     Shutdown,
 }
 
@@ -30,7 +35,7 @@ pub(crate) struct ActorHandle {
     pub(crate) join: Option<JoinHandle<()>>,
 }
 
-pub(crate) fn spawn(host: Arc<JniHost>) -> ActorHandle {
+pub(crate) fn spawn(host: Arc<JniHost>, store_path: String, gateway_url: String) -> ActorHandle {
     let (sender, mut receiver) = unbounded_channel();
     let actor_sender = sender.clone();
 
@@ -39,7 +44,7 @@ pub(crate) fn spawn(host: Arc<JniHost>) -> ActorHandle {
         .spawn(move || {
             host.attach_current_thread();
 
-            let mut runtime = Runtime::new(ChatApp::new());
+            let mut runtime = Runtime::new(ChatApp::new(&store_path));
             runtime.set_text_measurer(Rc::new(CachedTextMeasurer::new(Arc::clone(&host))));
 
             let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
@@ -47,10 +52,10 @@ pub(crate) fn spawn(host: Arc<JniHost>) -> ActorHandle {
                 .build()
                 .expect("tokio runtime");
 
-            let gateway_sender = actor_sender.clone();
-            tokio_runtime.spawn(async move {
-                fake_gateway(gateway_sender).await;
-            });
+            let gateway = {
+                let _guard = tokio_runtime.enter();
+                gateway::spawn(gateway_url, actor_sender.clone())
+            };
 
             while let Some(command) = receiver.blocking_recv() {
                 match command {
@@ -64,8 +69,23 @@ pub(crate) fn spawn(host: Arc<JniHost>) -> ActorHandle {
 
                         for action in runtime.take_actions() {
                             match action {
-                                Action::SendMessage { id } => {
-                                    spawn_ack(&tokio_runtime, actor_sender.clone(), id);
+                                Action::SendMessage { id, body } => {
+                                    let payload = serde_json::json!({
+                                        "type": "send",
+                                        "id": id,
+                                        "body": body,
+                                    })
+                                    .to_string();
+
+                                    if gateway.send(payload).is_err() {
+                                        dispatch_fail(&mut runtime, &host, id);
+                                    } else {
+                                        spawn_send_timeout(
+                                            &tokio_runtime,
+                                            actor_sender.clone(),
+                                            id,
+                                        );
+                                    }
                                 }
                             }
                         }
@@ -86,6 +106,19 @@ pub(crate) fn spawn(host: Arc<JniHost>) -> ActorHandle {
                             key: None,
                             kind: "ack".into(),
                             payload: id.to_string(),
+                        };
+                        let ops = runtime.dispatch(event);
+                        emit(&host, ops);
+                    }
+                    Command::SendTimeout { id } => {
+                        dispatch_fail(&mut runtime, &host, id);
+                    }
+                    Command::Connection(online) => {
+                        let event = Event {
+                            id: 0,
+                            key: None,
+                            kind: "connection".into(),
+                            payload: if online { "online" } else { "offline" }.into(),
                         };
                         let ops = runtime.dispatch(event);
                         emit(&host, ops);
@@ -111,31 +144,24 @@ fn emit(host: &JniHost, ops: Vec<Op>) {
     }
 }
 
-fn spawn_ack(runtime: &tokio::runtime::Runtime, sender: UnboundedSender<Command>, id: u32) {
-    runtime.spawn(async move {
-        tokio::time::sleep(Duration::from_millis(900)).await;
-        let _ = sender.send(Command::Ack { id });
-    });
+fn dispatch_fail(runtime: &mut Runtime, host: &JniHost, id: u32) {
+    let event = Event {
+        id: 0,
+        key: None,
+        kind: "fail".into(),
+        payload: id.to_string(),
+    };
+    let ops = runtime.dispatch(event);
+    emit(host, ops);
 }
 
-async fn fake_gateway(sender: UnboundedSender<Command>) {
-    let authors = ["mara", "lena", "dev", "alex"];
-    let bodies = [
-        "live update from the fake gateway",
-        "a message arrived off the UI thread",
-        "tokio just pushed this into the actor",
-        "the UI thread only applies ops",
-    ];
-
-    let mut index = 0usize;
-    loop {
-        tokio::time::sleep(Duration::from_secs(4)).await;
-        let author = authors[index % authors.len()].to_string();
-        let body = format!("{} (#live {})", bodies[index % bodies.len()], index + 1);
-
-        if sender.send(Command::Incoming { author, body }).is_err() {
-            break;
-        }
-        index += 1;
-    }
+fn spawn_send_timeout(
+    runtime: &tokio::runtime::Runtime,
+    sender: UnboundedSender<Command>,
+    id: u32,
+) {
+    runtime.spawn(async move {
+        tokio::time::sleep(Duration::from_secs(6)).await;
+        let _ = sender.send(Command::SendTimeout { id });
+    });
 }

@@ -24,6 +24,7 @@ import android.widget.Space
 import android.widget.TextView
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -31,7 +32,10 @@ class RustHost(
     private val context: Context,
     private val root: FrameLayout,
 ) {
-    private var handle: Long = RustBridge.nativeNew(this)
+    private var handle: Long = RustBridge.nativeNew(
+        this,
+        File(context.filesDir, "cheetah.redb").absolutePath,
+    )
     private val views = HashMap<Int, View>()
     private val tags = HashMap<Int, NodeTag>()
     private val density = context.resources.displayMetrics.density

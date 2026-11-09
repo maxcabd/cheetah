@@ -1,8 +1,11 @@
 use crate::app::{Action, App, Event, ViewContext, Viewport};
 use crate::element::{button, column, input, list, row, text, Element};
 use crate::layout::{rough_measure, visible_range_prefix};
+use crate::model::{Message, MessageStatus};
+use crate::store::Store;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::path::Path;
 
 const BG: &str = "#313338";
 const PANEL: &str = "#2b2d31";
@@ -22,14 +25,49 @@ const ITEM_CHROME_HEIGHT: f32 = 36.0;
 const ITEM_CHROME_WIDTH: f32 = 138.0;
 const MAX_MESSAGES: usize = 500;
 
-struct Message {
-    id: u32,
-    author: String,
-    body: String,
-    time: String,
-    color: &'static str,
-    likes: u32,
-    liked: bool,
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ConnectionStatus {
+    Connecting,
+    Online,
+    Offline,
+}
+
+impl ConnectionStatus {
+    fn label(self) -> &'static str {
+        match self {
+            Self::Connecting => "connecting",
+            Self::Online => "online",
+            Self::Offline => "offline",
+        }
+    }
+}
+
+fn seed_messages() -> Vec<Message> {
+    let authors = ["mara", "lena", "dev", "alex"];
+    let colors = ["#5865f2", "#eb459e", "#23a55a", "#f0b232"];
+    let bodies = [
+        "the rust ui runtime is alive",
+        "no js engine, no bundle, just native views",
+        "taffy computes the layout, the host only draws",
+        "only the visible rows exist as views",
+        "same view tree, different producer",
+        "scrolling materializes and drops rows",
+        "the diff keeps identity across frames",
+        "this list has 200 messages in rust",
+    ];
+
+    (0..200)
+        .map(|index| Message {
+            id: index as u32 + 1,
+            author: authors[index % authors.len()].into(),
+            body: format!("{} (#{})", bodies[index % bodies.len()], index + 1),
+            time: format!("09:{:02}", index % 60),
+            color: colors[index % colors.len()].to_string(),
+            likes: (index % 7) as u32,
+            liked: index % 11 == 0,
+            status: MessageStatus::Sent,
+        })
+        .collect()
 }
 
 struct HeightCache {
@@ -72,6 +110,8 @@ fn measure_item(context: &ViewContext, message: &Message, column_width: f32) -> 
 
 pub struct ChatApp {
     messages: Vec<Message>,
+    store: Store,
+    connection: ConnectionStatus,
     draft: String,
     next_id: u32,
     scroll_offset: f32,
@@ -83,36 +123,39 @@ pub struct ChatApp {
 }
 
 impl ChatApp {
-    pub fn new() -> Self {
-        let authors = ["mara", "lena", "dev", "alex"];
-        let colors = ["#5865f2", "#eb459e", "#23a55a", "#f0b232"];
-        let bodies = [
-            "the rust ui runtime is alive",
-            "no js engine, no bundle, just native views",
-            "taffy computes the layout, the host only draws",
-            "only the visible rows exist as views",
-            "same view tree, different producer",
-            "scrolling materializes and drops rows",
-            "the diff keeps identity across frames",
-            "this list has 200 messages in rust",
-        ];
+    pub fn new(store_path: &str) -> Self {
+        let store = Store::open(Path::new(store_path)).expect("open cheetah store");
+        let mut messages = store.load();
+        let mut healed = false;
 
-        let messages = (0..200)
-            .map(|index| Message {
-                id: index as u32 + 1,
-                author: authors[index % authors.len()].into(),
-                body: format!("{} (#{})", bodies[index % bodies.len()], index + 1),
-                time: format!("09:{:02}", index % 60),
-                color: colors[index % colors.len()],
-                likes: (index % 7) as u32,
-                liked: index % 11 == 0,
-            })
-            .collect();
+        for message in &mut messages {
+            if message.status == MessageStatus::Sending {
+                message.status = MessageStatus::Failed;
+                message.time = "failed".into();
+                healed = true;
+            }
+        }
+
+        if healed {
+            store.save_all(&messages);
+        }
+
+        if messages.is_empty() && !store.initialized() {
+            messages = seed_messages();
+            store.save_all(&messages);
+            store.mark_initialized();
+        } else if !store.initialized() {
+            store.mark_initialized();
+        }
+
+        let next_id = messages.iter().map(|message| message.id).max().unwrap_or(0);
 
         Self {
             messages,
+            store,
+            connection: ConnectionStatus::Connecting,
             draft: String::new(),
-            next_id: 200,
+            next_id,
             scroll_offset: f32::MAX,
             heights: RefCell::new(HeightCache {
                 width: 0.0,
@@ -274,8 +317,9 @@ impl ChatApp {
                     )
                     .child(
                         text(format!(
-                            "#rust-mobile · {} messages · live",
-                            self.messages.len()
+                            "#rust-mobile · {} messages · {}",
+                            self.messages.len(),
+                            self.connection.label()
                         ))
                         .size(11.0)
                         .color(MUTED)
@@ -302,7 +346,7 @@ impl ChatApp {
         item_height: f32,
         text_height: f32,
     ) -> Element {
-        let (author, time, body, color, initial, likes, liked, label) = match message {
+        let (author, time, body, color, initial, likes, liked, label, status) = match message {
             Some(message) => {
                 let initial = message
                     .author
@@ -315,14 +359,30 @@ impl ChatApp {
                     message.author.as_str(),
                     message.time.as_str(),
                     message.body.as_str(),
-                    message.color,
+                    message.color.as_str(),
                     initial,
                     message.likes,
                     message.liked,
                     message.author.as_str(),
+                    message.status,
                 )
             }
-            None => ("", "", "", BG, String::new(), 0, false, ""),
+            None => (
+                "",
+                "",
+                "",
+                BG,
+                String::new(),
+                0,
+                false,
+                "",
+                MessageStatus::Sent,
+            ),
+        };
+        let time_color = if status == MessageStatus::Failed {
+            "#ed4245"
+        } else {
+            MUTED
         };
 
         row()
@@ -358,7 +418,13 @@ impl ChatApp {
                             .gap(8.0)
                             .align_items("center")
                             .child(text(author).size(15.0).bold(true).color(TEXT).height(18.0))
-                            .child(text(time).size(11.0).color(MUTED).width(40.0).height(14.0)),
+                            .child(
+                                text(time)
+                                    .size(11.0)
+                                    .color(time_color)
+                                    .width(48.0)
+                                    .height(14.0),
+                            ),
                     )
                     .child(text(body).size(15.0).color(BODY).height(text_height)),
             )
@@ -419,22 +485,36 @@ impl ChatApp {
 
         self.next_id += 1;
         let id = self.next_id;
-        self.messages.push(Message {
+        let online = self.connection == ConnectionStatus::Online;
+        let message = Message {
             id,
             author: "you".into(),
-            body,
-            time: "sending".into(),
-            color: ACCENT,
+            body: body.clone(),
+            time: if online { "sending" } else { "failed" }.into(),
+            color: ACCENT.into(),
             likes: 0,
             liked: false,
-        });
+            status: if online {
+                MessageStatus::Sending
+            } else {
+                MessageStatus::Failed
+            },
+        };
+
+        self.store.save(&message);
+        self.messages.push(message);
         self.draft.clear();
-        self.actions.push(Action::SendMessage { id });
+
+        if online {
+            self.actions.push(Action::SendMessage { id, body });
+        }
+
         self.stick_to_bottom.set(true);
         self.scroll_offset = f32::MAX;
 
         if self.messages.len() > MAX_MESSAGES {
             let removed = self.messages.remove(0);
+            self.store.delete(removed.id);
             self.heights.borrow_mut().values.remove(&removed.id);
         }
     }
@@ -457,9 +537,64 @@ impl ChatApp {
             }
             "ack" => {
                 if let Ok(id) = event.payload.parse::<u32>() {
-                    if let Some(message) = self.messages.iter_mut().find(|message| message.id == id)
+                    let updated = if let Some(message) =
+                        self.messages.iter_mut().find(|message| message.id == id)
                     {
-                        message.time = "now".into();
+                        if message.status == MessageStatus::Sending {
+                            message.status = MessageStatus::Sent;
+                            message.time = "now".into();
+                            Some(message.clone())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    if let Some(message) = updated {
+                        self.store.save(&message);
+                    }
+                }
+            }
+            "fail" => {
+                if let Ok(id) = event.payload.parse::<u32>() {
+                    let updated = if let Some(message) =
+                        self.messages.iter_mut().find(|message| message.id == id)
+                    {
+                        if message.status == MessageStatus::Sending {
+                            message.status = MessageStatus::Failed;
+                            message.time = "failed".into();
+                            Some(message.clone())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+
+                    if let Some(message) = updated {
+                        self.store.save(&message);
+                    }
+                }
+            }
+            "connection" => {
+                self.connection = match event.payload.as_str() {
+                    "online" => ConnectionStatus::Online,
+                    "offline" => ConnectionStatus::Offline,
+                    _ => ConnectionStatus::Connecting,
+                };
+
+                if self.connection == ConnectionStatus::Offline {
+                    let mut changed = false;
+                    for message in &mut self.messages {
+                        if message.status == MessageStatus::Sending {
+                            message.status = MessageStatus::Failed;
+                            message.time = "failed".into();
+                            changed = true;
+                        }
+                    }
+                    if changed {
+                        self.store.save_all(&self.messages);
                     }
                 }
             }
@@ -473,15 +608,18 @@ impl ChatApp {
                             "dev" => "#23a55a",
                             _ => "#f0b232",
                         };
-                        self.messages.push(Message {
+                        let message = Message {
                             id: self.next_id,
                             author: author.to_string(),
                             body: body.to_string(),
                             time: "now".into(),
-                            color,
+                            color: color.into(),
                             likes: 0,
                             liked: false,
-                        });
+                            status: MessageStatus::Sent,
+                        };
+                        self.store.save(&message);
+                        self.messages.push(message);
 
                         if self.stick_to_bottom.get() {
                             self.scroll_offset = f32::MAX;
@@ -489,6 +627,7 @@ impl ChatApp {
 
                         if self.messages.len() > MAX_MESSAGES {
                             let removed = self.messages.remove(0);
+                            self.store.delete(removed.id);
                             self.heights.borrow_mut().values.remove(&removed.id);
                         }
                     }
@@ -498,6 +637,7 @@ impl ChatApp {
                 Some("send") => self.send(),
                 Some("clear") => {
                     self.messages.clear();
+                    self.store.clear();
                     self.scroll_offset = 0.0;
                     self.stick_to_bottom.set(true);
                     self.heights.borrow_mut().values.clear();
@@ -510,7 +650,7 @@ impl ChatApp {
                             slots.get(slot).copied().flatten()
                         };
                         if let Some(id) = id {
-                            if let Some(message) =
+                            let updated = if let Some(message) =
                                 self.messages.iter_mut().find(|message| message.id == id)
                             {
                                 message.liked = !message.liked;
@@ -519,6 +659,13 @@ impl ChatApp {
                                 } else {
                                     message.likes.saturating_sub(1)
                                 };
+                                Some(message.clone())
+                            } else {
+                                None
+                            };
+
+                            if let Some(message) = updated {
+                                self.store.save(&message);
                             }
                         }
                     }
@@ -527,12 +674,6 @@ impl ChatApp {
             },
             _ => {}
         }
-    }
-}
-
-impl Default for ChatApp {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

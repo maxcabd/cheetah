@@ -7,8 +7,11 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+futures-util = { version = "0.3.34", features = ["sink"] }
 jni = "0.21"
+redb = "4.5.0"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 taffy = "0.15.1"
-tokio = { version = "1", features = ["rt-multi-thread", "time", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "macros"] }
+tokio-tungstenite = { version = "0.30.0", features = ["connect"] }

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/runtime"]
+members = ["crates/runtime", "tools/gateway"]
 resolver = "2"
 
 [profile.release]

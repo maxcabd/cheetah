@@ -4,7 +4,10 @@ pub mod demo;
 pub mod diff;
 pub mod element;
 mod ffi;
+mod gateway;
 pub mod layout;
+pub mod model;
+pub mod store;
 pub mod tree;
 
 pub use app::{Action, App, Event, Runtime, ViewContext, Viewport};

@@ -19,7 +19,7 @@ pub struct Event {
 }
 
 pub enum Action {
-    SendMessage { id: u32 },
+    SendMessage { id: u32, body: String },
 }
 
 pub struct ViewContext<'a> {
