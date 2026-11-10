@@ -171,9 +171,10 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
 private final class SheetNativeModule: CheetahNativeModule {
     private weak var owner: NativeModuleHostView?
     private var controller: UIViewController?
+    private let placeholder = UIView()
 
     var nativeView: UIView {
-        UIView()
+        placeholder
     }
 
     init(owner: NativeModuleHostView) {
@@ -240,6 +241,8 @@ private final class SheetNativeModule: CheetahNativeModule {
         dismiss()
     }
 }
+
+private final class SearchNativeModule: NSObject, CheetahNativeModule, UITextFieldDelegate {
     let field = UISearchTextField()
     weak var owner: NativeModuleHostView?
     private var updating = false
