@@ -63,7 +63,7 @@ final class CheetahUITests: XCTestCase {
             app.staticTexts["Java Haven"].waitForExistence(timeout: 10),
             "search should materialize a place card"
         )
-        XCTAssertTrue(app.staticTexts["Clear"].exists, "results should expose a reset action")
+        XCTAssertTrue(app.buttons["Clear"].exists, "results should expose a reset action")
     }
 
     func testScrollPerformance() throws {
