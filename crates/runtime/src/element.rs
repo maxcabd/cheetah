@@ -124,6 +124,8 @@ pub struct Props {
     pub fit: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_width: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pressable: Option<bool>,
 }
 
 impl Props {
@@ -318,6 +320,11 @@ impl Props {
 
     pub fn content_width(mut self, value: f32) -> Self {
         self.content_width = Some(value);
+        self
+    }
+
+    pub fn pressable(mut self, value: bool) -> Self {
+        self.pressable = Some(value);
         self
     }
 }
@@ -546,6 +553,11 @@ impl Element {
 
     pub fn content_width(mut self, value: f32) -> Self {
         self.props.content_width = Some(value);
+        self
+    }
+
+    pub fn pressable(mut self, value: bool) -> Self {
+        self.props.pressable = Some(value);
         self
     }
 }

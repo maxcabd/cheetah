@@ -159,11 +159,16 @@ jobs:
           DEVICE_ID="${{ steps.simulator.outputs.device }}"
           xcrun simctl terminate "$DEVICE_ID" com.example.cheetah 2>/dev/null || true
           xcrun simctl launch "$DEVICE_ID" com.example.cheetah --nightshade
-          sleep 12
+          sleep 8
+          xcrun simctl io "$DEVICE_ID" screenshot /tmp/nightshade-empty-ios.png
+          xcrun simctl terminate "$DEVICE_ID" com.example.cheetah 2>/dev/null || true
+          xcrun simctl launch "$DEVICE_ID" com.example.cheetah --nightshade-demo
+          sleep 8
           xcrun simctl io "$DEVICE_ID" screenshot /tmp/nightshade-ios.png
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p ci-preview
+          cp /tmp/nightshade-empty-ios.png ci-preview/nightshade-empty-ios.png
           cp /tmp/nightshade-ios.png ci-preview/nightshade-ios.png
           git checkout -B nightshade-preview
           git add -f ci-preview

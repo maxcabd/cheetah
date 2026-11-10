@@ -52,8 +52,8 @@ pub(crate) fn spawn(
         .spawn(move || {
             host.attach();
 
-            let mut runtime = if app == "nightshade" {
-                Runtime::new(NightshadeApp::new())
+            let mut runtime = if app == "nightshade" || app == "nightshade-demo" {
+                Runtime::new(NightshadeApp::new(app == "nightshade-demo"))
             } else {
                 Runtime::new(ChatApp::new(&store_path))
             };

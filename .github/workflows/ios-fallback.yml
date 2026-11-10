@@ -150,10 +150,15 @@ jobs:
           xcrun simctl terminate "$DEVICE_ID" com.example.cheetah 2>/dev/null || true
           xcrun simctl launch "$DEVICE_ID" com.example.cheetah --nightshade
           sleep 8
+          xcrun simctl io "$DEVICE_ID" screenshot /tmp/nightshade-empty-ios18.png
+          xcrun simctl terminate "$DEVICE_ID" com.example.cheetah 2>/dev/null || true
+          xcrun simctl launch "$DEVICE_ID" com.example.cheetah --nightshade-demo
+          sleep 8
           xcrun simctl io "$DEVICE_ID" screenshot /tmp/nightshade-ios18.png
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p ci-preview
+          cp /tmp/nightshade-empty-ios18.png ci-preview/nightshade-empty-ios18.png
           cp /tmp/nightshade-ios18.png ci-preview/nightshade-ios18.png
           git checkout -B nightshade-18-preview
           git add -f ci-preview

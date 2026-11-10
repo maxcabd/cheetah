@@ -581,6 +581,16 @@ class RustHost(
             view.apply(props)
         }
 
+        if (props.optBoolean("pressable", false)) {
+            view.isClickable = true
+            view.setOnClickListener {
+                val input = context.getSystemService(Context.INPUT_METHOD_SERVICE)
+                    as? android.view.inputmethod.InputMethodManager
+                input?.hideSoftInputFromWindow(view.windowToken, 0)
+                event(tag.id, "click", "")
+            }
+        }
+
         if (view is HorizontalScrollView && props.has("contentWidth")) {
             val content = tag.content
             if (content != null) {

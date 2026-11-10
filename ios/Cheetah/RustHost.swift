@@ -76,6 +76,7 @@ private final class NodeTag {
     var updating = false
     var mapProps: [String: Any]?
     var imageSource: String?
+    var tapRecognizer: UITapGestureRecognizer?
 
     init(id: UInt32, kind: String, view: UIView) {
         self.id = id
@@ -114,9 +115,15 @@ final class RustHost: NSObject {
 
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let storePath = documents.appendingPathComponent("cheetah.redb").path
-        let app = ProcessInfo.processInfo.arguments.contains("--nightshade")
-            ? "nightshade"
-            : "chat"
+        let arguments = ProcessInfo.processInfo.arguments
+        let app: String
+        if arguments.contains("--nightshade-demo") {
+            app = "nightshade-demo"
+        } else if arguments.contains("--nightshade") {
+            app = "nightshade"
+        } else {
+            app = "chat"
+        }
 
         handle = storePath.withCString { store in
             "ws://127.0.0.1:9001".withCString { gateway in
@@ -563,6 +570,13 @@ final class RustHost: NSObject {
             }
         }
 
+        if bool(props["pressable"]), node.tapRecognizer == nil {
+            view.isUserInteractionEnabled = true
+            let tap = UITapGestureRecognizer(target: self, action: #selector(viewTapped(_:)))
+            view.addGestureRecognizer(tap)
+            node.tapRecognizer = tap
+        }
+
         if let imageView = view as? UIImageView, let source = props["src"] as? String {
             if node.imageSource != source {
                 node.imageSource = source
@@ -786,6 +800,14 @@ final class RustHost: NSObject {
 
     @objc private func buttonTapped(_ sender: CheetahButton) {
         event(id: UInt32(sender.tag), kind: "click", payload: "")
+    }
+
+    @objc private func viewTapped(_ sender: UITapGestureRecognizer) {
+        guard let view = sender.view else {
+            return
+        }
+        container.endEditing(true)
+        event(id: UInt32(view.tag), kind: "click", payload: "")
     }
 
     @objc private func textChanged(_ sender: UITextField) {
