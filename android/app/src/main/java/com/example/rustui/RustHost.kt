@@ -52,7 +52,7 @@ class RustHost(
     private var keyboardInset = 0.0
     private var lastHostInfo: String? = null
     private val pools = HashMap<String, ArrayDeque<View>>()
-    private val mapHosts = mutableListOf<MapHostView>()
+    private val mapHosts = mutableListOf<NativeMapHost>()
     private var isActive = false
 
     init {
@@ -267,12 +267,18 @@ class RustHost(
     private fun createView(kind: String): View = when (kind) {
         "column", "row", "glass" -> FrameLayout(context)
 
-        "map" -> MapHostView(context).also { map ->
+        "map" -> {
+            val map: NativeMapHost = if (BuildConfig.MAPS_API_KEY.isBlank()) {
+                MapLibreHostView(context)
+            } else {
+                MapHostView(context)
+            }
             mapHosts.add(map)
             if (isActive) {
                 map.start()
                 map.resume()
             }
+            map as View
         }
 
         "text" -> TextView(context).apply {
@@ -409,7 +415,7 @@ class RustHost(
         val view = views.remove(id) ?: return
         val tag = tags.remove(id)
         (view.parent as? ViewGroup)?.removeView(view)
-        if (view is MapHostView) {
+        if (view is NativeMapHost) {
             view.destroy()
             mapHosts.remove(view)
         }
@@ -488,7 +494,7 @@ class RustHost(
     private fun applyProps(view: View, props: JSONObject) {
         val tag = view.tag as? NodeTag ?: return
 
-        if (view is MapHostView) {
+        if (view is NativeMapHost) {
             view.apply(props)
         }
 

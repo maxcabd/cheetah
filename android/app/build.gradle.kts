@@ -63,4 +63,6 @@ android {
 
 dependencies {
     implementation("com.google.android.gms:play-services-maps:20.1.0")
+    // Keyless fallback used by the Nightshade lab when MAPS_API_KEY is absent.
+    implementation("org.maplibre.gl:android-sdk:11.13.5")
 }

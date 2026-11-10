@@ -22,7 +22,7 @@ import kotlin.math.ln
  * carries data; Google Maps owns panning, zooming, marker layout and the map
  * surface itself.
  */
-class MapHostView(context: Context) : FrameLayout(context) {
+class MapHostView(context: Context) : FrameLayout(context), NativeMapHost {
     private val mapView: MapView?
     private var googleMap: GoogleMap? = null
     private var pendingProps: JSONObject? = null
@@ -63,42 +63,42 @@ class MapHostView(context: Context) : FrameLayout(context) {
         }
     }
 
-    fun start() {
+    override fun start() {
         if (!started && mapView != null) {
             mapView.onStart()
             started = true
         }
     }
 
-    fun resume() {
+    override fun resume() {
         if (!resumed && mapView != null) {
             mapView.onResume()
             resumed = true
         }
     }
 
-    fun pause() {
+    override fun pause() {
         if (resumed && mapView != null) {
             mapView.onPause()
             resumed = false
         }
     }
 
-    fun stop() {
+    override fun stop() {
         if (started && mapView != null) {
             mapView.onStop()
             started = false
         }
     }
 
-    fun destroy() {
+    override fun destroy() {
         pause()
         stop()
         mapView?.onDestroy()
         googleMap = null
     }
 
-    fun apply(props: JSONObject) {
+    override fun apply(props: JSONObject) {
         pendingProps = props
         googleMap?.let { applyToMap(it, props) }
     }
