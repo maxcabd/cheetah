@@ -2,12 +2,17 @@ package com.example.rustui
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
+import android.view.Gravity
 import android.view.View
+import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.appcompat.widget.SearchView
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import org.json.JSONObject
 
 interface CheetahNativeModule {
@@ -37,14 +42,20 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
                     onEvent?.invoke(kind, payload)
                 }
                 "map" -> MapNativeModule(context)
+                "sheet" -> SheetNativeModule(context, this)
                 else -> null
             }
-            module?.nativeView?.let {
-                addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+            if (name != "sheet") {
+                module?.nativeView?.let {
+                    addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+                }
             }
             module?.setActive(active)
         }
         module?.apply(props)
+        if (name == "sheet") {
+            (module as? SheetNativeModule)?.presentIfNeeded()
+        }
     }
 
     fun setActive(active: Boolean) {
@@ -86,6 +97,81 @@ private class MapNativeModule(context: Context) : CheetahNativeModule {
 
     override fun destroy() {
         map.destroy()
+    }
+}
+
+private class SheetNativeModule(
+    context: Context,
+    private val owner: NativeModuleHostView,
+) : CheetahNativeModule {
+    private val placeholder = View(context)
+    private var dialog: BottomSheetDialog? = null
+
+    override val nativeView: View
+        get() = placeholder
+
+    override fun apply(props: JSONObject) = Unit
+
+    fun presentIfNeeded() {
+        if (dialog != null) return
+
+        val density = owner.resources.displayMetrics.density
+        val sheetHeight = 230f * density
+        val dialog = BottomSheetDialog(
+            ContextThemeWrapper(owner.context, R.style.Cheetah_SheetDialog),
+        )
+        dialog.setContentView(
+            owner,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, sheetHeight.toInt()),
+        )
+        dialog.setCancelable(false)
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.window?.setDimAmount(0f)
+        dialog.window?.addFlags(
+            android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
+        )
+        dialog.behavior.isHideable = false
+        dialog.behavior.isDraggable = true
+        dialog.behavior.isFitToContents = false
+        dialog.behavior.peekHeight = sheetHeight.toInt()
+        dialog.setOnShowListener {
+            dialog.behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+            val sheet = dialog.findViewById<View>(
+                com.google.android.material.R.id.design_bottom_sheet,
+            )
+            val radius = 28f * density
+            sheet?.background = GradientDrawable().apply {
+                setColor(Color.parseColor("#171717"))
+                cornerRadii = floatArrayOf(
+                    radius,
+                    radius,
+                    radius,
+                    radius,
+                    0f,
+                    0f,
+                    0f,
+                    0f,
+                )
+            }
+            dialog.window?.setLayout(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                sheetHeight.toInt(),
+            )
+            dialog.window?.setGravity(Gravity.BOTTOM)
+        }
+        dialog.setOnDismissListener {
+            if (this.dialog === dialog) {
+                this.dialog = null
+            }
+        }
+        dialog.show()
+        dialog.behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+        this.dialog = dialog
+    }
+
+    override fun destroy() {
+        dialog?.dismiss()
+        dialog = null
     }
 }
 

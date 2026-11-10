@@ -654,7 +654,7 @@ pub fn glass() -> Element {
 
 #[track_caller]
 pub fn sheet() -> Element {
-    Element::new(Kind::Sheet)
+    native("sheet")
 }
 
 #[track_caller]

@@ -78,6 +78,11 @@ private final class NodeTag {
     var imageSource: String?
     var tapRecognizer: UITapGestureRecognizer?
     var source: String?
+    var native: String?
+
+    var isSheet: Bool {
+        kind == "sheet" || native == "sheet"
+    }
 
     init(id: UInt32, kind: String, view: UIView) {
         self.id = id
@@ -222,6 +227,11 @@ final class RustHost: NSObject {
 
         sheetController?.dismiss(animated: false)
         sheetController = nil
+        for view in views.values {
+            if let native = view as? NativeModuleHostView {
+                native.destroy()
+            }
+        }
         context.host = nil
         Unmanaged<HostContext>.fromOpaque(contextPointer).release()
     }
@@ -272,6 +282,8 @@ final class RustHost: NSObject {
         view.tag = Int(id)
 
         let node = NodeTag(id: id, kind: kind, view: view)
+        let nodeProps = op["props"] as? [String: Any] ?? [:]
+        node.native = nodeProps["native"] as? String
         if let source = op["source"] as? [String: Any],
            let file = source["file"] as? String,
            let line = source["line"] as? NSNumber
@@ -285,7 +297,7 @@ final class RustHost: NSObject {
             scrollTags[ObjectIdentifier(scroll)] = node
         } else if let glass = view as? GlassView {
             node.container = glass.contentView
-        } else if kind == "column" || kind == "row" || kind == "sheet" {
+        } else if kind == "column" || kind == "row" || kind == "sheet" || node.isSheet {
             node.container = view
         }
 
@@ -296,7 +308,7 @@ final class RustHost: NSObject {
             container.addSubview(view)
         }
 
-        applyProps(view, node: node, props: op["props"] as? [String: Any] ?? [:])
+        applyProps(view, node: node, props: nodeProps)
     }
 
     private func makeView(_ kind: String) -> UIView {
@@ -409,8 +421,10 @@ final class RustHost: NSObject {
             guard let child = views[childId] else {
                 continue
             }
-            if let childNode = tags[childId], childNode.kind == "sheet" {
-                presentSheetIfNeeded(child)
+            if let childNode = tags[childId], childNode.isSheet {
+                if childNode.kind == "sheet" {
+                    presentSheetIfNeeded(child)
+                }
                 continue
             }
             if child.superview !== parent {
@@ -430,7 +444,7 @@ final class RustHost: NSObject {
         guard let view = views[id] else {
             return
         }
-        if tags[id]?.kind == "sheet" {
+        if tags[id]?.isSheet == true {
             return
         }
 
@@ -501,7 +515,7 @@ final class RustHost: NSObject {
 
     private func remove(_ op: [String: Any]) {
         let id = uint32(op["id"])
-        if tags[id]?.kind == "sheet" {
+        if tags[id]?.isSheet == true {
             sheetController?.dismiss(animated: false)
             sheetController = nil
         }
@@ -510,6 +524,9 @@ final class RustHost: NSObject {
         }
         if let scroll = view as? UIScrollView {
             scrollTags.removeValue(forKey: ObjectIdentifier(scroll))
+        }
+        if let native = view as? NativeModuleHostView {
+            native.destroy()
         }
         view.removeFromSuperview()
         tags.removeValue(forKey: id)

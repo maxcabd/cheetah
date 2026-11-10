@@ -241,6 +241,8 @@ class RustHost(
         val kind = op.getString("kind")
         val view = obtainView(kind)
         val tag = NodeTag(id, view, kind)
+        val props = op.getJSONObject("props")
+        tag.native = props.optString("native").takeIf { it.isNotEmpty() }
         val source = op.optJSONObject("source")
         if (source != null) {
             val file = source.optString("file")
@@ -288,7 +290,8 @@ class RustHost(
             kind == "column" ||
             kind == "row" ||
             kind == "glass" ||
-            kind == "sheet"
+            kind == "sheet" ||
+            tag.isSheet
         ) {
             tag.container = view as? ViewGroup
         }
@@ -302,7 +305,7 @@ class RustHost(
             root.addView(view, FrameLayout.LayoutParams(0, 0))
         }
 
-        applyProps(view, op.getJSONObject("props"))
+        applyProps(view, props)
         if (kind == "sheet") {
             presentSheetIfNeeded(view)
         }
@@ -446,8 +449,10 @@ class RustHost(
 
         for ((index, childId) in wanted.withIndex()) {
             val child = views[childId] ?: continue
-            if (tags[childId]?.kind == "sheet") {
-                presentSheetIfNeeded(child)
+            if (tags[childId]?.isSheet == true) {
+                if (tags[childId]?.kind == "sheet") {
+                    presentSheetIfNeeded(child)
+                }
                 continue
             }
             if (index >= parent.childCount || parent.getChildAt(index) !== child) {
@@ -460,7 +465,7 @@ class RustHost(
     private fun layout(op: JSONObject) {
         val id = op.getInt("id")
         val view = views[id] ?: return
-        if (tags[id]?.kind == "sheet") return
+        if (tags[id]?.isSheet == true) return
         val params = view.layoutParams as? FrameLayout.LayoutParams
             ?: FrameLayout.LayoutParams(0, 0)
         params.width = dp(op.getDouble("width").toFloat())
@@ -521,7 +526,7 @@ class RustHost(
     private fun remove(id: Int) {
         val view = views.remove(id) ?: return
         val tag = tags.remove(id)
-        if (tag?.kind == "sheet") {
+        if (tag?.isSheet == true) {
             sheetDialog?.dismiss()
             sheetDialog = null
         }
@@ -613,6 +618,7 @@ class RustHost(
         }
 
         if (view is NativeModuleHostView) {
+            tag.native = props.optString("native").takeIf { it.isNotEmpty() }
             view.onEvent = { kind, payload ->
                 event(tag.id, kind, payload)
             }

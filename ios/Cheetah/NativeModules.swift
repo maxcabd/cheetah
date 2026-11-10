@@ -4,6 +4,11 @@ import UIKit
 protocol CheetahNativeModule: AnyObject {
     var nativeView: UIView { get }
     func apply(props: [String: Any])
+    func destroy()
+}
+
+extension CheetahNativeModule {
+    func destroy() {}
 }
 
 /// Container for a semantic native module. The Rust layout owns this box;
@@ -24,11 +29,14 @@ final class NativeModuleHostView: UIView {
     func configure(name: String, props: [String: Any]) {
         if module == nil {
             module = NativeModuleRegistry.make(name: name, owner: self)
-            if let native = module?.nativeView {
+            if name != "sheet", let native = module?.nativeView {
                 addSubview(native)
             }
         }
         module?.apply(props: props)
+        if let sheet = module as? SheetNativeModule {
+            sheet.presentIfNeeded(owner: self)
+        }
         setNeedsLayout()
     }
 
@@ -45,6 +53,11 @@ final class NativeModuleHostView: UIView {
     func event(_ kind: String, _ payload: String) {
         onEvent?(kind, payload)
     }
+
+    func destroy() {
+        module?.destroy()
+        module = nil
+    }
 }
 
 private enum NativeModuleRegistry {
@@ -54,6 +67,8 @@ private enum NativeModuleRegistry {
             return SearchNativeModule(owner: owner)
         case "map":
             return MapNativeModule(owner: owner)
+        case "sheet":
+            return SheetNativeModule(owner: owner)
         default:
             return nil
         }
@@ -153,7 +168,78 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
     }
 }
 
-private final class SearchNativeModule: NSObject, CheetahNativeModule, UITextFieldDelegate {
+private final class SheetNativeModule: CheetahNativeModule {
+    private weak var owner: NativeModuleHostView?
+    private var controller: UIViewController?
+
+    var nativeView: UIView {
+        UIView()
+    }
+
+    init(owner: NativeModuleHostView) {
+        self.owner = owner
+    }
+
+    func apply(props: [String: Any]) {
+        _ = props
+    }
+
+    func presentIfNeeded(owner: NativeModuleHostView) {
+        guard controller == nil else {
+            return
+        }
+        let scene = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }
+        guard let presenter = scene?.keyWindow?.rootViewController else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self, weak owner] in
+                guard let self, let owner else {
+                    return
+                }
+                self.presentIfNeeded(owner: owner)
+            }
+            return
+        }
+
+        let controller = UIViewController()
+        controller.view.backgroundColor = UIColor(hex: "#171717")
+        controller.isModalInPresentation = true
+        owner.translatesAutoresizingMaskIntoConstraints = false
+        controller.view.addSubview(owner)
+        NSLayoutConstraint.activate([
+            owner.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
+            owner.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
+            owner.topAnchor.constraint(equalTo: controller.view.topAnchor),
+            owner.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),
+        ])
+
+        controller.modalPresentationStyle = .pageSheet
+        if let sheet = controller.sheetPresentationController {
+            let identifier = UISheetPresentationController.Detent.Identifier("cheetah-search")
+            let detent = UISheetPresentationController.Detent.custom(identifier: identifier) { _ in
+                230
+            }
+            sheet.detents = [detent]
+            sheet.selectedDetentIdentifier = identifier
+            sheet.largestUndimmedDetentIdentifier = identifier
+            sheet.prefersGrabberVisible = true
+            sheet.preferredCornerRadius = 28
+            sheet.prefersScrollingExpandsWhenScrolledToEdge = false
+        }
+
+        presenter.present(controller, animated: false)
+        self.controller = controller
+    }
+
+    func dismiss() {
+        controller?.dismiss(animated: false)
+        controller = nil
+    }
+
+    func destroy() {
+        dismiss()
+    }
+}
     let field = UISearchTextField()
     weak var owner: NativeModuleHostView?
     private var updating = false

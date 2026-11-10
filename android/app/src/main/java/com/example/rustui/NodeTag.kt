@@ -19,4 +19,8 @@ class NodeTag(val id: Int, val view: View, val kind: String) {
     var scrollGeneration: Int = 0
     var imageUrl: String? = null
     var source: String? = null
+    var native: String? = null
+
+    val isSheet: Boolean
+        get() = kind == "sheet" || native == "sheet"
 }
