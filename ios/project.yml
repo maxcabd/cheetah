@@ -19,6 +19,9 @@ targets:
           - Info.plist
           - Cheetah-Bridging-Header.h
           - CheetahFFI.h
+          - Assets
+      - path: Cheetah/Assets
+        buildPhase: resources
     dependencies:
       - framework: Libs/Runtime.xcframework
         embed: false

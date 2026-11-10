@@ -1,5 +1,5 @@
 use crate::app::{App, Event, HostInfo, ViewContext};
-use crate::element::{column, glass, input, map, row, text, Element};
+use crate::element::{column, glass, hscroll, image, input, map, row, text, Element};
 
 const BG: &str = "#0b0b0f";
 const PANEL: &str = "#171717e6";
@@ -34,6 +34,64 @@ impl NightshadeApp {
             .height(34.0)
             .align("center")
             .radius(17.0)
+    }
+
+    fn card(&self, width: f32, name: &str, address: &str, detail: &str) -> Element {
+        column()
+            .width(width)
+            .height(276.0)
+            .bg("#1f1f1f")
+            .radius(28.0)
+            .child(
+                image("asset://second-cup-card-full.jpeg")
+                    .width(-1.0)
+                    .height(168.0)
+                    .radius(28.0),
+            )
+            .child(
+                column()
+                    .width(-1.0)
+                    .height(108.0)
+                    .pad_h(18.0)
+                    .pad_v(14.0)
+                    .gap(5.0)
+                    .child(text(name).size(18.0).bold(true).color(TEXT).height(22.0))
+                    .child(text(address).size(13.0).color("#d4d4d4").height(18.0))
+                    .child(text(detail).size(12.0).color(MUTED).height(16.0)),
+            )
+    }
+
+    fn carousel(&self, width: f32) -> Element {
+        let card_width = (width * 0.82).min(340.0);
+        let content_width = (card_width + 12.0) * 3.0 + 40.0;
+        hscroll()
+            .key("places")
+            .absolute()
+            .bottom(self.host.safe_bottom.max(0.0) + 12.0 + 166.0 + 12.0)
+            .left(0.0)
+            .width(-1.0)
+            .height(300.0)
+            .pad_h(16.0)
+            .gap(12.0)
+            .content_width(content_width)
+            .child(self.card(
+                card_width,
+                "Java Haven",
+                "Cedarwood Drive",
+                "Open until 6:00 PM",
+            ))
+            .child(self.card(
+                card_width,
+                "Pizza Paradise",
+                "Market Street",
+                "Open until 11:00 PM",
+            ))
+            .child(self.card(
+                card_width,
+                "Sushi Zen",
+                "Hayes Valley",
+                "Open until 9:30 PM",
+            ))
     }
 
     fn bottom_panel(&self, width: f32) -> Element {
@@ -146,6 +204,7 @@ impl App for NightshadeApp {
                     .map_dark(true),
             )
             .child(self.top_control())
+            .child(self.carousel(width))
             .child(self.bottom_panel(width))
     }
 

@@ -59,6 +59,8 @@ private final class HostContext {
     }
 }
 
+private let cheetahImageCache = NSCache<NSURL, UIImage>()
+
 private final class NodeTag {
     let id: UInt32
     let kind: String
@@ -67,11 +69,13 @@ private final class NodeTag {
     var container: UIView?
     weak var scrollView: UIScrollView?
     var contentHeight: CGFloat = 0
+    var contentWidth: CGFloat = 0
     var pendingScrollTo: CGFloat?
     var lastScrollTo: CGFloat?
     var lastValue: String?
     var updating = false
     var mapProps: [String: Any]?
+    var imageSource: String?
 
     init(id: UInt32, kind: String, view: UIView) {
         self.id = id
@@ -312,6 +316,26 @@ final class RustHost: NSObject {
             scroll.addSubview(content)
             return scroll
 
+        case "hscroll":
+            let scroll = UIScrollView()
+            scroll.showsHorizontalScrollIndicator = false
+            scroll.showsVerticalScrollIndicator = false
+            scroll.alwaysBounceHorizontal = true
+            scroll.delegate = self
+            scroll.clipsToBounds = true
+            scroll.contentInsetAdjustmentBehavior = .never
+            let content = UIView()
+            scroll.addSubview(content)
+            return scroll
+
+        case "image":
+            let imageView = UIImageView()
+            imageView.contentMode = .scaleAspectFill
+            imageView.clipsToBounds = true
+            imageView.backgroundColor = UIColor(hex: "#242424")
+            imageView.isUserInteractionEnabled = false
+            return imageView
+
         case "glass":
             return GlassView()
 
@@ -478,6 +502,18 @@ final class RustHost: NSObject {
             }
         }
 
+        if let imageView = view as? UIImageView, let source = props["src"] as? String {
+            if node.imageSource != source {
+                node.imageSource = source
+                imageView.image = nil
+                loadImage(source, into: imageView, node: node)
+            }
+        }
+
+        if let imageView = view as? UIImageView, let fit = props["fit"] as? String {
+            imageView.contentMode = fit == "contain" ? .scaleAspectFit : .scaleAspectFill
+        }
+
         if let background = props["bg"] as? String {
             view.backgroundColor = UIColor(hex: background)
         }
@@ -553,6 +589,10 @@ final class RustHost: NSObject {
                 node.contentHeight = number(contentHeight)
                 updateScrollContent(node)
             }
+            if let contentWidth = props["contentWidth"] {
+                node.contentWidth = number(contentWidth)
+                updateScrollContent(node)
+            }
             if let scrollTo = props["scrollTo"] {
                 node.pendingScrollTo = number(scrollTo)
                 applyScroll(node)
@@ -621,10 +661,53 @@ final class RustHost: NSObject {
             return
         }
 
+        if node.kind == "hscroll" {
+            let width = max(node.contentWidth, scroll.bounds.width, 1)
+            let height = max(scroll.bounds.height, 1)
+            content.frame = CGRect(x: 0, y: 0, width: width, height: height)
+            scroll.contentSize = CGSize(width: width, height: height)
+            return
+        }
+
         let width = max(scroll.bounds.width, 1)
         let height = max(node.contentHeight, 1)
         content.frame = CGRect(x: 0, y: 0, width: width, height: height)
         scroll.contentSize = CGSize(width: width, height: height)
+    }
+
+    private func loadImage(_ source: String, into imageView: UIImageView, node: NodeTag) {
+        if source.hasPrefix("asset://") {
+            let name = String(source.dropFirst("asset://".count))
+            imageView.image = UIImage(named: name)
+            return
+        }
+
+        guard let url = URL(string: source) else {
+            return
+        }
+
+        if let cached = cheetahImageCache.object(forKey: url as NSURL) {
+            imageView.image = cached
+            return
+        }
+
+        URLSession.shared.dataTask(with: url) { [weak self, weak imageView] data, _, _ in
+            guard let data, let image = UIImage(data: data) else {
+                return
+            }
+            cheetahImageCache.setObject(image, forKey: url as NSURL)
+            DispatchQueue.main.async {
+                guard
+                    let self,
+                    let imageView,
+                    self.tags[UInt32(imageView.tag)]?.imageSource == source
+                else {
+                    return
+                }
+                imageView.image = image
+                node.imageSource = source
+            }
+        }.resume()
     }
 
     private func applyScroll(_ node: NodeTag) {

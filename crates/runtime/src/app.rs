@@ -223,6 +223,7 @@ fn props_affect_layout(previous: &Props, next: &Props) -> bool {
         || previous.pad != next.pad
         || previous.pad_h != next.pad_h
         || previous.pad_v != next.pad_v
+        || previous.content_width != next.content_width
         || previous.weight != next.weight
         || previous.gap != next.gap
         || previous.align_items != next.align_items

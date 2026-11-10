@@ -11,6 +11,8 @@ pub enum Kind {
     List,
     Glass,
     Map,
+    Image,
+    HScroll,
     Input,
     Space,
 }
@@ -26,6 +28,8 @@ impl Kind {
             Kind::List => "list",
             Kind::Glass => "glass",
             Kind::Map => "map",
+            Kind::Image => "image",
+            Kind::HScroll => "hscroll",
             Kind::Input => "input",
             Kind::Space => "space",
         }
@@ -112,6 +116,12 @@ pub struct Props {
     pub map_markers: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub map_dark: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub src: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fit: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_width: Option<f32>,
 }
 
 impl Props {
@@ -291,6 +301,21 @@ impl Props {
 
     pub fn map_dark(mut self, value: bool) -> Self {
         self.map_dark = Some(value);
+        self
+    }
+
+    pub fn src(mut self, value: impl Into<String>) -> Self {
+        self.src = Some(value.into());
+        self
+    }
+
+    pub fn fit(mut self, value: impl Into<String>) -> Self {
+        self.fit = Some(value.into());
+        self
+    }
+
+    pub fn content_width(mut self, value: f32) -> Self {
+        self.content_width = Some(value);
         self
     }
 }
@@ -506,6 +531,21 @@ impl Element {
         self.props.map_dark = Some(value);
         self
     }
+
+    pub fn src(mut self, value: impl Into<String>) -> Self {
+        self.props.src = Some(value.into());
+        self
+    }
+
+    pub fn fit(mut self, value: impl Into<String>) -> Self {
+        self.props.fit = Some(value.into());
+        self
+    }
+
+    pub fn content_width(mut self, value: f32) -> Self {
+        self.props.content_width = Some(value);
+        self
+    }
 }
 
 pub fn column() -> Element {
@@ -542,6 +582,16 @@ pub fn glass() -> Element {
 
 pub fn map() -> Element {
     Element::new(Kind::Map)
+}
+
+pub fn image(src: impl Into<String>) -> Element {
+    let mut element = Element::new(Kind::Image);
+    element.props.src = Some(src.into());
+    element
+}
+
+pub fn hscroll() -> Element {
+    Element::new(Kind::HScroll)
 }
 
 pub fn input(placeholder: impl Into<String>, value: impl Into<String>) -> Element {

@@ -1,6 +1,8 @@
 package com.example.rustui
 
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -13,6 +15,7 @@ import android.text.StaticLayout
 import android.text.TextPaint
 import android.text.TextWatcher
 import android.util.Log
+import android.util.LruCache
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -21,12 +24,17 @@ import android.view.WindowInsets
 import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.ScrollView
 import android.widget.Space
 import android.widget.TextView
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -54,6 +62,8 @@ class RustHost(
     private val pools = HashMap<String, ArrayDeque<View>>()
     private val mapHosts = mutableListOf<NativeMapHost>()
     private var isActive = false
+    private val imageCache = LruCache<String, Bitmap>(24)
+    private val imageLoader = Executors.newFixedThreadPool(2)
 
     init {
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
@@ -184,6 +194,7 @@ class RustHost(
             map.destroy()
         }
         mapHosts.clear()
+        imageLoader.shutdownNow()
 
         val current = handle
         if (current != 0L) {
@@ -244,6 +255,10 @@ class RustHost(
             content.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
                 applyScroll(view, tag)
             }
+        } else if (view is HorizontalScrollView) {
+            val content = view.getChildAt(0) as FrameLayout
+            tag.container = content
+            tag.content = content
         } else if (
             kind == "column" ||
             kind == "row" ||
@@ -306,6 +321,21 @@ class RustHost(
                 FrameLayout(context),
                 FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT),
             )
+        }
+
+        "hscroll" -> HorizontalScrollView(context).apply {
+            isHorizontalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_NEVER
+            clipToPadding = false
+            addView(
+                FrameLayout(context),
+                FrameLayout.LayoutParams(WRAP_CONTENT, MATCH_PARENT),
+            )
+        }
+
+        "image" -> ImageView(context).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            setBackgroundColor(Color.parseColor("#242424"))
         }
 
         "input" -> EditText(context).apply {
@@ -498,6 +528,35 @@ class RustHost(
             view.apply(props)
         }
 
+        if (view is HorizontalScrollView && props.has("contentWidth")) {
+            val content = tag.content
+            if (content != null) {
+                val width = maxOf(
+                    view.width,
+                    dp(props.getDouble("contentWidth").toFloat()),
+                )
+                content.layoutParams = FrameLayout.LayoutParams(width, MATCH_PARENT)
+                content.requestLayout()
+            }
+        }
+
+        if (view is ImageView && props.has("src")) {
+            val source = props.getString("src")
+            if (tag.imageUrl != source) {
+                tag.imageUrl = source
+                view.setImageDrawable(null)
+                loadImage(view, source, tag)
+            }
+        }
+
+        if (view is ImageView && props.has("fit")) {
+            view.scaleType = if (props.getString("fit") == "contain") {
+                ImageView.ScaleType.FIT_CENTER
+            } else {
+                ImageView.ScaleType.CENTER_CROP
+            }
+        }
+
         if (props.has("text")) {
             val text = props.getString("text")
             if (view is TextView && view.text.toString() != text) {
@@ -607,6 +666,40 @@ class RustHost(
         if (props.has("scrollTo") && view is ScrollView) {
             tag.pendingScrollTo = dp(props.getDouble("scrollTo").toFloat()).toFloat()
             applyScroll(view, tag)
+        }
+    }
+
+    private fun loadImage(view: ImageView, source: String, tag: NodeTag) {
+        imageCache.get(source)?.let {
+            view.setImageBitmap(it)
+            return
+        }
+
+        imageLoader.execute {
+            val bitmap = try {
+                if (source.startsWith("asset://")) {
+                    context.assets.open(source.removePrefix("asset://")).use(BitmapFactory::decodeStream)
+                } else {
+                    val connection = URL(source).openConnection() as HttpURLConnection
+                    connection.connectTimeout = 8_000
+                    connection.readTimeout = 12_000
+                    connection.setRequestProperty("User-Agent", "Cheetah/0.1")
+                    try {
+                        connection.inputStream.use(BitmapFactory::decodeStream)
+                    } finally {
+                        connection.disconnect()
+                    }
+                }
+            } catch (_: Exception) {
+                null
+            } ?: return@execute
+
+            imageCache.put(source, bitmap)
+            mainHandler.post {
+                if (tag.imageUrl == source && view.tag === tag) {
+                    view.setImageBitmap(bitmap)
+                }
+            }
         }
     }
 

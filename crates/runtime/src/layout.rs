@@ -85,7 +85,7 @@ fn style_for(kind: Kind, props: &Props) -> Style {
     let mut style = Style {
         display: Display::Flex,
         flex_direction: match kind {
-            Kind::Row => FlexDirection::Row,
+            Kind::Row | Kind::HScroll => FlexDirection::Row,
             _ => FlexDirection::Column,
         },
         size: Size {
@@ -144,7 +144,10 @@ fn style_for(kind: Kind, props: &Props) -> Style {
         };
     }
 
-    if matches!(kind, Kind::List | Kind::Scroll | Kind::Glass) {
+    if matches!(
+        kind,
+        Kind::List | Kind::Scroll | Kind::HScroll | Kind::Glass
+    ) {
         style.overflow = Point {
             x: Overflow::Hidden,
             y: Overflow::Hidden,
