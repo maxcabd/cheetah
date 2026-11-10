@@ -6,7 +6,9 @@ import android.widget.FrameLayout
 import android.widget.ScrollView
 
 class NodeTag(val id: Int, val view: View, val kind: String) {
-    var container: ViewGroup? = view as? ViewGroup
+    // Only column/row/glass/scroll nodes receive Rust children. Native leaf
+    // view groups such as MapView own their internal children.
+    var container: ViewGroup? = null
     var scroll: ScrollView? = null
     var content: FrameLayout? = null
     var root: Boolean = false

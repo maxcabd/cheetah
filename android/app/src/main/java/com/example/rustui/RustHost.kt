@@ -52,6 +52,8 @@ class RustHost(
     private var keyboardInset = 0.0
     private var lastHostInfo: String? = null
     private val pools = HashMap<String, ArrayDeque<View>>()
+    private val mapHosts = mutableListOf<MapHostView>()
+    private var isActive = false
 
     init {
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
@@ -70,6 +72,17 @@ class RustHost(
     }
 
     fun setActive(active: Boolean) {
+        isActive = active
+        for (map in mapHosts) {
+            if (active) {
+                map.start()
+                map.resume()
+            } else {
+                map.pause()
+                map.stop()
+            }
+        }
+
         val current = handle
         if (current != 0L) {
             RustBridge.nativeLifecycle(current, active)
@@ -166,6 +179,12 @@ class RustHost(
     }
 
     fun dispose() {
+        isActive = false
+        for (map in mapHosts) {
+            map.destroy()
+        }
+        mapHosts.clear()
+
         val current = handle
         if (current != 0L) {
             handle = 0L
@@ -225,6 +244,12 @@ class RustHost(
             content.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
                 applyScroll(view, tag)
             }
+        } else if (
+            kind == "column" ||
+            kind == "row" ||
+            kind == "glass"
+        ) {
+            tag.container = view as? ViewGroup
         }
 
         tag.root = op.optBoolean("root", false)
@@ -242,8 +267,12 @@ class RustHost(
     private fun createView(kind: String): View = when (kind) {
         "column", "row", "glass" -> FrameLayout(context)
 
-        "map" -> FrameLayout(context).apply {
-            setBackgroundColor(Color.parseColor("#0b0b0f"))
+        "map" -> MapHostView(context).also { map ->
+            mapHosts.add(map)
+            if (isActive) {
+                map.start()
+                map.resume()
+            }
         }
 
         "text" -> TextView(context).apply {
@@ -380,6 +409,10 @@ class RustHost(
         val view = views.remove(id) ?: return
         val tag = tags.remove(id)
         (view.parent as? ViewGroup)?.removeView(view)
+        if (view is MapHostView) {
+            view.destroy()
+            mapHosts.remove(view)
+        }
 
         val key = tag?.kind?.let(::poolKey) ?: return
         if (key == "container" && view is ViewGroup) {
@@ -454,6 +487,10 @@ class RustHost(
 
     private fun applyProps(view: View, props: JSONObject) {
         val tag = view.tag as? NodeTag ?: return
+
+        if (view is MapHostView) {
+            view.apply(props)
+        }
 
         if (props.has("text")) {
             val text = props.getString("text")
