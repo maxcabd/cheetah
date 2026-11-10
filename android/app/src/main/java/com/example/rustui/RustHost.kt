@@ -469,6 +469,7 @@ class RustHost(
         dialog.setCancelable(false)
         dialog.setCanceledOnTouchOutside(false)
         dialog.window?.setDimAmount(0f)
+        dialog.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
         dialog.behavior.isHideable = false
         dialog.behavior.isDraggable = true
         dialog.behavior.isFitToContents = false
