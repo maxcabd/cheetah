@@ -3,9 +3,10 @@
 A small, local driver for Cheetah apps. It gives the development loop one
 stable vocabulary instead of a pile of adb/XCTest incantations.
 
-The Android adapter is complete. The iOS adapter currently covers launch,
-terminate, and screenshots; tree/tap/type on iOS stay in the XCUITest runner
-until a small host-side accessibility bridge is added.
+Android uses UIAutomator through adb. iOS uses an XCUITest command runner
+(`CheetahDriveTests`) that reads the same drive file and writes a machine-
+readable tree. Normal iOS UI test runs skip the runner unless a drive script
+is present.
 
 ## Android loop
 
@@ -15,6 +16,8 @@ cargo run -p cheetah-drive -- android tree
 cargo run -p cheetah-drive -- android tap Coffee
 cargo run -p cheetah-drive -- android type search "sushi"
 cargo run -p cheetah-drive -- android screenshot target/drive/nightshade.png
+cargo run -p cheetah-drive -- android settle
+cargo run -p cheetah-drive -- android clock +500
 cargo run -p cheetah-drive -- android logs 300
 ```
 
@@ -53,6 +56,8 @@ Supported operations:
 - `expect exists <target>`
 - `expect missing <target>`
 - `wait <milliseconds>`
+- `settle [timeout_ms]` — wait until two accessibility snapshots agree
+- `clock +<milliseconds>` or `clock settle` — advance/settle the driver clock
 - `screenshot <path>`
 
 Run the checked-in example:
@@ -63,13 +68,21 @@ cargo run -p cheetah-drive -- android test tools/drive/nightshade.drive
 
 ## iOS
 
-On a Mac with Xcode and a booted simulator:
+On a Mac with Xcode, XcodeGen, and a booted simulator:
 
 ```sh
-cargo run -p cheetah-drive -- ios launch com.example.cheetah --nightshade
+# Generate ios/Cheetah.xcodeproj first if it is absent.
+cargo run -p cheetah-drive -- ios tree nightshade
+cargo run -p cheetah-drive -- ios tap Coffee nightshade
+cargo run -p cheetah-drive -- ios test tools/drive/nightshade.drive
 cargo run -p cheetah-drive -- ios screenshot target/drive/nightshade-ios.png
-cargo run -p cheetah-drive -- ios terminate com.example.cheetah
 ```
 
-The next iOS adapter step is an XCUITest command loop that reads a drive file
-and emits the same JSON tree.
+`ios tree`, `ios tap`, and `ios type` each launch the app through XCTest and
+are therefore best for one-shot inspection. Use `ios test` for a stateful
+sequence. Override `CHEETAH_IOS_PROJECT` and `CHEETAH_IOS_DESTINATION` if the
+project path or simulator name differs.
+
+Source-map metadata is compiled in when the host build uses the
+`source-map` feature. Both local host build scripts enable it; production
+builds should leave it off.

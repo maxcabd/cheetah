@@ -1,4 +1,13 @@
 use serde::Serialize;
+#[cfg(feature = "source-map")]
+use std::panic::Location;
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct SourceLocation {
+    pub file: String,
+    pub line: u32,
+    pub column: u32,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -129,6 +138,7 @@ pub struct Props {
 }
 
 impl Props {
+    #[track_caller]
     pub fn text(mut self, value: impl Into<String>) -> Self {
         self.text = Some(value.into());
         self
@@ -334,15 +344,30 @@ pub struct Element {
     pub kind: Kind,
     pub key: Option<String>,
     pub props: Props,
+    pub source: Option<SourceLocation>,
     pub children: Vec<Element>,
 }
 
 impl Element {
+    #[track_caller]
     pub fn new(kind: Kind) -> Self {
+        #[cfg(feature = "source-map")]
+        let source = {
+            let location = Location::caller();
+            Some(SourceLocation {
+                file: location.file().to_string(),
+                line: location.line(),
+                column: location.column(),
+            })
+        };
+        #[cfg(not(feature = "source-map"))]
+        let source = None;
+
         Self {
             kind,
             key: None,
             props: Props::default(),
+            source,
             children: Vec::new(),
         }
     }
@@ -562,56 +587,68 @@ impl Element {
     }
 }
 
+#[track_caller]
 pub fn column() -> Element {
     Element::new(Kind::Column)
 }
 
+#[track_caller]
 pub fn row() -> Element {
     Element::new(Kind::Row)
 }
 
+#[track_caller]
 pub fn text(value: impl Into<String>) -> Element {
     let mut element = Element::new(Kind::Text);
     element.props.text = Some(value.into());
     element
 }
 
+#[track_caller]
 pub fn button(value: impl Into<String>) -> Element {
     let mut element = Element::new(Kind::Button);
     element.props.text = Some(value.into());
     element
 }
 
+#[track_caller]
 pub fn scroll() -> Element {
     Element::new(Kind::Scroll)
 }
 
+#[track_caller]
 pub fn list() -> Element {
     Element::new(Kind::List)
 }
 
+#[track_caller]
 pub fn glass() -> Element {
     Element::new(Kind::Glass)
 }
 
+#[track_caller]
 pub fn sheet() -> Element {
     Element::new(Kind::Sheet)
 }
 
+#[track_caller]
 pub fn map() -> Element {
     Element::new(Kind::Map)
 }
 
+#[track_caller]
 pub fn image(src: impl Into<String>) -> Element {
     let mut element = Element::new(Kind::Image);
     element.props.src = Some(src.into());
     element
 }
 
+#[track_caller]
 pub fn hscroll() -> Element {
     Element::new(Kind::HScroll)
 }
 
+#[track_caller]
 pub fn input(placeholder: impl Into<String>, value: impl Into<String>) -> Element {
     let mut element = Element::new(Kind::Input);
     element.props.placeholder = Some(placeholder.into());
@@ -619,10 +656,24 @@ pub fn input(placeholder: impl Into<String>, value: impl Into<String>) -> Elemen
     element
 }
 
+#[track_caller]
 pub fn spacer() -> Element {
     Element::new(Kind::Space).weight(1.0)
 }
 
+#[track_caller]
 pub fn gap_w(size: f32) -> Element {
     Element::new(Kind::Space).width(size)
+}
+
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "source-map")]
+    #[test]
+    fn constructors_capture_call_site() {
+        let element = super::column();
+        let source = element.source.expect("source location");
+        assert!(source.file.ends_with("element.rs"));
+        assert!(source.line > 0);
+    }
 }

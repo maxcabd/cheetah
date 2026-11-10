@@ -77,6 +77,7 @@ private final class NodeTag {
     var mapProps: [String: Any]?
     var imageSource: String?
     var tapRecognizer: UITapGestureRecognizer?
+    var source: String?
 
     init(id: UInt32, kind: String, view: UIView) {
         self.id = id
@@ -271,6 +272,13 @@ final class RustHost: NSObject {
         view.tag = Int(id)
 
         let node = NodeTag(id: id, kind: kind, view: view)
+        if let source = op["source"] as? [String: Any],
+           let file = source["file"] as? String,
+           let line = source["line"] as? NSNumber
+        {
+            node.source = "\(file):\(line.intValue)"
+            view.accessibilityHint = node.source
+        }
         if let scroll = view as? UIScrollView, let content = scroll.subviews.first {
             node.container = content
             node.scrollView = scroll

@@ -5,9 +5,9 @@ cd "$(dirname "$0")/.."
 
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 
-cargo build -p runtime --target aarch64-apple-ios --release
-cargo build -p runtime --target aarch64-apple-ios-sim --release
-cargo build -p runtime --target x86_64-apple-ios --release
+cargo build -p runtime --target aarch64-apple-ios --release --features source-map
+cargo build -p runtime --target aarch64-apple-ios-sim --release --features source-map
+cargo build -p runtime --target x86_64-apple-ios --release --features source-map
 
 mkdir -p target/sim-universal
 lipo -create \

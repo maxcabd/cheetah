@@ -1,4 +1,4 @@
-use crate::element::{Kind, Props};
+use crate::element::{Kind, Props, SourceLocation};
 use crate::tree::FlatTree;
 use serde::Serialize;
 
@@ -9,6 +9,7 @@ pub enum Op {
         id: u32,
         kind: Kind,
         props: Props,
+        source: Option<SourceLocation>,
         root: bool,
     },
     Update {
@@ -41,6 +42,7 @@ pub fn diff(old: Option<&FlatTree>, new: &FlatTree) -> Vec<Op> {
                 id: *id,
                 kind: node.kind,
                 props: node.props.clone(),
+                source: node.source.clone(),
                 root: node.parent.is_none(),
             }),
             Some(previous) if previous.kind != node.kind || previous.props != node.props => {

@@ -2,8 +2,8 @@ use roxmltree::Document;
 use serde_json::{json, Value};
 use std::env;
 use std::fs;
-use std::path::Path;
-use std::process::{Command, Output};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output, Stdio};
 use std::thread;
 use std::time::Duration;
 
@@ -46,14 +46,22 @@ android commands:
   type <target> <text>     tap a field and type text
   screenshot <path>        capture the device
   layout <target>          print a node's bounds
+  settle [timeout_ms]      wait until two accessibility dumps match
+  clock +<ms>|settle       advance the wall clock / settle
   logs [lines]             print recent device log lines
   test <file>              run a line-oriented drive script
 
 ios commands (requires macOS/xcrun):
+  tree [app]               launch through XCUITest and print its tree
+  tap <target> [app]       launch through XCUITest and tap
+  type <target> <text>     launch through XCUITest and type
+  test <file>              run a drive script through XCUITest
   launch <bundle> [args...]
   terminate <bundle>
   screenshot <path>
-  test <file>              not implemented yet; use XCTest"
+
+Set CHEETAH_IOS_PROJECT and CHEETAH_IOS_DESTINATION to override the Xcode
+project and simulator destination used by the XCUITest runner."
         .into()
 }
 
@@ -120,6 +128,16 @@ fn android(args: &[String]) -> Result<(), String> {
             println!("{}", node.bounds_json());
             Ok(())
         }
+        "settle" => {
+            let timeout = rest
+                .first()
+                .and_then(|value| value.parse::<u64>().ok())
+                .unwrap_or(10_000);
+            adb.settle(Duration::from_millis(timeout))?;
+            println!("settled");
+            Ok(())
+        }
+        "clock" => advance_clock(&adb, rest.first().map(String::as_str).unwrap_or("settle")),
         "logs" => {
             let lines = rest
                 .first()
@@ -208,6 +226,26 @@ impl Adb {
             thread::sleep(Duration::from_millis(250));
         }
         Err(last_error)
+    }
+
+    fn settle(&self, timeout: Duration) -> Result<(), String> {
+        let deadline = std::time::Instant::now() + timeout;
+        let mut previous = String::new();
+        let mut has_sample = false;
+
+        while std::time::Instant::now() < deadline {
+            let nodes = self.tree()?;
+            let snapshot =
+                serde_json::to_string(&tree_json(&nodes)).map_err(|error| error.to_string())?;
+            if has_sample && snapshot == previous {
+                return Ok(());
+            }
+            has_sample = true;
+            previous = snapshot;
+            thread::sleep(Duration::from_millis(250));
+        }
+
+        Err("accessibility tree did not settle".into())
     }
 
     fn wait_for_app(&self, timeout: Duration) -> Result<(), String> {
@@ -304,6 +342,14 @@ fn run_android_test(adb: &Adb, path: &Path) -> Result<(), String> {
                 thread::sleep(Duration::from_millis(millis));
                 Ok(())
             }
+            "settle" => {
+                let millis = parts
+                    .get(1)
+                    .and_then(|value| value.parse::<u64>().ok())
+                    .unwrap_or(10_000);
+                adb.settle(Duration::from_millis(millis))
+            }
+            "clock" => advance_clock(adb, parts.get(1).map(String::as_str).unwrap_or("settle")),
             "screenshot" => {
                 let output = parts.get(1).ok_or("screenshot needs a path")?;
                 adb.screenshot(Path::new(output))
@@ -468,6 +514,22 @@ fn find_optional<'a>(nodes: &'a [Node], target: &str) -> Option<&'a Node> {
         })
 }
 
+fn advance_clock(adb: &Adb, value: &str) -> Result<(), String> {
+    if value == "settle" {
+        adb.settle(Duration::from_secs(10))?;
+        println!("settled");
+        return Ok(());
+    }
+
+    let millis = value
+        .trim_start_matches('+')
+        .parse::<u64>()
+        .map_err(|_| format!("clock expects +<milliseconds> or settle, got {value:?}"))?;
+    thread::sleep(Duration::from_millis(millis));
+    println!("clock +{millis}");
+    Ok(())
+}
+
 fn required<'a>(args: &'a [String], name: &str) -> Result<&'a str, String> {
     args.first()
         .map(String::as_str)
@@ -505,12 +567,79 @@ fn ios(args: &[String]) -> Result<(), String> {
             println!("screenshot {path}");
             Ok(())
         }
-        "test" => Err(
-            "iOS drive scripts need the XCUITest runner; use `xcodebuild test` or the iOS CI workflow"
-                .into(),
-        ),
+        "tree" => {
+            let app = rest.first().map(String::as_str).unwrap_or("nightshade");
+            run_ios_script(&format!("start {app}\ntree\n"))
+        }
+        "tap" => {
+            let target = required(rest, "tap target")?;
+            let app = rest.get(1).map(String::as_str).unwrap_or("nightshade");
+            run_ios_script(&format!("start {app}\ntap {target}\n"))
+        }
+        "type" => {
+            let target = required(rest, "type target")?;
+            let text = rest.get(1).map(String::as_str).unwrap_or("");
+            let app = rest.get(2).map(String::as_str).unwrap_or("nightshade");
+            run_ios_script(&format!("start {app}\ntype {target} \"{text}\"\n"))
+        }
+        "test" => {
+            let path = required(rest, "test file")?;
+            let script =
+                fs::read_to_string(path).map_err(|error| format!("cannot read {path}: {error}"))?;
+            run_ios_script(&script)
+        }
         _ => Err(help()),
     }
+}
+
+fn run_ios_script(script: &str) -> Result<(), String> {
+    let script_path = PathBuf::from("/tmp/cheetah-drive.script");
+    let output_path = PathBuf::from("/tmp/cheetah-drive.out");
+    fs::write(&script_path, script)
+        .map_err(|error| format!("cannot write drive script: {error}"))?;
+    let _ = fs::remove_file(&output_path);
+
+    let project =
+        env::var("CHEETAH_IOS_PROJECT").unwrap_or_else(|_| "ios/Cheetah.xcodeproj".into());
+    let destination = env::var("CHEETAH_IOS_DESTINATION")
+        .unwrap_or_else(|_| "platform=iOS Simulator,name=iPhone 17 Pro".into());
+
+    let mut command = Command::new("xcodebuild");
+    command
+        .arg("test")
+        .arg("-project")
+        .arg(project)
+        .arg("-scheme")
+        .arg("Cheetah")
+        .arg("-destination")
+        .arg(destination)
+        .arg("-only-testing:CheetahUITests/CheetahDriveTests/testDriveScript")
+        .env("CHEETAH_DRIVE_FILE", script_path.to_string_lossy().as_ref())
+        .env("CHEETAH_DRIVE_OUT", output_path.to_string_lossy().as_ref())
+        .env(
+            "CHEETAH_DRIVE_CWD",
+            env::current_dir()
+                .map_err(|error| error.to_string())?
+                .to_string_lossy()
+                .as_ref(),
+        )
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
+
+    let status = command
+        .status()
+        .map_err(|error| format!("cannot run xcodebuild: {error}"))?;
+    if !status.success() {
+        return Err("XCUITest drive failed; see xcodebuild output above".into());
+    }
+
+    let result = fs::read_to_string(&output_path)
+        .map_err(|error| format!("XCUITest did not write a result: {error}"))?;
+    print!("{result}");
+    if !result.ends_with('\n') {
+        println!();
+    }
+    Ok(())
 }
 
 fn run_xcrun(args: &[&str]) -> Result<(), String> {

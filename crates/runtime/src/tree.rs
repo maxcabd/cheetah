@@ -1,4 +1,4 @@
-use crate::element::{Element, Kind, Props};
+use crate::element::{Element, Kind, Props, SourceLocation};
 use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -7,6 +7,7 @@ pub struct UiNode {
     pub key: Option<String>,
     pub kind: Kind,
     pub props: Props,
+    pub source: Option<SourceLocation>,
     pub children: Vec<UiNode>,
 }
 
@@ -16,6 +17,7 @@ pub struct FlatNode {
     pub key: Option<String>,
     pub kind: Kind,
     pub props: Props,
+    pub source: Option<SourceLocation>,
     pub children: Vec<u32>,
     pub parent: Option<u32>,
 }
@@ -106,6 +108,7 @@ fn build_node(element: Element, id: u32, hash: u64, allocator: &mut IdAllocator)
         key: element.key,
         kind: element.kind,
         props: element.props,
+        source: element.source,
         children,
     }
 }
@@ -124,6 +127,7 @@ fn flatten_node(node: &UiNode, parent: Option<u32>, tree: &mut FlatTree) {
             key: node.key.clone(),
             kind: node.kind,
             props: node.props.clone(),
+            source: node.source.clone(),
             children: node.children.iter().map(|child| child.id).collect(),
             parent,
         },

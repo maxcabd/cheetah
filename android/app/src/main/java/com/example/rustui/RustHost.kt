@@ -231,6 +231,15 @@ class RustHost(
         val kind = op.getString("kind")
         val view = obtainView(kind)
         val tag = NodeTag(id, view, kind)
+        val source = op.optJSONObject("source")
+        if (source != null) {
+            val file = source.optString("file")
+            val line = source.optInt("line")
+            tag.source = "$file:$line"
+            if (BuildConfig.DEBUG) {
+                Log.d("CheetahSource", "${tag.kind} ${tag.id} -> ${tag.source}")
+            }
+        }
 
         if (view is ScrollView) {
             val content = view.getChildAt(0) as FrameLayout

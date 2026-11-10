@@ -18,4 +18,5 @@ class NodeTag(val id: Int, val view: View, val kind: String) {
     var scrollEventPending: Boolean = false
     var scrollGeneration: Int = 0
     var imageUrl: String? = null
+    var source: String? = null
 }

@@ -7,11 +7,11 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
 Write-Host "==> Building Rust runtime for Android (x86_64)"
-cargo build -p runtime --target x86_64-linux-android --release
+cargo build -p runtime --target x86_64-linux-android --release --features source-map
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "==> Building Rust runtime for Android (arm64)"
-cargo build -p runtime --target aarch64-linux-android --release
+cargo build -p runtime --target aarch64-linux-android --release --features source-map
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "==> Copying native libraries into the APK"
