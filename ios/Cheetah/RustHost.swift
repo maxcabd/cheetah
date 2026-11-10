@@ -99,6 +99,7 @@ final class RustHost: NSObject {
     private var tags: [UInt32: NodeTag] = [:]
     private var scrollTags: [ObjectIdentifier: NodeTag] = [:]
     private var scrollScheduled: Set<ObjectIdentifier> = []
+    private var sheetController: UIViewController?
 
     var containerSize: CGSize {
         container.bounds.size
@@ -211,6 +212,8 @@ final class RustHost: NSObject {
             handle = 0
         }
 
+        sheetController?.dismiss(animated: false)
+        sheetController = nil
         context.host = nil
         Unmanaged<HostContext>.fromOpaque(contextPointer).release()
     }
@@ -267,7 +270,7 @@ final class RustHost: NSObject {
             scrollTags[ObjectIdentifier(scroll)] = node
         } else if let glass = view as? GlassView {
             node.container = glass.contentView
-        } else if kind == "column" || kind == "row" {
+        } else if kind == "column" || kind == "row" || kind == "sheet" {
             node.container = view
         }
 
@@ -388,6 +391,10 @@ final class RustHost: NSObject {
             guard let child = views[childId] else {
                 continue
             }
+            if let childNode = tags[childId], childNode.kind == "sheet" {
+                presentSheetIfNeeded(child)
+                continue
+            }
             if child.superview !== parent {
                 parent.addSubview(child)
             }
@@ -403,6 +410,9 @@ final class RustHost: NSObject {
     private func layout(_ op: [String: Any]) {
         let id = uint32(op["id"])
         guard let view = views[id] else {
+            return
+        }
+        if tags[id]?.kind == "sheet" {
             return
         }
 
@@ -427,8 +437,56 @@ final class RustHost: NSObject {
         }
     }
 
+    private func presentSheetIfNeeded(_ view: UIView) {
+        guard sheetController == nil else {
+            return
+        }
+        guard let presenter = container.window?.rootViewController else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self, weak view] in
+                guard let self, let view else {
+                    return
+                }
+                self.presentSheetIfNeeded(view)
+            }
+            return
+        }
+
+        let controller = UIViewController()
+        controller.view.backgroundColor = UIColor(hex: "#171717")
+        controller.isModalInPresentation = true
+        view.translatesAutoresizingMaskIntoConstraints = false
+        controller.view.addSubview(view)
+        NSLayoutConstraint.activate([
+            view.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
+            view.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
+            view.topAnchor.constraint(equalTo: controller.view.topAnchor),
+            view.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),
+        ])
+
+        controller.modalPresentationStyle = .pageSheet
+        if let sheet = controller.sheetPresentationController {
+            let identifier = UISheetPresentationController.Detent.Identifier("cheetah-search")
+            let detent = UISheetPresentationController.Detent.custom(identifier: identifier) { _ in
+                230
+            }
+            sheet.detents = [detent]
+            sheet.selectedDetentIdentifier = identifier
+            sheet.largestUndimmedDetentIdentifier = identifier
+            sheet.prefersGrabberVisible = true
+            sheet.preferredCornerRadius = 28
+            sheet.prefersScrollingExpandsWhenScrolledToEdge = false
+        }
+
+        presenter.present(controller, animated: false)
+        sheetController = controller
+    }
+
     private func remove(_ op: [String: Any]) {
         let id = uint32(op["id"])
+        if tags[id]?.kind == "sheet" {
+            sheetController?.dismiss(animated: false)
+            sheetController = nil
+        }
         guard let view = views.removeValue(forKey: id) else {
             return
         }

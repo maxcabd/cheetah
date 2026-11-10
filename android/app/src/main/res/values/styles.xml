@@ -7,4 +7,25 @@
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:fontFamily">sans</item>
     </style>
+
+    <style name="Cheetah.SheetDialog" parent="Theme.MaterialComponents.DayNight.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Cheetah.BottomSheet</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowSoftInputMode">adjustResize</item>
+    </style>
+
+    <style name="Cheetah.BottomSheet" parent="Widget.MaterialComponents.BottomSheet">
+        <item name="backgroundTint">#171717</item>
+        <item name="shapeAppearance">@style/Cheetah.SheetShape</item>
+        <item name="behavior_peekHeight">230dp</item>
+        <item name="behavior_hideable">false</item>
+    </style>
+
+    <style name="Cheetah.SheetShape" parent="ShapeAppearance.MaterialComponents.LargeComponent">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopLeft">28dp</item>
+        <item name="cornerSizeTopRight">28dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+    </style>
 </resources>

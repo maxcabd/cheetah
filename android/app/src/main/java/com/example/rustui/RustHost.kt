@@ -29,6 +29,9 @@ import android.widget.ImageView
 import android.widget.ScrollView
 import android.widget.Space
 import android.widget.TextView
+import androidx.appcompat.view.ContextThemeWrapper
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -64,6 +67,7 @@ class RustHost(
     private var isActive = false
     private val imageCache = LruCache<String, Bitmap>(24)
     private val imageLoader = Executors.newFixedThreadPool(2)
+    private var sheetDialog: BottomSheetDialog? = null
 
     init {
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
@@ -194,6 +198,8 @@ class RustHost(
             map.destroy()
         }
         mapHosts.clear()
+        sheetDialog?.dismiss()
+        sheetDialog = null
         imageLoader.shutdownNow()
 
         val current = handle
@@ -262,7 +268,8 @@ class RustHost(
         } else if (
             kind == "column" ||
             kind == "row" ||
-            kind == "glass"
+            kind == "glass" ||
+            kind == "sheet"
         ) {
             tag.container = view as? ViewGroup
         }
@@ -277,10 +284,13 @@ class RustHost(
         }
 
         applyProps(view, op.getJSONObject("props"))
+        if (kind == "sheet") {
+            presentSheetIfNeeded(view)
+        }
     }
 
     private fun createView(kind: String): View = when (kind) {
-        "column", "row", "glass" -> FrameLayout(context)
+        "column", "row", "glass", "sheet" -> FrameLayout(context)
 
         "map" -> {
             val map: NativeMapHost = if (BuildConfig.MAPS_API_KEY.isBlank()) {
@@ -415,6 +425,10 @@ class RustHost(
 
         for ((index, childId) in wanted.withIndex()) {
             val child = views[childId] ?: continue
+            if (tags[childId]?.kind == "sheet") {
+                presentSheetIfNeeded(child)
+                continue
+            }
             if (index >= parent.childCount || parent.getChildAt(index) !== child) {
                 (child.parent as? ViewGroup)?.removeView(child)
                 parent.addView(child, index.coerceAtMost(parent.childCount))
@@ -425,6 +439,7 @@ class RustHost(
     private fun layout(op: JSONObject) {
         val id = op.getInt("id")
         val view = views[id] ?: return
+        if (tags[id]?.kind == "sheet") return
         val params = view.layoutParams as? FrameLayout.LayoutParams
             ?: FrameLayout.LayoutParams(0, 0)
         params.width = dp(op.getDouble("width").toFloat())
@@ -441,9 +456,38 @@ class RustHost(
         }
     }
 
+    private fun presentSheetIfNeeded(view: View) {
+        if (sheetDialog != null) return
+
+        val dialog = BottomSheetDialog(
+            ContextThemeWrapper(context, R.style.Cheetah_SheetDialog),
+        )
+        dialog.setContentView(
+            view,
+            ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(230f)),
+        )
+        dialog.setCancelable(false)
+        dialog.setCanceledOnTouchOutside(false)
+        dialog.window?.setDimAmount(0f)
+        dialog.behavior.isHideable = false
+        dialog.behavior.isDraggable = true
+        dialog.behavior.isFitToContents = false
+        dialog.behavior.peekHeight = dp(230f)
+        dialog.setOnShowListener {
+            dialog.behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+        }
+        dialog.show()
+        dialog.behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+        sheetDialog = dialog
+    }
+
     private fun remove(id: Int) {
         val view = views.remove(id) ?: return
         val tag = tags.remove(id)
+        if (tag?.kind == "sheet") {
+            sheetDialog?.dismiss()
+            sheetDialog = null
+        }
         (view.parent as? ViewGroup)?.removeView(view)
         if (view is NativeMapHost) {
             view.destroy()

@@ -146,7 +146,7 @@ fn style_for(kind: Kind, props: &Props) -> Style {
 
     if matches!(
         kind,
-        Kind::List | Kind::Scroll | Kind::HScroll | Kind::Glass
+        Kind::List | Kind::Scroll | Kind::HScroll | Kind::Glass | Kind::Sheet
     ) {
         style.overflow = Point {
             x: Overflow::Hidden,

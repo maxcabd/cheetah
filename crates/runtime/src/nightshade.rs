@@ -1,11 +1,11 @@
 use crate::app::{App, Event, HostInfo, ViewContext};
-use crate::element::{column, glass, hscroll, image, input, map, row, text, Element};
+use crate::element::{column, glass, hscroll, image, input, map, row, sheet, text, Element};
 
 const BG: &str = "#0b0b0f";
-const PANEL: &str = "#171717e6";
 const CHIP: &str = "#292524";
 const TEXT: &str = "#f5f5f5";
 const MUTED: &str = "#a3a3a3";
+const SHEET_HEIGHT: f32 = 230.0;
 
 const MARKERS: &str = r#"[
     {"name":"Java Haven","lat":37.7793,"lng":-122.4192},
@@ -67,7 +67,7 @@ impl NightshadeApp {
         hscroll()
             .key("places")
             .absolute()
-            .bottom(self.host.safe_bottom.max(0.0) + 12.0 + 166.0 + 12.0)
+            .bottom(self.host.safe_bottom.max(0.0) + 12.0 + SHEET_HEIGHT + 12.0)
             .left(0.0)
             .width(-1.0)
             .height(300.0)
@@ -94,17 +94,15 @@ impl NightshadeApp {
             ))
     }
 
-    fn bottom_panel(&self, width: f32) -> Element {
-        let panel_width = (width - 24.0).max(280.0);
-        glass()
+    fn bottom_panel(&self, _width: f32) -> Element {
+        sheet()
             .key("search-panel")
-            .glass_style("regular")
-            .glass_tint(PANEL)
+            .bg("#171717")
             .absolute()
-            .bottom(self.host.safe_bottom.max(0.0) + 12.0)
-            .left(12.0)
-            .width(panel_width)
-            .height(166.0)
+            .bottom(0.0)
+            .left(0.0)
+            .width(-1.0)
+            .height(SHEET_HEIGHT)
             .radius(28.0)
             .child(
                 column()

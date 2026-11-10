@@ -10,6 +10,7 @@ pub enum Kind {
     Scroll,
     List,
     Glass,
+    Sheet,
     Map,
     Image,
     HScroll,
@@ -27,6 +28,7 @@ impl Kind {
             Kind::Scroll => "scroll",
             Kind::List => "list",
             Kind::Glass => "glass",
+            Kind::Sheet => "sheet",
             Kind::Map => "map",
             Kind::Image => "image",
             Kind::HScroll => "hscroll",
@@ -578,6 +580,10 @@ pub fn list() -> Element {
 
 pub fn glass() -> Element {
     Element::new(Kind::Glass)
+}
+
+pub fn sheet() -> Element {
+    Element::new(Kind::Sheet)
 }
 
 pub fn map() -> Element {
