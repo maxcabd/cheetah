@@ -15,6 +15,8 @@ interface CheetahNativeModule {
 
     fun apply(props: JSONObject)
 
+    fun setActive(active: Boolean) = Unit
+
     fun destroy() = Unit
 }
 
@@ -25,6 +27,7 @@ interface CheetahNativeModule {
  */
 class NativeModuleHostView(context: Context) : FrameLayout(context) {
     private var module: CheetahNativeModule? = null
+    private var active = false
     var onEvent: ((String, String) -> Unit)? = null
 
     fun configure(name: String, props: JSONObject) {
@@ -33,13 +36,20 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
                 "search" -> SearchNativeModule(context) { kind, payload ->
                     onEvent?.invoke(kind, payload)
                 }
+                "map" -> MapNativeModule(context)
                 else -> null
             }
             module?.nativeView?.let {
                 addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
             }
+            module?.setActive(active)
         }
         module?.apply(props)
+    }
+
+    fun setActive(active: Boolean) {
+        this.active = active
+        module?.setActive(active)
     }
 
     fun hatch(): CheetahNativeModule? = module
@@ -47,6 +57,35 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
     fun destroy() {
         module?.destroy()
         module = null
+    }
+}
+
+private class MapNativeModule(context: Context) : CheetahNativeModule {
+    private val map: NativeMapHost = if (BuildConfig.MAPS_API_KEY.isBlank()) {
+        MapLibreHostView(context)
+    } else {
+        MapHostView(context)
+    }
+
+    override val nativeView: View
+        get() = map as View
+
+    override fun apply(props: JSONObject) {
+        map.apply(props)
+    }
+
+    override fun setActive(active: Boolean) {
+        if (active) {
+            map.start()
+            map.resume()
+        } else {
+            map.pause()
+            map.stop()
+        }
+    }
+
+    override fun destroy() {
+        map.destroy()
     }
 }
 

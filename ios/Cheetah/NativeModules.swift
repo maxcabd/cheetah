@@ -1,3 +1,4 @@
+import MapKit
 import UIKit
 
 protocol CheetahNativeModule: AnyObject {
@@ -51,9 +52,104 @@ private enum NativeModuleRegistry {
         switch name {
         case "search":
             return SearchNativeModule(owner: owner)
+        case "map":
+            return MapNativeModule(owner: owner)
         default:
             return nil
         }
+    }
+}
+
+private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDelegate {
+    let map: MKMapView
+    private weak var owner: NativeModuleHostView?
+
+    var nativeView: UIView {
+        map
+    }
+
+    init(owner: NativeModuleHostView) {
+        self.owner = owner
+        let initialFrame = owner.bounds.width > 0 && owner.bounds.height > 0
+            ? owner.bounds
+            : CGRect(x: 0, y: 0, width: 1, height: 1)
+        map = MKMapView(frame: initialFrame)
+        super.init()
+        map.backgroundColor = UIColor(hex: "#101826")
+        map.isOpaque = true
+        map.showsCompass = false
+        map.showsScale = false
+        map.isRotateEnabled = false
+        map.isPitchEnabled = false
+        map.delegate = self
+    }
+
+    func apply(props: [String: Any]) {
+        if let dark = props["mapDark"] as? NSNumber {
+            map.overrideUserInterfaceStyle = dark.boolValue ? .dark : .light
+        }
+
+        if let latitude = props["mapLatitude"] as? NSNumber,
+           let longitude = props["mapLongitude"] as? NSNumber,
+           let latitudeDelta = props["mapLatitudeDelta"] as? NSNumber,
+           let longitudeDelta = props["mapLongitudeDelta"] as? NSNumber
+        {
+            let region = MKCoordinateRegion(
+                center: CLLocationCoordinate2D(
+                    latitude: latitude.doubleValue,
+                    longitude: longitude.doubleValue
+                ),
+                span: MKCoordinateSpan(
+                    latitudeDelta: latitudeDelta.doubleValue,
+                    longitudeDelta: longitudeDelta.doubleValue
+                )
+            )
+            map.setRegion(region, animated: false)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                self?.map.setRegion(region, animated: false)
+            }
+        }
+
+        guard
+            let rawMarkers = props["mapMarkers"] as? String,
+            let data = rawMarkers.data(using: .utf8),
+            let markers = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+        else {
+            return
+        }
+
+        map.removeAnnotations(map.annotations.filter { $0 is MKPointAnnotation })
+        for marker in markers {
+            guard
+                let latitude = marker["lat"] as? NSNumber,
+                let longitude = marker["lng"] as? NSNumber
+            else {
+                continue
+            }
+            let annotation = MKPointAnnotation()
+            annotation.coordinate = CLLocationCoordinate2D(
+                latitude: latitude.doubleValue,
+                longitude: longitude.doubleValue
+            )
+            annotation.title = marker["name"] as? String
+            map.addAnnotation(annotation)
+        }
+    }
+
+    func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+        guard annotation is MKPointAnnotation else {
+            return nil
+        }
+        let identifier = "cheetah-place"
+        let marker = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+            as? MKMarkerAnnotationView
+            ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+        marker.annotation = annotation
+        marker.markerTintColor = UIColor(hex: "#e5522f")
+        marker.glyphImage = UIImage(systemName: "fork.knife")
+        marker.canShowCallout = true
+        marker.displayPriority = .required
+        return marker
     }
 }
 

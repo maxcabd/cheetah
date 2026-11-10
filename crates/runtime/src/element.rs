@@ -659,7 +659,7 @@ pub fn sheet() -> Element {
 
 #[track_caller]
 pub fn map() -> Element {
-    Element::new(Kind::Map)
+    native("map")
 }
 
 #[track_caller]

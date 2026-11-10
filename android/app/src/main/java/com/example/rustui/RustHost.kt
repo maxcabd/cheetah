@@ -96,6 +96,11 @@ class RustHost(
                 map.stop()
             }
         }
+        for (view in views.values) {
+            if (view is NativeModuleHostView) {
+                view.setActive(active)
+            }
+        }
 
         val current = handle
         if (current != 0L) {
@@ -198,6 +203,11 @@ class RustHost(
             map.destroy()
         }
         mapHosts.clear()
+        for (view in views.values) {
+            if (view is NativeModuleHostView) {
+                view.destroy()
+            }
+        }
         sheetDialog?.dismiss()
         sheetDialog = null
         imageLoader.shutdownNow()
@@ -607,6 +617,7 @@ class RustHost(
                 event(tag.id, kind, payload)
             }
             view.configure(props.optString("native"), props)
+            view.setActive(isActive)
         }
 
         if (props.optBoolean("pressable", false)) {
