@@ -136,9 +136,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B ios-18-preview
           mkdir -p ci-preview
           cp /tmp/cheetah-ios18.png ci-preview/ios-18.png
-          git checkout -B ios-18-preview
           git add -f ci-preview
           git commit -m "iOS 18 fallback preview" || true
           git push origin ios-18-preview --force
@@ -157,10 +157,10 @@ jobs:
           xcrun simctl io "$DEVICE_ID" screenshot /tmp/nightshade-ios18.png
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B nightshade-18-preview
           mkdir -p ci-preview
           cp /tmp/nightshade-empty-ios18.png ci-preview/nightshade-empty-ios18.png
           cp /tmp/nightshade-ios18.png ci-preview/nightshade-ios18.png
-          git checkout -B nightshade-18-preview
           git add -f ci-preview
           git commit -m "Nightshade iOS 18 preview" || true
           git push origin nightshade-18-preview --force

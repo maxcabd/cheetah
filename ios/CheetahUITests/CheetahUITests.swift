@@ -55,7 +55,7 @@ final class CheetahUITests: XCTestCase {
         app.launchArguments = ["--nightshade"]
         app.launch()
 
-        let coffee = app.staticTexts["Coffee"]
+        let coffee = app.buttons["Coffee"]
         XCTAssertTrue(coffee.waitForExistence(timeout: 20), "search sheet should be visible")
         coffee.tap()
 
