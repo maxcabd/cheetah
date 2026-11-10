@@ -43,6 +43,7 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
                 }
                 "map" -> MapNativeModule(context)
                 "sheet" -> SheetNativeModule(context, this)
+                "menu" -> MenuNativeModule(context, this)
                 else -> null
             }
             if (name != "sheet") {
@@ -97,6 +98,57 @@ private class MapNativeModule(context: Context) : CheetahNativeModule {
 
     override fun destroy() {
         map.destroy()
+    }
+}
+
+private class MenuNativeModule(
+    context: Context,
+    private val owner: NativeModuleHostView,
+) : CheetahNativeModule {
+    private val button = android.widget.Button(context)
+    private var items: List<String> = emptyList()
+
+    override val nativeView: View
+        get() = button
+
+    init {
+        button.background = android.graphics.drawable.ColorDrawable(Color.TRANSPARENT)
+        button.isAllCaps = false
+        button.minWidth = 0
+        button.minimumWidth = 0
+        button.setPadding(0, 0, 0, 0)
+        button.gravity = Gravity.CENTER
+        button.setTextColor(Color.WHITE)
+        button.typeface = android.graphics.Typeface.DEFAULT_BOLD
+        button.textSize = 14f
+        button.setOnClickListener { showMenu() }
+    }
+
+    override fun apply(props: JSONObject) {
+        if (props.has("nativeProps")) {
+            val config = JSONObject(props.getString("nativeProps"))
+            button.text = config.optString("title", "Menu")
+            val array = config.optJSONArray("items") ?: org.json.JSONArray()
+            items = (0 until array.length()).mapNotNull { array.optString(it) }
+        }
+        if (props.has("size")) {
+            button.setTextSize(TypedValue.COMPLEX_UNIT_SP, props.getDouble("size").toFloat())
+        }
+        if (props.has("color")) {
+            button.setTextColor(Color.parseColor(props.getString("color")))
+        }
+    }
+
+    private fun showMenu() {
+        val popup = android.widget.PopupMenu(button.context, button)
+        items.forEachIndexed { index, item ->
+            popup.menu.add(0, index, index, item)
+        }
+        popup.setOnMenuItemClickListener { item ->
+            owner.onEvent?.invoke("select", item.title.toString())
+            true
+        }
+        popup.show()
     }
 }
 

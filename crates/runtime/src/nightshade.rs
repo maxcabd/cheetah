@@ -219,7 +219,20 @@ impl NightshadeApp {
                 .child(Self::chip("Coffee", 72.0, "query:coffee"))
                 .child(Self::chip("Sushi", 72.0, "query:sushi"))
                 .child(Self::chip("Pizza", 72.0, "query:pizza"))
-                .child(Self::chip("Open now", 92.0, "query:open"));
+                .child(
+                    native("menu")
+                        .key("open-menu")
+                        .native_props(
+                            r#"{"title":"Open now","items":["Coffee","Sushi","Pizza","Open now"]}"#,
+                        )
+                        .size(13.0)
+                        .color("#d4d4d4")
+                        .bg(CHIP)
+                        .width(92.0)
+                        .height(34.0)
+                        .align("center")
+                        .radius(17.0),
+                );
         }
 
         let footer = match &self.search {
@@ -431,6 +444,13 @@ impl App for NightshadeApp {
                     self.select_place(id);
                 }
             }
+            "select" if key == "open-menu" => match event.payload.as_str() {
+                "Coffee" => self.run_search("coffee"),
+                "Sushi" => self.run_search("sushi"),
+                "Pizza" => self.run_search("pizza"),
+                "Open now" => self.run_search("open"),
+                _ => {}
+            },
             _ => {}
         }
     }
@@ -450,11 +470,30 @@ mod tests {
         });
     }
 
+    fn select(app: &mut NightshadeApp, key: &str, value: &str) {
+        app.update(Event {
+            id: 0,
+            key: Some(key.into()),
+            kind: "select".into(),
+            payload: value.into(),
+        });
+    }
+
     #[test]
     fn starts_without_results() {
         let app = NightshadeApp::new(false);
         assert!(!app.has_results());
         assert_eq!(app.response(), None);
+    }
+
+    #[test]
+    fn native_menu_runs_a_search() {
+        let mut app = NightshadeApp::new(false);
+        select(&mut app, "open-menu", "Sushi");
+
+        let response = app.response().expect("ready response");
+        assert_eq!(response.places.len(), 1);
+        assert_eq!(response.places[0].id, "sushi");
     }
 
     #[test]

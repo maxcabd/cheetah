@@ -69,6 +69,8 @@ private enum NativeModuleRegistry {
             return MapNativeModule(owner: owner)
         case "sheet":
             return SheetNativeModule(owner: owner)
+        case "menu":
+            return MenuNativeModule(owner: owner)
         default:
             return nil
         }
@@ -239,6 +241,49 @@ private final class SheetNativeModule: CheetahNativeModule {
 
     func destroy() {
         dismiss()
+    }
+}
+
+private final class MenuNativeModule: CheetahNativeModule {
+    let button = UIButton(type: .system)
+    private weak var owner: NativeModuleHostView?
+    private var items: [String] = []
+
+    var nativeView: UIView {
+        button
+    }
+
+    init(owner: NativeModuleHostView) {
+        self.owner = owner
+        button.showsMenuAsPrimaryAction = true
+        button.contentHorizontalAlignment = .center
+    }
+
+    func apply(props: [String: Any]) {
+        if let raw = props["nativeProps"] as? String,
+           let data = raw.data(using: .utf8),
+           let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            if let title = config["title"] as? String {
+                button.setTitle(title, for: .normal)
+            }
+            items = config["items"] as? [String] ?? []
+            let actions = items.map { item in
+                UIAction(title: item) { [weak self] _ in
+                    self?.owner?.event("select", item)
+                }
+            }
+            button.menu = UIMenu(children: actions)
+        }
+        if let size = props["size"] as? NSNumber {
+            button.titleLabel?.font = .systemFont(
+                ofSize: CGFloat(size.doubleValue),
+                weight: (props["bold"] as? NSNumber)?.boolValue == true ? .bold : .regular
+            )
+        }
+        if let color = props["color"] as? String {
+            button.setTitleColor(UIColor(hex: color), for: .normal)
+        }
     }
 }
 
