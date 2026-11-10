@@ -97,7 +97,6 @@ impl NightshadeApp {
     fn bottom_panel(&self, _width: f32) -> Element {
         sheet()
             .key("search-panel")
-            .bg("#171717")
             .absolute()
             .bottom(0.0)
             .left(0.0)
@@ -110,6 +109,13 @@ impl NightshadeApp {
                     .height(-1.0)
                     .pad(16.0)
                     .gap(12.0)
+                    .child(
+                        row()
+                            .width(-1.0)
+                            .height(6.0)
+                            .justify("center")
+                            .child(row().width(36.0).height(4.0).bg("#404040").radius(2.0)),
+                    )
                     .child(
                         input("What are you in the mood for?", "")
                             .key("search")

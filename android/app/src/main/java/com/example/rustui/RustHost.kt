@@ -475,6 +475,14 @@ class RustHost(
         dialog.behavior.peekHeight = dp(230f)
         dialog.setOnShowListener {
             dialog.behavior.state = BottomSheetBehavior.STATE_COLLAPSED
+            val sheet = dialog.findViewById<View>(
+                com.google.android.material.R.id.design_bottom_sheet,
+            )
+            val radius = dp(28f).toFloat()
+            sheet?.background = GradientDrawable().apply {
+                setColor(Color.parseColor("#171717"))
+                cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
+            }
         }
         dialog.show()
         dialog.behavior.state = BottomSheetBehavior.STATE_COLLAPSED

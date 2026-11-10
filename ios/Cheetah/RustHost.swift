@@ -535,7 +535,10 @@ final class RustHost: NSObject {
                 field.textColor = UIColor(hex: color)
             }
             if let placeholder = props["placeholder"] as? String {
-                field.placeholder = placeholder
+                field.attributedPlaceholder = NSAttributedString(
+                    string: placeholder,
+                    attributes: [.foregroundColor: UIColor(hex: "#a3a3a3")]
+                )
             }
             if let align = props["align"] as? String {
                 field.textAlignment = textAlignment(align)
