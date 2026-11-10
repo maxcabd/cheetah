@@ -18,6 +18,7 @@ mod ios;
 pub mod layout;
 pub mod model;
 pub mod nightshade;
+pub mod resource;
 pub mod store;
 pub mod tree;
 

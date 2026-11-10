@@ -1,5 +1,6 @@
 use crate::app::{App, Event, HostInfo, ViewContext};
 use crate::element::{column, glass, hscroll, image, input, map, row, sheet, text, Element};
+use crate::resource::Resource;
 
 const BG: &str = "#0b0b0f";
 const CHIP: &str = "#292524";
@@ -10,7 +11,7 @@ const SHEET_HEIGHT: f32 = 230.0;
 const INITIAL_LAT: f32 = 37.7749;
 const INITIAL_LNG: f32 = -122.4194;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 struct Place {
     id: &'static str,
     name: &'static str,
@@ -60,12 +61,46 @@ const PLACES: [Place; 4] = [
     },
 ];
 
+#[derive(Clone, Debug, PartialEq)]
+struct SearchResponse {
+    places: Vec<Place>,
+}
+
+trait PlaceSource {
+    fn search(&self, query: &str) -> Result<SearchResponse, String>;
+}
+
+struct LocalPlaceSource;
+
+impl PlaceSource for LocalPlaceSource {
+    fn search(&self, query: &str) -> Result<SearchResponse, String> {
+        let lowered = query.to_lowercase();
+        if lowered.contains("fail") {
+            return Err("Place search is unavailable".into());
+        }
+
+        let places = if lowered.contains("sushi") {
+            vec![PLACES[2]]
+        } else if lowered.contains("pizza") {
+            vec![PLACES[1]]
+        } else if lowered.contains("coffee") || lowered.contains("cafe") {
+            vec![PLACES[0]]
+        } else if lowered.contains("open") {
+            PLACES.iter().copied().filter(|place| place.open).collect()
+        } else {
+            PLACES.to_vec()
+        };
+
+        Ok(SearchResponse { places })
+    }
+}
+
 pub struct NightshadeApp {
     host: HostInfo,
     draft: String,
     query: String,
-    results: Vec<Place>,
-    has_results: bool,
+    search: Resource<SearchResponse>,
+    source: Box<dyn PlaceSource>,
     selected: usize,
 }
 
@@ -75,18 +110,27 @@ impl NightshadeApp {
             host: HostInfo::default(),
             draft: String::new(),
             query: String::new(),
-            results: Vec::new(),
-            has_results: false,
+            search: Resource::Idle,
+            source: Box::new(LocalPlaceSource),
             selected: 0,
         };
 
         if demo {
-            app.results = PLACES.to_vec();
-            app.has_results = true;
+            app.search = Resource::Ready(SearchResponse {
+                places: PLACES.to_vec(),
+            });
             app.query = "Coffee".into();
         }
 
         app
+    }
+
+    fn response(&self) -> Option<&SearchResponse> {
+        self.search.ready()
+    }
+
+    fn has_results(&self) -> bool {
+        self.search.is_ready()
     }
 
     fn chip(label: &str, width: f32, key: &str) -> Element {
@@ -157,7 +201,7 @@ impl NightshadeApp {
     }
 
     fn bottom_panel(&self, _width: f32) -> Element {
-        let results = self.has_results;
+        let results = self.has_results();
         let placeholder = if results {
             "Ask a follow up"
         } else {
@@ -178,10 +222,10 @@ impl NightshadeApp {
                 .child(Self::chip("Open now", 92.0, "query:open"));
         }
 
-        let footer = if results {
-            format!("Results for \"{}\" · Cedarwood Drive", self.query)
-        } else {
-            "Nightshade · Cedarwood Drive".into()
+        let footer = match &self.search {
+            Resource::Ready(_) => format!("Results for \"{}\" · Cedarwood Drive", self.query),
+            Resource::Failed(error) => format!("Search failed: {error}"),
+            _ => "Nightshade · Cedarwood Drive".into(),
         };
 
         sheet()
@@ -259,11 +303,9 @@ impl NightshadeApp {
     }
 
     fn visible_places(&self) -> &[Place] {
-        if self.has_results {
-            &self.results
-        } else {
-            &PLACES
-        }
+        self.response()
+            .map(|response| response.places.as_slice())
+            .unwrap_or(&PLACES)
     }
 
     fn markers(places: &[Place]) -> String {
@@ -285,34 +327,34 @@ impl NightshadeApp {
             return;
         }
 
-        let lowered = query.to_lowercase();
-        self.results = if lowered.contains("sushi") {
-            vec![PLACES[2]]
-        } else if lowered.contains("pizza") {
-            vec![PLACES[1]]
-        } else if lowered.contains("coffee") || lowered.contains("cafe") {
-            vec![PLACES[0]]
-        } else if lowered.contains("open") {
-            PLACES.iter().copied().filter(|place| place.open).collect()
-        } else {
-            PLACES.to_vec()
-        };
-        self.query = query.into();
-        self.selected = 0;
-        self.has_results = !self.results.is_empty();
+        self.search = Resource::Loading;
+        match self.source.search(query) {
+            Ok(response) => {
+                self.search = Resource::Ready(response);
+                self.query = query.into();
+                self.selected = 0;
+            }
+            Err(error) => {
+                self.search = Resource::Failed(error);
+                self.query = query.into();
+                self.selected = 0;
+            }
+        }
         self.draft.clear();
     }
 
     fn clear_search(&mut self) {
         self.query.clear();
         self.draft.clear();
-        self.results.clear();
-        self.has_results = false;
+        self.search = Resource::Idle;
         self.selected = 0;
     }
 
     fn select_place(&mut self, id: &str) {
-        if let Some(index) = self.results.iter().position(|place| place.id == id) {
+        let Some(response) = self.response() else {
+            return;
+        };
+        if let Some(index) = response.places.iter().position(|place| place.id == id) {
             self.selected = index;
         }
     }
@@ -329,9 +371,8 @@ impl App for NightshadeApp {
         let width = context.viewport.width.max(320.0);
         let visible = self.visible_places();
         let selected = self
-            .has_results
-            .then(|| self.results.get(self.selected).copied())
-            .flatten();
+            .response()
+            .and_then(|response| response.places.get(self.selected).copied());
         let (latitude, longitude, delta) = selected
             .map(|place| (place.lat, place.lng, 0.018))
             .unwrap_or((INITIAL_LAT, INITIAL_LNG, 0.025));
@@ -352,7 +393,7 @@ impl App for NightshadeApp {
             )
             .child(self.top_control());
 
-        if self.has_results {
+        if self.has_results() {
             root = root.child(self.carousel(width, visible));
         }
 
@@ -410,8 +451,8 @@ mod tests {
     #[test]
     fn starts_without_results() {
         let app = NightshadeApp::new(false);
-        assert!(!app.has_results);
-        assert!(app.results.is_empty());
+        assert!(!app.has_results());
+        assert_eq!(app.response(), None);
     }
 
     #[test]
@@ -420,9 +461,10 @@ mod tests {
         app.draft = "unused".into();
         click(&mut app, "query:coffee");
 
-        assert!(app.has_results);
-        assert_eq!(app.results.len(), 1);
-        assert_eq!(app.results[0].id, "java");
+        assert!(app.has_results());
+        let response = app.response().expect("ready response");
+        assert_eq!(response.places.len(), 1);
+        assert_eq!(response.places[0].id, "java");
         assert!(app.draft.is_empty());
     }
 
@@ -441,13 +483,23 @@ mod tests {
             kind: "submit".into(),
             payload: String::new(),
         });
-        assert_eq!(app.results.len(), 1);
-        assert_eq!(app.results[0].id, "sushi");
+        let response = app.response().expect("ready response");
+        assert_eq!(response.places.len(), 1);
+        assert_eq!(response.places[0].id, "sushi");
 
         click(&mut app, "place:sushi");
         assert_eq!(app.selected, 0);
         click(&mut app, "search:clear");
-        assert!(!app.has_results);
-        assert!(app.results.is_empty());
+        assert!(!app.has_results());
+        assert_eq!(app.response(), None);
+    }
+
+    #[test]
+    fn failed_search_is_a_typed_state() {
+        let mut app = NightshadeApp::new(false);
+        click(&mut app, "query:fail");
+
+        assert!(!app.has_results());
+        assert_eq!(app.search.error(), Some("Place search is unavailable"));
     }
 }

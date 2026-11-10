@@ -691,7 +691,9 @@ class RustHost(
             view.setPadding(horizontal, vertical, horizontal, vertical)
         }
 
-        if (props.has("label")) {
+        if (props.has("testId")) {
+            view.contentDescription = props.getString("testId")
+        } else if (props.has("label")) {
             view.contentDescription = props.getString("label")
         }
 

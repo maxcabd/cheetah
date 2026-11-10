@@ -1,0 +1,9 @@
+[package]
+name = "cheetah-drive"
+version = "0.1.0"
+edition = "2021"
+description = "Small cross-host driver for Cheetah apps"
+
+[dependencies]
+roxmltree = "0.20"
+serde_json = "1"

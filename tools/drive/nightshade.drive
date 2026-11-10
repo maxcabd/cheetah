@@ -1,0 +1,10 @@
+# A small agent-style smoke test for the Nightshade search sheet.
+start nightshade
+wait 1000
+tap Coffee
+wait 400
+expect text "Results for \"coffee\""
+expect exists Clear
+screenshot target/drive/nightshade-search.png
+tap Clear
+expect exists "Open now"
