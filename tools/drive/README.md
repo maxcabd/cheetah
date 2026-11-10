@@ -78,6 +78,10 @@ cargo run -p cheetah-drive -- ios test tools/drive/nightshade.drive
 cargo run -p cheetah-drive -- ios screenshot target/drive/nightshade-ios.png
 ```
 
+An XCUITest screenshot operation keeps its image inside the simulator's
+temporary directory; use the standalone `ios screenshot` command when the
+image needs to land on the Mac.
+
 `ios tree`, `ios tap`, and `ios type` each launch the app through XCTest and
 are therefore best for one-shot inspection. Use `ios test` for a stateful
 sequence. Override `CHEETAH_IOS_PROJECT` and `CHEETAH_IOS_DESTINATION` if the

@@ -154,17 +154,12 @@ final class CheetahDriveTests: XCTestCase {
 
                 case "screenshot":
                     let requested = try required(parts, 1, "screenshot path")
-                    let base = environment["CHEETAH_DRIVE_CWD"]
-                        ?? FileManager.default.currentDirectoryPath
-                    let path = requested.hasPrefix("/")
-                        ? requested
-                        : base + "/" + requested
+                    let name = URL(fileURLWithPath: requested).lastPathComponent
+                    // The UI test runner is inside the simulator. Keep the
+                    // capture locally; host-side `ios screenshot` is still the
+                    // supported way to write a Mac artifact.
+                    let path = NSTemporaryDirectory() + "/" + name
                     let url = URL(fileURLWithPath: path)
-                    try FileManager.default.createDirectory(
-                        at: url.deletingLastPathComponent(),
-                        withIntermediateDirectories: true,
-                        attributes: nil
-                    )
                     try XCUIScreen.main.screenshot().pngRepresentation.write(to: url)
 
                 default:
