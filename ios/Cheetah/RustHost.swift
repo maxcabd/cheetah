@@ -354,6 +354,9 @@ final class RustHost: NSObject {
             imageView.isUserInteractionEnabled = false
             return imageView
 
+        case "native":
+            return NativeModuleHostView()
+
         case "glass":
             return GlassView()
 
@@ -595,6 +598,16 @@ final class RustHost: NSObject {
 
         if let imageView = view as? UIImageView, let fit = props["fit"] as? String {
             imageView.contentMode = fit == "contain" ? .scaleAspectFit : .scaleAspectFill
+        }
+
+        if let native = view as? NativeModuleHostView {
+            native.onEvent = { [weak self] kind, payload in
+                self?.event(id: node.id, kind: kind, payload: payload)
+            }
+            native.configure(
+                name: props["native"] as? String ?? "",
+                props: props
+            )
         }
 
         if let background = props["bg"] as? String {

@@ -357,6 +357,8 @@ class RustHost(
             setBackgroundColor(Color.parseColor("#242424"))
         }
 
+        "native" -> NativeModuleHostView(context)
+
         "input" -> EditText(context).apply {
             setSingleLine(true)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
@@ -518,6 +520,9 @@ class RustHost(
             view.destroy()
             mapHosts.remove(view)
         }
+        if (view is NativeModuleHostView) {
+            view.destroy()
+        }
 
         val key = tag?.kind?.let(::poolKey) ?: return
         if (key == "container" && view is ViewGroup) {
@@ -595,6 +600,13 @@ class RustHost(
 
         if (view is NativeMapHost) {
             view.apply(props)
+        }
+
+        if (view is NativeModuleHostView) {
+            view.onEvent = { kind, payload ->
+                event(tag.id, kind, payload)
+            }
+            view.configure(props.optString("native"), props)
         }
 
         if (props.optBoolean("pressable", false)) {

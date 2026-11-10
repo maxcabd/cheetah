@@ -1,5 +1,5 @@
 use crate::app::{App, Event, HostInfo, ViewContext};
-use crate::element::{column, glass, hscroll, image, input, map, row, sheet, text, Element};
+use crate::element::{column, glass, hscroll, image, map, native, row, sheet, text, Element};
 use crate::resource::Resource;
 
 const BG: &str = "#0b0b0f";
@@ -250,8 +250,10 @@ impl NightshadeApp {
                             .child(row().width(36.0).height(4.0).bg("#404040").radius(2.0)),
                     )
                     .child(
-                        input(placeholder, self.draft.clone())
+                        native("search")
                             .key("search")
+                            .placeholder(placeholder)
+                            .value(self.draft.clone())
                             .width(-1.0)
                             .height(52.0)
                             .size(16.0)

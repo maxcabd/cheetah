@@ -23,6 +23,7 @@ pub enum Kind {
     Map,
     Image,
     HScroll,
+    Native,
     Input,
     Space,
 }
@@ -41,6 +42,7 @@ impl Kind {
             Kind::Map => "map",
             Kind::Image => "image",
             Kind::HScroll => "hscroll",
+            Kind::Native => "native",
             Kind::Input => "input",
             Kind::Space => "space",
         }
@@ -135,6 +137,10 @@ pub struct Props {
     pub content_width: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pressable: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub native: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub native_props: Option<String>,
 }
 
 impl Props {
@@ -335,6 +341,16 @@ impl Props {
 
     pub fn pressable(mut self, value: bool) -> Self {
         self.pressable = Some(value);
+        self
+    }
+
+    pub fn native(mut self, module: impl Into<String>) -> Self {
+        self.native = Some(module.into());
+        self
+    }
+
+    pub fn native_props(mut self, value: impl Into<String>) -> Self {
+        self.native_props = Some(value.into());
         self
     }
 }
@@ -585,6 +601,16 @@ impl Element {
         self.props.pressable = Some(value);
         self
     }
+
+    pub fn native(mut self, module: impl Into<String>) -> Self {
+        self.props.native = Some(module.into());
+        self
+    }
+
+    pub fn native_props(mut self, value: impl Into<String>) -> Self {
+        self.props.native_props = Some(value.into());
+        self
+    }
 }
 
 #[track_caller]
@@ -646,6 +672,13 @@ pub fn image(src: impl Into<String>) -> Element {
 #[track_caller]
 pub fn hscroll() -> Element {
     Element::new(Kind::HScroll)
+}
+
+#[track_caller]
+pub fn native(module: impl Into<String>) -> Element {
+    let mut element = Element::new(Kind::Native);
+    element.props.native = Some(module.into());
+    element
 }
 
 #[track_caller]
