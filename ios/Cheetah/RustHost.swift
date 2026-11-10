@@ -346,7 +346,9 @@ final class RustHost: NSObject {
 
     private func children(_ op: [String: Any]) {
         let id = uint32(op["id"])
-        guard let node = tags[id], let parent = node.container ?? node.view else {
+        // Leaf views such as MKMapView, UITextField and UIButton own internal
+        // subviews. Only nodes that opted into a container may be pruned.
+        guard let node = tags[id], let parent = node.container else {
             return
         }
 
