@@ -400,11 +400,11 @@ final class RustHost: NSObject {
             }
             NSLog(
                 "CHEETAH_MAP frame=%@ bounds=%@ window=%d annotations=%d subviews=%@",
-                NSStringFromCGRect(map.frame),
-                NSStringFromCGRect(map.bounds),
+                NSCoder.string(for: map.frame),
+                NSCoder.string(for: map.bounds),
                 map.window != nil ? 1 : 0,
                 map.annotations.count,
-                map.subviews.map { "\(type(of: $0)):\(NSStringFromCGRect($0.frame))" }.joined(separator: " | ")
+                map.subviews.map { "\(type(of: $0)):\(NSCoder.string(for: $0.frame))" }.joined(separator: " | ")
             )
         }
     }
