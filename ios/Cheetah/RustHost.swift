@@ -400,14 +400,6 @@ final class RustHost: NSObject {
             if let props = node.mapProps {
                 applyMap(map, props: props)
             }
-            NSLog(
-                "CHEETAH_MAP frame=%@ bounds=%@ window=%d annotations=%d subviews=%@",
-                NSCoder.string(for: map.frame),
-                NSCoder.string(for: map.bounds),
-                map.window != nil ? 1 : 0,
-                map.annotations.count,
-                map.subviews.map { "\(type(of: $0)):\(NSCoder.string(for: $0.frame))" }.joined(separator: " | ")
-            )
         }
     }
 
@@ -749,18 +741,6 @@ extension RustHost: UIScrollViewDelegate {
 }
 
 extension RustHost: MKMapViewDelegate {
-    func mapViewDidFinishLoadingMap(_ mapView: MKMapView) {
-        NSLog("CHEETAH_MAP loaded annotations=%d", mapView.annotations.count)
-    }
-
-    func mapViewDidFailLoadingMap(_ mapView: MKMapView, withError error: Error) {
-        NSLog("CHEETAH_MAP failed %@", error.localizedDescription)
-    }
-
-    func mapViewDidFinishRenderingMap(_ mapView: MKMapView, fullyRendered: Bool) {
-        NSLog("CHEETAH_MAP rendered fully=%d", fullyRendered ? 1 : 0)
-    }
-
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
         guard annotation is MKPointAnnotation else {
             return nil
