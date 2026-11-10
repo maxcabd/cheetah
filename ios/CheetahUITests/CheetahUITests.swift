@@ -50,6 +50,22 @@ final class CheetahUITests: XCTestCase {
         print(app.debugDescription)
     }
 
+    func testNightshadeSearchShowsResults() throws {
+        let app = XCUIApplication()
+        app.launchArguments = ["--nightshade"]
+        app.launch()
+
+        let coffee = app.staticTexts["Coffee"]
+        XCTAssertTrue(coffee.waitForExistence(timeout: 20), "search sheet should be visible")
+        coffee.tap()
+
+        XCTAssertTrue(
+            app.staticTexts["Java Haven"].waitForExistence(timeout: 10),
+            "search should materialize a place card"
+        )
+        XCTAssertTrue(app.staticTexts["Clear"].exists, "results should expose a reset action")
+    }
+
     func testScrollPerformance() throws {
         let app = XCUIApplication()
         app.launch()

@@ -484,6 +484,13 @@ class RustHost(
                 setColor(Color.parseColor("#171717"))
                 cornerRadii = floatArrayOf(radius, radius, radius, radius, 0f, 0f, 0f, 0f)
             }
+            // Keep the dialog window just tall enough for the sheet so the
+            // map and carousel above it remain touchable.
+            dialog.window?.setLayout(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                dp(230f),
+            )
+            dialog.window?.setGravity(Gravity.BOTTOM)
         }
         dialog.show()
         dialog.behavior.state = BottomSheetBehavior.STATE_COLLAPSED
