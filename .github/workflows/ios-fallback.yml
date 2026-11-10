@@ -180,6 +180,15 @@ jobs:
             CODE_SIGNING_REQUIRED=NO 2>&1 | tee /tmp/xcodebuild-uitest-ios18.log
           exit ${PIPESTATUS[0]}
 
+      - name: Drive Nightshade through XCUITest
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -o pipefail
+          CHEETAH_IOS_DESTINATION="platform=iOS Simulator,id=${{ steps.simulator.outputs.device }}" \
+            cargo run -p cheetah-drive -- ios test tools/drive/nightshade.drive \
+            2>&1 | tee /tmp/cheetah-drive-ios18.log
+
       - name: Publish fallback performance report
         if: success()
         shell: bash
@@ -207,7 +216,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p ci-logs-ios18
-          for file in /tmp/rust-ios18.log /tmp/xcodegen-ios18.log /tmp/xcodebuild-ios18.log /tmp/xcodebuild-sim-ios18.log /tmp/simulator-ios18.log /tmp/xcodebuild-uitest-ios18.log; do
+          for file in /tmp/rust-ios18.log /tmp/xcodegen-ios18.log /tmp/xcodebuild-ios18.log /tmp/xcodebuild-sim-ios18.log /tmp/simulator-ios18.log /tmp/xcodebuild-uitest-ios18.log /tmp/cheetah-drive-ios18.log; do
             if [ -f "$file" ]; then
               cp "$file" "ci-logs-ios18/$(basename "$file")"
             fi

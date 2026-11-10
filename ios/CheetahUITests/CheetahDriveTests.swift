@@ -111,7 +111,9 @@ final class CheetahDriveTests: XCTestCase {
                     }
                     let kind = try required(parts, 1, "expect kind")
                     let target = try required(parts, 2, "expect target")
-                    let element = awaitElement(app, target)
+                    let element = kind == "text"
+                        ? containsElement(app, target)
+                        : awaitElement(app, target)
                     let exists = element.waitForExistence(timeout: 5)
                     switch kind {
                     case "exists" where exists:
@@ -196,6 +198,16 @@ final class CheetahDriveTests: XCTestCase {
     private func awaitElement(_ app: XCUIApplication, _ target: String) -> XCUIElement {
         let predicate = NSPredicate(
             format: "identifier == %@ OR label == %@ OR value == %@",
+            target,
+            target,
+            target
+        )
+        return app.descendants(matching: .any).matching(predicate).firstMatch
+    }
+
+    private func containsElement(_ app: XCUIApplication, _ target: String) -> XCUIElement {
+        let predicate = NSPredicate(
+            format: "label CONTAINS %@ OR identifier CONTAINS %@ OR value CONTAINS %@",
             target,
             target,
             target
