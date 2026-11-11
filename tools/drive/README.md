@@ -37,13 +37,13 @@ A drive file is a sequence of operations, one per line. Empty lines and
 ```text
 start nightshade
 wait 1000
-tap "Coffee"
+tap "Cafes within 12 min walk"
 wait 400
-expect text "Results for \"coffee\""
+expect text "Java Haven"
 expect exists "Clear"
 screenshot target/drive/nightshade-search.png
 tap "Clear"
-expect exists "Open now"
+expect exists "Ready to discover?"
 ```
 
 Supported operations:

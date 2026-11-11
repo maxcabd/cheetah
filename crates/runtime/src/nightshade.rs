@@ -62,8 +62,8 @@ const PLACES: [Place; 4] = [
         open: true,
         closes: "6:00 PM",
         opens: "7:00 AM",
-        rating: "4.8",
-        reviews: "120+",
+        rating: "4.3",
+        reviews: "50+",
         cuisine: "Coffee",
         icon: "coffee",
         icon_color: "#7B3F00",
@@ -79,8 +79,8 @@ const PLACES: [Place; 4] = [
         open: true,
         closes: "11:00 PM",
         opens: "11:00 AM",
-        rating: "4.2",
-        reviews: "80+",
+        rating: "4.3",
+        reviews: "50+",
         cuisine: "Pizza",
         icon: "pizza-slice",
         icon_color: "#FFA500",
@@ -96,7 +96,7 @@ const PLACES: [Place; 4] = [
         open: true,
         closes: "9:30 PM",
         opens: "11:30 AM",
-        rating: "4.6",
+        rating: "4.3",
         reviews: "50+",
         cuisine: "Sushi",
         icon: "fish",
@@ -113,8 +113,8 @@ const PLACES: [Place; 4] = [
         open: false,
         closes: "10:00 PM",
         opens: "10:30 AM",
-        rating: "4.1",
-        reviews: "90+",
+        rating: "4.3",
+        reviews: "50+",
         cuisine: "Fast Food",
         icon: "hamburger",
         icon_color: "#FF4500",
@@ -798,10 +798,14 @@ impl NightshadeApp {
     fn sheet(&self, context: &ViewContext) -> Element {
         let height = self.sheet_height(context);
         let body_height = (height - 24.0 - SEARCH_HEIGHT).max(0.0);
-        let body = match &self.search {
-            Resource::Ready(_) => self.results_body(),
-            Resource::Loading => self.searching_body(),
-            _ => self.empty_body(),
+        let body = if self.has_results() && !self.expanded {
+            column().width(-1.0).height(body_height)
+        } else {
+            match &self.search {
+                Resource::Ready(_) => self.results_body(),
+                Resource::Loading => self.searching_body(),
+                _ => self.empty_body(),
+            }
         };
 
         sheet()
