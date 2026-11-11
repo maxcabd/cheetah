@@ -515,7 +515,7 @@ impl NightshadeApp {
                                     .size(14.0)
                                     .font("satoshi-medium")
                                     .color("#fffffff2")
-                                    .weight(1.0)
+                                    .width(120.0)
                                     .lines(1)
                                     .height(18.0),
                             )
@@ -531,6 +531,7 @@ impl NightshadeApp {
                     .child(status)
                     .child(
                         row()
+                            .width(150.0)
                             .height(30.0)
                             .pad_h(12.0)
                             .gap(8.0)
@@ -552,6 +553,7 @@ impl NightshadeApp {
                                     .size(12.0)
                                     .font("satoshi-medium")
                                     .color("#ffffff")
+                                    .width(80.0)
                                     .height(16.0),
                             ),
                     ),
