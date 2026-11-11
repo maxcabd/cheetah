@@ -37,11 +37,13 @@ fn main() {
     let initial_ops = runtime.render(viewport);
     let initial_ms = elapsed_ms(initial_start);
     let initial_json = serde_json::to_vec(&initial_ops).expect("serialize initial ops");
+    let initial_wire = runtime::encode_ops(&initial_ops);
 
     println!("initial_render_500_ms: {initial_ms:.2}");
     println!(
-        "initial_ops: count={} json_bytes={}",
+        "initial_ops: count={} wire_bytes={} debug_json_bytes={}",
         initial_ops.len(),
+        initial_wire.len(),
         initial_json.len()
     );
     let metrics = runtime.metrics();
@@ -72,15 +74,11 @@ fn main() {
         let ops = runtime.dispatch(event);
         scroll_ms.push(elapsed_ms(start));
         scroll_ops.push(ops.len());
-        scroll_bytes.push(
-            serde_json::to_vec(&ops)
-                .expect("serialize scroll ops")
-                .len(),
-        );
+        scroll_bytes.push(runtime::encode_ops(&ops).len());
     }
     let scroll_stats = stats(scroll_ms);
     println!(
-        "scroll_frame_ms: p50={:.2} p95={:.2} max={:.2} ops_p50={} json_bytes_p50={}",
+        "scroll_frame_ms: p50={:.2} p95={:.2} max={:.2} ops_p50={} wire_bytes_p50={}",
         scroll_stats.p50,
         scroll_stats.p95,
         scroll_stats.max,
@@ -109,11 +107,11 @@ fn main() {
         let start = Instant::now();
         let ops = runtime.dispatch(event);
         like_ms.push(elapsed_ms(start));
-        like_bytes.push(serde_json::to_vec(&ops).expect("serialize like ops").len());
+        like_bytes.push(runtime::encode_ops(&ops).len());
     }
     let like_stats = stats(like_ms);
     println!(
-        "like_frame_ms: p50={:.2} p95={:.2} max={:.2} json_bytes_p50={}",
+        "like_frame_ms: p50={:.2} p95={:.2} max={:.2} wire_bytes_p50={}",
         like_stats.p50,
         like_stats.p95,
         like_stats.max,
@@ -140,7 +138,7 @@ fn main() {
     let _ = fs::remove_file(path);
 
     println!();
-    println!("note: measurements include layout, diff, and JSON serialization; they exclude native text measurement and host rendering");
+    println!("note: measurements include layout, diff, and wire encoding; they exclude native text measurement and host rendering");
     if failed {
         std::process::exit(1);
     }

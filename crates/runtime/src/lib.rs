@@ -21,9 +21,11 @@ pub mod nightshade;
 pub mod resource;
 pub mod store;
 pub mod tree;
-#[cfg(any(target_os = "android", target_os = "ios", test))]
-#[cfg_attr(test, allow(dead_code))]
 mod wire;
+
+pub fn encode_ops(ops: &[Op]) -> Vec<u8> {
+    wire::encode(ops)
+}
 
 pub use app::{Action, App, Event, HostInfo, Runtime, RuntimeMetrics, ViewContext, Viewport};
 pub use diff::Op;
