@@ -1063,6 +1063,22 @@ extension RustHost: MKMapViewDelegate {
 }
 
 extension RustHost: UITextFieldDelegate {
+    func textFieldDidBeginEditing(_ textField: UITextField) {
+        let id = UInt32(textField.tag)
+        guard tags[id] != nil else {
+            return
+        }
+        event(id: id, kind: "focus", payload: "")
+    }
+
+    func textFieldDidEndEditing(_ textField: UITextField) {
+        let id = UInt32(textField.tag)
+        guard tags[id] != nil else {
+            return
+        }
+        event(id: id, kind: "blur", payload: "")
+    }
+
     func textFieldShouldReturn(_ textField: UITextField) -> Bool {
         let id = UInt32(textField.tag)
         guard tags[id] != nil else {

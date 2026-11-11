@@ -176,6 +176,7 @@ pub struct NightshadeApp {
     source: Box<dyn PlaceSource>,
     selected: usize,
     focused: bool,
+    expanded: bool,
 }
 
 impl NightshadeApp {
@@ -188,6 +189,7 @@ impl NightshadeApp {
             source: Box::new(LocalPlaceSource),
             selected: 0,
             focused: false,
+            expanded: false,
         };
 
         if demo {
@@ -213,7 +215,9 @@ impl NightshadeApp {
     }
 
     fn sheet_height(&self, context: &ViewContext) -> f32 {
-        if self.has_results() {
+        if self.expanded {
+            (context.viewport.height * 0.85).max(520.0)
+        } else if self.has_results() {
             RESULT_SHEET_HEIGHT
         } else {
             (context.viewport.height * 0.52).max(390.0)
@@ -369,7 +373,7 @@ impl NightshadeApp {
                         .height(18.0),
                 )
                 .child(
-                    text("-")
+                    text("\u{00B7}")
                         .size(14.0)
                         .font("satoshi-medium")
                         .color("#ffffff")
@@ -399,7 +403,7 @@ impl NightshadeApp {
                         .height(18.0),
                 )
                 .child(
-                    text("-")
+                    text("\u{00B7}")
                         .size(14.0)
                         .font("satoshi-medium")
                         .color("#ffffff")
@@ -743,12 +747,14 @@ impl NightshadeApp {
                 self.query = query.into();
                 self.selected = 0;
                 self.focused = false;
+                self.expanded = false;
             }
             Err(error) => {
                 self.search = Resource::Failed(error);
                 self.query = query.into();
                 self.selected = 0;
                 self.focused = false;
+                self.expanded = false;
             }
         }
         self.draft.clear();
@@ -760,6 +766,7 @@ impl NightshadeApp {
         self.search = Resource::Idle;
         self.selected = 0;
         self.focused = false;
+        self.expanded = false;
     }
 
     fn select_place(&mut self, id: &str) {
@@ -797,6 +804,8 @@ impl NightshadeApp {
                     .height(height)
                     .child(
                         row()
+                            .key("sheet:toggle")
+                            .pressable(true)
                             .width(-1.0)
                             .height(24.0)
                             .justify("center")
@@ -860,6 +869,12 @@ impl App for NightshadeApp {
             "change" if key == "search" => {
                 self.draft = event.payload;
             }
+            "focus" if key == "search" => {
+                self.expanded = true;
+            }
+            "blur" if key == "search" => {
+                self.expanded = false;
+            }
             "submit" if key == "search" => {
                 let query = self.draft.clone();
                 self.run_search(&query);
@@ -902,13 +917,15 @@ impl App for NightshadeApp {
                             self.run_search(&followup);
                         }
                     }
+                } else if key == "sheet:toggle" {
+                    self.expanded = !self.expanded;
                 } else if key == "search:send" {
                     let query = self.draft.clone();
                     self.run_search(&query);
                 } else if key == "search:clear" {
                     self.clear_search();
                 } else if key == "show-on-map" {
-                    // The sheet is already collapsed in the result state.
+                    self.expanded = false;
                 } else if let Some(id) = key.strip_prefix("place:") {
                     self.select_place(id);
                 } else if key.starts_with("card:") {

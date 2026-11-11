@@ -382,6 +382,7 @@ class RustHost(
             imeOptions = EditorInfo.IME_ACTION_SEND
             setTextColor(Color.WHITE)
             setHintTextColor(Color.parseColor("#949ba4"))
+            setBackgroundColor(Color.TRANSPARENT)
             includeFontPadding = false
             setPadding(0, 0, 0, 0)
 
@@ -421,6 +422,11 @@ class RustHost(
                 } else {
                     false
                 }
+            }
+
+            setOnFocusChangeListener { _, hasFocus ->
+                val node = tag as? NodeTag ?: return@setOnFocusChangeListener
+                event(node.id, if (hasFocus) "focus" else "blur", "")
             }
         }
 

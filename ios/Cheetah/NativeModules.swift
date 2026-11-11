@@ -126,6 +126,11 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
         super.init()
         map.backgroundColor = UIColor(hex: "#101826")
         map.isOpaque = true
+        map.overrideUserInterfaceStyle = .dark
+        map.mapType = .mutedStandard
+        map.pointOfInterestFilter = .excludingAll
+        map.showsBuildings = false
+        map.showsTraffic = false
         map.showsCompass = false
         map.showsScale = false
         map.isRotateEnabled = false
