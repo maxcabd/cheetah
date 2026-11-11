@@ -79,6 +79,7 @@ private final class NodeTag {
     var tapRecognizer: UITapGestureRecognizer?
     var source: String?
     var native: String?
+    var lastPage: Int = -1
 
     var isSheet: Bool {
         kind == "sheet" || native == "sheet"
@@ -536,7 +537,8 @@ final class RustHost: NSObject {
         let text = props["text"] as? String
         let size = max(number(props["size"], fallback: 14), 1)
         let bold = bool(props["bold"])
-        let font = UIFont.systemFont(ofSize: size, weight: bold ? .bold : .regular)
+        let fontFamily = props["font"] as? String
+        let font = uiFont(size: size, bold: bold, family: fontFamily)
 
         if let label = view as? UILabel {
             if let text {
@@ -548,6 +550,26 @@ final class RustHost: NSObject {
             }
             if let align = props["align"] as? String {
                 label.textAlignment = textAlignment(align)
+            }
+            if let lines = props["lines"] as? NSNumber {
+                let count = lines.intValue
+                label.numberOfLines = count
+                label.lineBreakMode = count == 1 ? .byTruncatingTail : .byWordWrapping
+            }
+            if let lineHeight = props["lineHeight"] as? NSNumber, let text {
+                let paragraph = NSMutableParagraphStyle()
+                paragraph.minimumLineHeight = CGFloat(lineHeight.doubleValue)
+                paragraph.maximumLineHeight = CGFloat(lineHeight.doubleValue)
+                paragraph.alignment = label.textAlignment
+                paragraph.lineBreakMode = label.lineBreakMode
+                label.attributedText = NSAttributedString(
+                    string: text,
+                    attributes: [
+                        .font: font,
+                        .foregroundColor: label.textColor ?? .white,
+                        .paragraphStyle: paragraph,
+                    ]
+                )
             }
         }
 
@@ -572,7 +594,11 @@ final class RustHost: NSObject {
             if let placeholder = props["placeholder"] as? String {
                 field.attributedPlaceholder = NSAttributedString(
                     string: placeholder,
-                    attributes: [.foregroundColor: UIColor(hex: "#a3a3a3")]
+                    attributes: [
+                        .foregroundColor: UIColor(
+                            hex: props["placeholderColor"] as? String ?? "#a3a3a3"
+                        ),
+                    ]
                 )
             }
             if let align = props["align"] as? String {
@@ -600,6 +626,8 @@ final class RustHost: NSObject {
 
         if bool(props["pressable"]), node.tapRecognizer == nil {
             view.isUserInteractionEnabled = true
+            view.isAccessibilityElement = true
+            view.accessibilityTraits = .button
             let tap = UITapGestureRecognizer(target: self, action: #selector(viewTapped(_:)))
             view.addGestureRecognizer(tap)
             node.tapRecognizer = tap
@@ -658,7 +686,27 @@ final class RustHost: NSObject {
         } else if let glass = view as? GlassView {
             glass.updateShape(radius: radius)
         } else {
-            view.clipsToBounds = radius > 0
+            view.clipsToBounds = bool(props["clip"]) || radius > 0
+        }
+
+        let borderWidth = number(props["borderWidth"])
+        if borderWidth > 0 {
+            view.layer.borderWidth = borderWidth
+            view.layer.borderColor = UIColor(
+                hex: props["borderColor"] as? String ?? "#ffffff"
+            ).cgColor
+        } else {
+            view.layer.borderWidth = 0
+        }
+        view.alpha = props["opacity"] != nil ? CGFloat(number(props["opacity"])) : 1.0
+        if bool(props["shadow"]) {
+            view.layer.shadowColor = UIColor.black.cgColor
+            view.layer.shadowOpacity = 0.3
+            view.layer.shadowRadius = 8
+            view.layer.shadowOffset = CGSize(width: 0, height: 4)
+            view.layer.masksToBounds = false
+        } else {
+            view.layer.shadowOpacity = 0
         }
 
         let base = number(props["pad"])
@@ -710,7 +758,37 @@ final class RustHost: NSObject {
                 node.pendingScrollTo = number(scrollTo)
                 applyScroll(node)
             }
+            if let paged = props["paged"] as? NSNumber, scroll is UIScrollView {
+                scroll.isPagingEnabled = paged.boolValue
+            }
+            if let scrollX = props["scrollX"] as? NSNumber {
+                scroll.setContentOffset(
+                    CGPoint(x: CGFloat(scrollX.doubleValue), y: scroll.contentOffset.y),
+                    animated: false
+                )
+            }
         }
+    }
+
+    private func uiFont(size: CGFloat, bold: Bool, family: String?) -> UIFont {
+        let name: String?
+        switch family {
+        case "satoshi": name = "Satoshi-Regular"
+        case "satoshi-medium": name = "Satoshi-Medium"
+        case "satoshi-bold": name = "Satoshi-Bold"
+        case "brice": name = "Brice-SemiBold"
+        case "brice-semibold": name = "Brice-SemiBold"
+        case "brice-bold": name = "Brice-Bold"
+        case "general": name = "GeneralSans-Regular"
+        case "general-medium": name = "GeneralSans-Medium"
+        case "general-semibold": name = "GeneralSans-Semibold"
+        case "general-bold": name = "GeneralSans-Bold"
+        default: name = nil
+        }
+        if let name, let font = UIFont(name: name, size: size) {
+            return font
+        }
+        return UIFont.systemFont(ofSize: size, weight: bold ? .bold : .regular)
     }
 
     private func applyMap(_ map: MKMapView, props: [String: Any]) {
@@ -912,6 +990,27 @@ final class RustHost: NSObject {
 }
 
 extension RustHost: UIScrollViewDelegate {
+    func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
+        emitHorizontalPage(scrollView)
+    }
+
+    func scrollViewDidEndScrollingAnimation(_ scrollView: UIScrollView) {
+        emitHorizontalPage(scrollView)
+    }
+
+    private func emitHorizontalPage(_ scrollView: UIScrollView) {
+        let key = ObjectIdentifier(scrollView)
+        guard let node = scrollTags[key], node.kind == "hscroll", scrollView.bounds.width > 0 else {
+            return
+        }
+        let page = Int(round(scrollView.contentOffset.x / scrollView.bounds.width))
+        guard page != node.lastPage else {
+            return
+        }
+        node.lastPage = page
+        event(id: node.id, kind: "page", payload: String(page))
+    }
+
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         let key = ObjectIdentifier(scrollView)
         guard let node = scrollTags[key], node.pendingScrollTo == nil else {

@@ -96,7 +96,7 @@ fn style_for(kind: Kind, props: &Props) -> Style {
             left: LengthPercentage::length(pad_h),
             right: LengthPercentage::length(pad_h),
             top: LengthPercentage::length(pad_v),
-            bottom: LengthPercentage::length(pad_v),
+            bottom: LengthPercentage::length(props.pad_bottom.unwrap_or(pad_v)),
         },
         ..Default::default()
     };
@@ -106,6 +106,10 @@ fn style_for(kind: Kind, props: &Props) -> Style {
             width: LengthPercentage::length(gap),
             height: LengthPercentage::length(gap),
         };
+    }
+
+    if props.wrap.unwrap_or(false) {
+        style.flex_wrap = FlexWrap::Wrap;
     }
 
     if let Some(weight) = props.weight {

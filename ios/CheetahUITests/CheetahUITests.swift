@@ -55,9 +55,9 @@ final class CheetahUITests: XCTestCase {
         app.launchArguments = ["--nightshade"]
         app.launch()
 
-        let coffee = app.buttons["Coffee"]
-        XCTAssertTrue(coffee.waitForExistence(timeout: 20), "search sheet should be visible")
-        coffee.tap()
+        let suggestion = app.descendants(matching: .any)["Cafes within 12 min walk"]
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 20), "search sheet should be visible")
+        suggestion.tap()
 
         XCTAssertTrue(
             app.staticTexts["Java Haven"].waitForExistence(timeout: 10),

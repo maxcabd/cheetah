@@ -9,17 +9,14 @@ import android.widget.TextView
 import org.json.JSONArray
 import org.json.JSONObject
 import org.maplibre.android.MapLibre
+import org.maplibre.android.annotations.IconFactory
+import org.maplibre.android.annotations.Marker
+import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
-import org.maplibre.android.style.layers.CircleLayer
-import org.maplibre.android.style.layers.PropertyFactory
-import org.maplibre.android.style.sources.GeoJsonSource
-import org.maplibre.geojson.Feature
-import org.maplibre.geojson.FeatureCollection
-import org.maplibre.geojson.Point
 import kotlin.math.ln
 
 /**
@@ -27,12 +24,14 @@ import kotlin.math.ln
  * the region and marker data passed through the `map` primitive.
  */
 class MapLibreHostView(context: Context) : FrameLayout(context), NativeMapHost {
+    override var onMarker: ((String) -> Unit)? = null
     private val mapView: MapView
     private var map: MapLibreMap? = null
     private var style: Style? = null
     private var pendingProps: JSONObject? = null
     private var started = false
     private var resumed = false
+    private val markerIds = HashMap<Marker, String>()
 
     init {
         setBackgroundColor(Color.parseColor("#101826"))
@@ -57,6 +56,10 @@ class MapLibreHostView(context: Context) : FrameLayout(context), NativeMapHost {
             map = nativeMap
             nativeMap.uiSettings.isCompassEnabled = false
             nativeMap.uiSettings.isRotateGesturesEnabled = false
+            nativeMap.setOnMarkerClickListener { marker ->
+                markerIds[marker]?.let { id -> onMarker?.invoke(id) }
+                true
+            }
             nativeMap.setStyle(Style.Builder().fromUri(STYLE_URL)) { loadedStyle ->
                 style = loadedStyle
                 pendingProps?.let { applyToMap(nativeMap, loadedStyle, it) }
@@ -120,39 +123,37 @@ class MapLibreHostView(context: Context) : FrameLayout(context), NativeMapHost {
                 .build()
         }
 
-        loadedStyle.getLayer(PLACES_LAYER)?.let { loadedStyle.removeLayer(it) }
-        loadedStyle.getSource(PLACES_SOURCE)?.let { loadedStyle.removeSource(it) }
-
+        nativeMap.clear()
+        markerIds.clear()
         val rawMarkers = props.optString("mapMarkers", "")
         if (rawMarkers.isBlank()) {
             return
         }
 
         val markers = JSONArray(rawMarkers)
-        val features = mutableListOf<Feature>()
+        val icons = IconFactory.getInstance(context)
         for (index in 0 until markers.length()) {
             val marker = markers.optJSONObject(index) ?: continue
-            features.add(
-                Feature.fromGeometry(
-                    Point.fromLngLat(marker.optDouble("lng"), marker.optDouble("lat")),
-                ),
+            val icon = MarkerBitmapFactory.create(
+                context,
+                marker.optString("kind", "static"),
+                marker.optString("icon", "utensils"),
+                marker.optString("iconColor", "#D32F2F"),
+                marker.optBoolean("selected", false),
             )
+            val added = nativeMap.addMarker(
+                MarkerOptions()
+                    .position(
+                        LatLng(
+                            marker.optDouble("lat"),
+                            marker.optDouble("lng"),
+                        ),
+                    )
+                    .title(marker.optString("name"))
+                    .icon(icons.fromBitmap(icon)),
+            )
+            markerIds[added] = marker.optString("id")
         }
-        if (features.isEmpty()) {
-            return
-        }
-
-        loadedStyle.addSource(
-            GeoJsonSource(PLACES_SOURCE, FeatureCollection.fromFeatures(features)),
-        )
-        loadedStyle.addLayer(
-            CircleLayer(PLACES_LAYER, PLACES_SOURCE).withProperties(
-                PropertyFactory.circleColor("#e5522f"),
-                PropertyFactory.circleRadius(7f),
-                PropertyFactory.circleStrokeColor("#ffffff"),
-                PropertyFactory.circleStrokeWidth(2f),
-            ),
-        )
     }
 
     private companion object {

@@ -29,6 +29,20 @@
     </dict>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Connect to the local Cheetah gateway.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Show nearby restaurants on the map.</string>
+    <key>UIAppFonts</key>
+    <array>
+        <string>Satoshi-Regular.otf</string>
+        <string>Satoshi-Medium.otf</string>
+        <string>Satoshi-Bold.otf</string>
+        <string>Brice-Semi-Bold.otf</string>
+        <string>Brice-Bold.otf</string>
+        <string>GeneralSans-Regular.otf</string>
+        <string>GeneralSans-Medium.otf</string>
+        <string>GeneralSans-Semibold.otf</string>
+        <string>GeneralSans-Bold.otf</string>
+    </array>
     <key>UIApplicationSceneManifest</key>
     <dict>
         <key>UIApplicationSupportsMultipleScenes</key>

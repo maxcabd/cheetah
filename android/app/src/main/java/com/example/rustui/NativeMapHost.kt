@@ -7,6 +7,8 @@ import org.json.JSONObject
  * keyless MapLibre host.
  */
 interface NativeMapHost {
+    var onMarker: ((String) -> Unit)?
+
     fun start()
 
     fun resume()

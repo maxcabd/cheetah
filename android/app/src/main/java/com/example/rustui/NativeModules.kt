@@ -1,7 +1,12 @@
 package com.example.rustui
 
 import android.content.Context
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.Shader
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.util.TypedValue
 import android.view.Gravity
@@ -9,6 +14,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.TextView
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.appcompat.widget.SearchView
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -41,9 +47,11 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
                 "search" -> SearchNativeModule(context) { kind, payload ->
                     onEvent?.invoke(kind, payload)
                 }
-                "map" -> MapNativeModule(context)
+                "map" -> MapNativeModule(context, this)
                 "sheet" -> SheetNativeModule(context, this)
                 "menu" -> MenuNativeModule(context, this)
+                "icon" -> IconNativeModule(context)
+                "gradient" -> GradientNativeModule(context)
                 else -> null
             }
             if (name != "sheet") {
@@ -72,7 +80,10 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
     }
 }
 
-private class MapNativeModule(context: Context) : CheetahNativeModule {
+private class MapNativeModule(
+    context: Context,
+    private val owner: NativeModuleHostView,
+) : CheetahNativeModule {
     private val map: NativeMapHost = if (BuildConfig.MAPS_API_KEY.isBlank()) {
         MapLibreHostView(context)
     } else {
@@ -81,6 +92,10 @@ private class MapNativeModule(context: Context) : CheetahNativeModule {
 
     override val nativeView: View
         get() = map as View
+
+    init {
+        map.onMarker = { id -> owner.onEvent?.invoke("marker", id) }
+    }
 
     override fun apply(props: JSONObject) {
         map.apply(props)
@@ -98,6 +113,150 @@ private class MapNativeModule(context: Context) : CheetahNativeModule {
 
     override fun destroy() {
         map.destroy()
+    }
+}
+
+private class IconNativeModule(private val context: Context) : CheetahNativeModule {
+    private val iconView = TextView(context).apply {
+        gravity = Gravity.CENTER
+        includeFontPadding = false
+        setTextColor(Color.WHITE)
+        typeface = try {
+            Typeface.createFromAsset(context.assets, "fonts/FontAwesome6_Solid.ttf")
+        } catch (_: Exception) {
+            Typeface.DEFAULT
+        }
+    }
+
+    override val nativeView: View
+        get() = iconView
+
+    override fun apply(props: JSONObject) {
+        var name = ""
+        var color = "#ffffff"
+        if (props.has("nativeProps")) {
+            val config = JSONObject(props.getString("nativeProps"))
+            name = config.optString("name", name)
+            color = config.optString("color", color)
+        }
+        if (props.has("color")) {
+            color = props.getString("color")
+        }
+        val size = props.optDouble("size", 16.0).toFloat()
+        iconView.setTextSize(TypedValue.COMPLEX_UNIT_SP, size)
+        iconView.setTextColor(glyphColor(color))
+        if (name == "google") {
+            iconView.typeface = Typeface.DEFAULT_BOLD
+            iconView.text = "G"
+        } else {
+            iconView.typeface = try {
+                Typeface.createFromAsset(context.assets, "fonts/FontAwesome6_Solid.ttf")
+            } catch (_: Exception) {
+                Typeface.DEFAULT
+            }
+            iconView.text = glyph(name) ?: ""
+        }
+        iconView.contentDescription = name
+    }
+
+    private fun glyph(name: String): String? = when (name) {
+        "utensils" -> "\uF2E7"
+        "arrow-up" -> "\uF062"
+        "xmark" -> "\uF00D"
+        "chevron-right" -> "\uF054"
+        "chevron-up" -> "\uF077"
+        "bookmark" -> "\uF02E"
+        "share" -> "\uF064"
+        "plus" -> "\u002B"
+        "coffee" -> "\uF0F4"
+        "hamburger" -> "\uF805"
+        "fish" -> "\uF578"
+        "pizza-slice" -> "\uF818"
+        "car" -> "\uF1B9"
+        "google" -> "\uF1A0"
+        "magnifying-glass" -> "\uF002"
+        "circle-xmark" -> "\uF057"
+        "star" -> "\uF005"
+        else -> null
+    }
+
+    private fun glyphColor(value: String): Int {
+        val hex = value.removePrefix("#")
+        if (hex.length == 8) {
+            val red = hex.substring(0, 2).toInt(16)
+            val green = hex.substring(2, 4).toInt(16)
+            val blue = hex.substring(4, 6).toInt(16)
+            val alpha = hex.substring(6, 8).toInt(16)
+            return Color.argb(alpha, red, green, blue)
+        }
+        return Color.parseColor(value)
+    }
+}
+
+private class GradientNativeModule(context: Context) : CheetahNativeModule {
+    private val gradientView = GradientView(context)
+
+    override val nativeView: View
+        get() = gradientView
+
+    override fun apply(props: JSONObject) {
+        if (!props.has("nativeProps")) return
+        gradientView.configure(JSONObject(props.getString("nativeProps")))
+    }
+}
+
+private class GradientView(context: Context) : View(context) {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private var colors: IntArray = intArrayOf(Color.TRANSPARENT, Color.TRANSPARENT)
+    private var positions: FloatArray? = null
+    private var startX = 0f
+    private var startY = 0f
+    private var endX = 0f
+    private var endY = 1f
+
+    fun configure(config: JSONObject) {
+        val array = config.optJSONArray("colors") ?: return
+        colors = IntArray(array.length()) { index -> parseColor(array.optString(index)) }
+        val locationArray = config.optJSONArray("locations")
+        positions = if (locationArray != null) {
+            FloatArray(locationArray.length()) { index ->
+                locationArray.optDouble(index).toFloat()
+            }
+        } else {
+            null
+        }
+        startX = config.optDouble("startX", startX.toDouble()).toFloat()
+        startY = config.optDouble("startY", startY.toDouble()).toFloat()
+        endX = config.optDouble("endX", endX.toDouble()).toFloat()
+        endY = config.optDouble("endY", endY.toDouble()).toFloat()
+        invalidate()
+    }
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        if (width <= 0 || height <= 0) return
+        paint.shader = LinearGradient(
+            startX * width,
+            startY * height,
+            endX * width,
+            endY * height,
+            colors,
+            positions,
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), paint)
+    }
+
+    private fun parseColor(value: String): Int {
+        val hex = value.removePrefix("#")
+        if (hex.length == 8) {
+            val red = hex.substring(0, 2).toInt(16)
+            val green = hex.substring(2, 4).toInt(16)
+            val blue = hex.substring(4, 6).toInt(16)
+            val alpha = hex.substring(6, 8).toInt(16)
+            return Color.argb(alpha, red, green, blue)
+        }
+        return Color.parseColor(value)
     }
 }
 
@@ -158,17 +317,38 @@ private class SheetNativeModule(
 ) : CheetahNativeModule {
     private val placeholder = View(context)
     private var dialog: BottomSheetDialog? = null
+    private var sheetHeightDp = 230f
+    private var sheetRadiusDp = 28f
 
     override val nativeView: View
         get() = placeholder
 
-    override fun apply(props: JSONObject) = Unit
+    override fun apply(props: JSONObject) {
+        if (props.has("height")) {
+            sheetHeightDp = props.getDouble("height").toFloat()
+        }
+        if (props.has("radius")) {
+            sheetRadiusDp = props.getDouble("radius").toFloat()
+        }
+        val current = dialog ?: return
+        val density = owner.resources.displayMetrics.density
+        val height = (sheetHeightDp * density).toInt()
+        owner.layoutParams = (owner.layoutParams ?: FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            height,
+        )).apply {
+            this.height = height
+        }
+        owner.requestLayout()
+        current.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, height)
+        current.behavior.peekHeight = height
+    }
 
     fun presentIfNeeded() {
         if (dialog != null) return
 
         val density = owner.resources.displayMetrics.density
-        val sheetHeight = 230f * density
+        val sheetHeight = sheetHeightDp * density
         val dialog = BottomSheetDialog(
             ContextThemeWrapper(owner.context, R.style.Cheetah_SheetDialog),
         )
@@ -191,7 +371,7 @@ private class SheetNativeModule(
             val sheet = dialog.findViewById<View>(
                 com.google.android.material.R.id.design_bottom_sheet,
             )
-            val radius = 28f * density
+            val radius = sheetRadiusDp * density
             sheet?.background = GradientDrawable().apply {
                 setColor(Color.parseColor("#171717"))
                 cornerRadii = floatArrayOf(

@@ -71,9 +71,41 @@ private enum NativeModuleRegistry {
             return SheetNativeModule(owner: owner)
         case "menu":
             return MenuNativeModule(owner: owner)
+        case "icon":
+            return IconNativeModule()
+        case "gradient":
+            return GradientNativeModule()
         default:
             return nil
         }
+    }
+}
+
+private final class PlaceAnnotation: NSObject, MKAnnotation {
+    let coordinate: CLLocationCoordinate2D
+    let placeID: String
+    let title: String?
+    let kind: String
+    let icon: String
+    let iconColor: String
+    let selected: Bool
+
+    init(
+        coordinate: CLLocationCoordinate2D,
+        placeID: String,
+        title: String?,
+        kind: String,
+        icon: String,
+        iconColor: String,
+        selected: Bool
+    ) {
+        self.coordinate = coordinate
+        self.placeID = placeID
+        self.title = title
+        self.kind = kind
+        self.icon = icon
+        self.iconColor = iconColor
+        self.selected = selected
     }
 }
 
@@ -106,6 +138,9 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
             map.overrideUserInterfaceStyle = dark.boolValue ? .dark : .light
         }
 
+        let showUser = (props["mapShowsUser"] as? NSNumber)?.boolValue ?? false
+        map.showsUserLocation = showUser
+
         if let latitude = props["mapLatitude"] as? NSNumber,
            let longitude = props["mapLongitude"] as? NSNumber,
            let latitudeDelta = props["mapLatitudeDelta"] as? NSNumber,
@@ -135,7 +170,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
             return
         }
 
-        map.removeAnnotations(map.annotations.filter { $0 is MKPointAnnotation })
+        map.removeAnnotations(map.annotations.filter { $0 is PlaceAnnotation })
         for marker in markers {
             guard
                 let latitude = marker["lat"] as? NSNumber,
@@ -143,37 +178,110 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
             else {
                 continue
             }
-            let annotation = MKPointAnnotation()
-            annotation.coordinate = CLLocationCoordinate2D(
-                latitude: latitude.doubleValue,
-                longitude: longitude.doubleValue
+            let annotation = PlaceAnnotation(
+                coordinate: CLLocationCoordinate2D(
+                    latitude: latitude.doubleValue,
+                    longitude: longitude.doubleValue
+                ),
+                placeID: marker["id"] as? String ?? "",
+                title: marker["name"] as? String,
+                kind: marker["kind"] as? String ?? "static",
+                icon: marker["icon"] as? String ?? "utensils",
+                iconColor: marker["iconColor"] as? String ?? "#D32F2F",
+                selected: (marker["selected"] as? NSNumber)?.boolValue ?? false
             )
-            annotation.title = marker["name"] as? String
             map.addAnnotation(annotation)
         }
     }
 
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
-        guard annotation is MKPointAnnotation else {
+        guard let place = annotation as? PlaceAnnotation else {
             return nil
         }
         let identifier = "cheetah-place"
         let marker = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
-            as? MKMarkerAnnotationView
-            ?? MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+            as? MKAnnotationView
+            ?? MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
         marker.annotation = annotation
-        marker.markerTintColor = UIColor(hex: "#e5522f")
-        marker.glyphImage = UIImage(systemName: "fork.knife")
+        marker.image = Self.markerImage(place)
         marker.canShowCallout = true
         marker.displayPriority = .required
         return marker
     }
+
+    func mapView(_ mapView: MKMapView, didSelect annotation: MKAnnotation) {
+        guard let place = annotation as? PlaceAnnotation, !place.placeID.isEmpty else {
+            return
+        }
+        owner?.event("marker", place.placeID)
+        mapView.deselectAnnotation(annotation, animated: false)
+    }
+
+    private static func markerImage(_ place: PlaceAnnotation) -> UIImage {
+        let result = place.kind == "result"
+        let size = result ? CGSize(width: 40, height: 40) : CGSize(width: 56, height: 56)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { context in
+            let rect = CGRect(origin: .zero, size: size).insetBy(dx: 2, dy: 2)
+            let circle = UIBezierPath(ovalIn: rect)
+            context.cgContext.setShadow(
+                offset: CGSize(width: 0, height: 2),
+                blur: 4,
+                color: UIColor.black.withAlphaComponent(0.3).cgColor
+            )
+            if result {
+                (place.selected ? UIColor(hex: "#ef4444") : UIColor(hex: "#404040")).setFill()
+                circle.fill()
+                (place.selected ? UIColor.white : UIColor(hex: "#262626")).setStroke()
+                circle.lineWidth = 3
+                circle.stroke()
+            } else {
+                UIColor.white.setFill()
+                circle.fill()
+                UIColor(hex: "#262626").withAlphaComponent(0.5).setStroke()
+                circle.lineWidth = 1
+                circle.stroke()
+            }
+
+            let symbol = Self.symbols[place.icon] ?? "fork.knife"
+            let configuration = UIImage.SymbolConfiguration(
+                pointSize: result ? 14 : 20,
+                weight: .regular
+            )
+            if let image = UIImage(systemName: symbol, withConfiguration: configuration)?
+                .withTintColor(
+                    result ? .white : UIColor(hex: place.iconColor),
+                    renderingMode: .alwaysOriginal
+                )
+            {
+                let side = result ? 16.0 : 22.0
+                image.draw(
+                    in: CGRect(
+                        x: (size.width - side) / 2,
+                        y: (size.height - side) / 2,
+                        width: side,
+                        height: side
+                    )
+                )
+            }
+        }
+    }
+
+    private static let symbols: [String: String] = [
+        "coffee": "cup.and.saucer.fill",
+        "hamburger": "takeoutbag.and.cup.and.straw.fill",
+        "pizza-slice": "triangle.fill",
+        "fish": "fish.fill",
+        "utensils": "fork.knife",
+    ]
 }
 
 private final class SheetNativeModule: CheetahNativeModule {
     private weak var owner: NativeModuleHostView?
     private var controller: UIViewController?
     private let placeholder = UIView()
+    private var sheetHeight: CGFloat = 230
+    private var sheetRadius: CGFloat = 28
 
     var nativeView: UIView {
         placeholder
@@ -184,7 +292,24 @@ private final class SheetNativeModule: CheetahNativeModule {
     }
 
     func apply(props: [String: Any]) {
-        _ = props
+        if let height = props["height"] as? NSNumber {
+            sheetHeight = CGFloat(height.doubleValue)
+        }
+        if let radius = props["radius"] as? NSNumber {
+            sheetRadius = CGFloat(radius.doubleValue)
+        }
+        guard let sheet = controller?.sheetPresentationController else {
+            return
+        }
+        let identifier = UISheetPresentationController.Detent.Identifier("cheetah-search")
+        let detent = UISheetPresentationController.Detent.custom(identifier: identifier) { _ in
+            self.sheetHeight
+        }
+        sheet.animateChanges {
+            sheet.detents = [detent]
+            sheet.selectedDetentIdentifier = identifier
+            sheet.largestUndimmedDetentIdentifier = identifier
+        }
     }
 
     func presentIfNeeded(owner: NativeModuleHostView) {
@@ -220,13 +345,13 @@ private final class SheetNativeModule: CheetahNativeModule {
         if let sheet = controller.sheetPresentationController {
             let identifier = UISheetPresentationController.Detent.Identifier("cheetah-search")
             let detent = UISheetPresentationController.Detent.custom(identifier: identifier) { _ in
-                230
+                self.sheetHeight
             }
             sheet.detents = [detent]
             sheet.selectedDetentIdentifier = identifier
             sheet.largestUndimmedDetentIdentifier = identifier
-            sheet.prefersGrabberVisible = true
-            sheet.preferredCornerRadius = 28
+            sheet.prefersGrabberVisible = false
+            sheet.preferredCornerRadius = sheetRadius
             sheet.prefersScrollingExpandsWhenScrolledToEdge = false
         }
 
@@ -284,6 +409,124 @@ private final class MenuNativeModule: CheetahNativeModule {
         if let color = props["color"] as? String {
             button.setTitleColor(UIColor(hex: color), for: .normal)
         }
+    }
+}
+
+private final class IconNativeModule: CheetahNativeModule {
+    private let imageView = UIImageView()
+    private var iconName = "circle.fill"
+
+    var nativeView: UIView {
+        imageView
+    }
+
+    init() {
+        imageView.contentMode = .scaleAspectFit
+        imageView.clipsToBounds = true
+        imageView.tintColor = .white
+    }
+
+    func apply(props: [String: Any]) {
+        if let raw = props["nativeProps"] as? String,
+           let data = raw.data(using: .utf8),
+           let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            iconName = config["name"] as? String ?? iconName
+            if let color = config["color"] as? String {
+                imageView.tintColor = UIColor(hex: color)
+            }
+        }
+        if let color = props["color"] as? String {
+            imageView.tintColor = UIColor(hex: color)
+        }
+        let symbol = Self.symbols[iconName] ?? iconName
+        let config = UIImage.SymbolConfiguration(
+            pointSize: CGFloat((props["size"] as? NSNumber)?.doubleValue ?? 16),
+            weight: .regular
+        )
+        imageView.image = UIImage(systemName: symbol, withConfiguration: config)?
+            .withRenderingMode(.alwaysTemplate)
+        imageView.accessibilityLabel = iconName
+    }
+
+    private static let symbols: [String: String] = [
+        "utensils": "fork.knife",
+        "arrow-up": "arrow.up",
+        "xmark": "xmark",
+        "chevron-right": "chevron.right",
+        "chevron-up": "chevron.up",
+        "bookmark": "bookmark",
+        "share": "square.and.arrow.up",
+        "plus": "plus",
+        "coffee": "cup.and.saucer.fill",
+        "hamburger": "takeoutbag.and.cup.and.straw.fill",
+        "fish": "fish.fill",
+        "pizza-slice": "triangle.fill",
+        "car": "car.fill",
+        "google": "g.circle.fill",
+        "magnifying-glass": "magnifyingglass",
+        "circle-xmark": "xmark.circle.fill",
+        "star": "star.fill",
+    ]
+}
+
+private final class GradientNativeModule: CheetahNativeModule {
+    private let gradientView = GradientView()
+
+    var nativeView: UIView {
+        gradientView
+    }
+
+    func apply(props: [String: Any]) {
+        guard let raw = props["nativeProps"] as? String,
+              let data = raw.data(using: .utf8),
+              let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return
+        }
+        let colors = (config["colors"] as? [String] ?? []).map { UIColor(hex: $0).cgColor }
+        let locations = (config["locations"] as? [NSNumber] ?? []).map {
+            NSNumber(value: $0.doubleValue)
+        }
+        gradientView.apply(
+            colors: colors,
+            locations: locations,
+            start: CGPoint(
+                x: (config["startX"] as? NSNumber)?.doubleValue ?? 0,
+                y: (config["startY"] as? NSNumber)?.doubleValue ?? 0
+            ),
+            end: CGPoint(
+                x: (config["endX"] as? NSNumber)?.doubleValue ?? 0,
+                y: (config["endY"] as? NSNumber)?.doubleValue ?? 1
+            )
+        )
+    }
+}
+
+private final class GradientView: UIView {
+    private let gradient = CAGradientLayer()
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        layer.addSublayer(gradient)
+        isUserInteractionEnabled = false
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        gradient.frame = bounds
+    }
+
+    func apply(colors: [CGColor], locations: [NSNumber], start: CGPoint, end: CGPoint) {
+        gradient.colors = colors
+        gradient.locations = locations
+        gradient.startPoint = start
+        gradient.endPoint = end
+        setNeedsLayout()
     }
 }
 

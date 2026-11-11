@@ -66,6 +66,7 @@ class RustHost(
     private val mapHosts = mutableListOf<NativeMapHost>()
     private var isActive = false
     private val imageCache = LruCache<String, Bitmap>(24)
+    private val typefaceCache = HashMap<String, Typeface>()
     private val imageLoader = Executors.newFixedThreadPool(2)
     private var sheetDialog: BottomSheetDialog? = null
 
@@ -282,10 +283,13 @@ class RustHost(
             content.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
                 applyScroll(view, tag)
             }
-        } else if (view is HorizontalScrollView) {
+        } else if (view is CheetahHScroll) {
             val content = view.getChildAt(0) as FrameLayout
             tag.container = content
             tag.content = content
+            view.onPageChanged = { page ->
+                event(tag.id, "page", page.toString())
+            }
         } else if (
             kind == "column" ||
             kind == "row" ||
@@ -355,7 +359,7 @@ class RustHost(
             )
         }
 
-        "hscroll" -> HorizontalScrollView(context).apply {
+        "hscroll" -> CheetahHScroll(context).apply {
             isHorizontalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_NEVER
             clipToPadding = false
@@ -683,11 +687,35 @@ class RustHost(
             view.setTextColor(Color.parseColor(props.getString("color")))
         }
 
-        if (props.has("bold") && view is TextView) {
-            view.setTypeface(
-                null,
-                if (props.getBoolean("bold")) Typeface.BOLD else Typeface.NORMAL,
-            )
+        if (view is TextView && (props.has("font") || props.has("bold"))) {
+            val bold = props.optBoolean("bold", false)
+            val font = props.optString("font", "")
+            val base = if (font.isNotEmpty()) {
+                typeface(font)
+            } else {
+                Typeface.DEFAULT
+            }
+            view.typeface = if (bold) {
+                Typeface.create(base, Typeface.BOLD)
+            } else {
+                base
+            }
+        }
+
+        if (props.has("lines") && view is TextView) {
+            val lines = props.getInt("lines")
+            view.maxLines = lines
+            view.ellipsize = if (lines == 1) {
+                android.text.TextUtils.TruncateAt.END
+            } else {
+                null
+            }
+        }
+
+        if (props.has("lineHeight") && view is TextView) {
+            val lineHeight = dp(props.getDouble("lineHeight").toFloat()).toFloat()
+            val fontSize = view.textSize
+            view.setLineSpacing((lineHeight - fontSize).coerceAtLeast(0f), 1f)
         }
 
         if (props.has("align") && view is TextView) {
@@ -698,7 +726,12 @@ class RustHost(
             }
         }
 
-        if (props.has("bg") || props.has("radius") || (tag.kind == "glass" && props.has("glassTint"))) {
+        if (
+            props.has("bg") ||
+            props.has("radius") ||
+            props.has("borderWidth") ||
+            (tag.kind == "glass" && props.has("glassTint"))
+        ) {
             val radius = dp(props.optDouble("radius", 0.0).toFloat()).toFloat()
             var color = when {
                 props.has("bg") -> parseColor(props.getString("bg"))
@@ -716,9 +749,31 @@ class RustHost(
                     Color.blue(color),
                 )
             }
+            val borderWidth = dp(props.optDouble("borderWidth", 0.0).toFloat())
+            val borderColor = parseColor(props.optString("borderColor", "#ffffff"))
             view.background = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
                 setColor(color)
                 cornerRadius = radius
+                if (borderWidth > 0) {
+                    setStroke(borderWidth, borderColor)
+                }
+            }
+        }
+
+        if (props.has("opacity")) {
+            view.alpha = props.getDouble("opacity").toFloat()
+        }
+
+        if (props.has("clip") && props.getBoolean("clip")) {
+            view.clipToOutline = true
+        }
+
+        if (props.has("shadow")) {
+            if (props.getBoolean("shadow")) {
+                view.elevation = dp(8f).toFloat()
+            } else {
+                view.elevation = 0f
             }
         }
 
@@ -737,6 +792,10 @@ class RustHost(
 
         if (props.has("placeholder") && view is EditText) {
             view.hint = props.getString("placeholder")
+        }
+
+        if (props.has("placeholderColor") && view is EditText) {
+            view.setHintTextColor(parseColor(props.getString("placeholderColor")))
         }
 
         if (props.has("value") && view is EditText) {
@@ -776,6 +835,15 @@ class RustHost(
         if (props.has("scrollTo") && view is ScrollView) {
             tag.pendingScrollTo = dp(props.getDouble("scrollTo").toFloat()).toFloat()
             applyScroll(view, tag)
+        }
+
+        if (view is CheetahHScroll) {
+            if (props.has("paged")) {
+                view.paged = props.getBoolean("paged")
+            }
+            if (props.has("scrollX")) {
+                view.scrollTo(dp(props.getDouble("scrollX").toFloat()), 0)
+            }
         }
     }
 
@@ -825,6 +893,29 @@ class RustHost(
         if (abs(view.scrollY - target) <= 1f) {
             tag.pendingScrollTo = null
         }
+    }
+
+    private fun typeface(font: String): Typeface {
+        typefaceCache[font]?.let { return it }
+        val asset = when (font) {
+            "satoshi" -> "fonts/Satoshi-Regular.otf"
+            "satoshi-medium" -> "fonts/Satoshi-Medium.otf"
+            "satoshi-bold" -> "fonts/Satoshi-Bold.otf"
+            "brice", "brice-semibold" -> "fonts/Brice-Semi-Bold.otf"
+            "brice-bold" -> "fonts/Brice-Bold.otf"
+            "general" -> "fonts/GeneralSans-Regular.otf"
+            "general-medium" -> "fonts/GeneralSans-Medium.otf"
+            "general-semibold" -> "fonts/GeneralSans-Semibold.otf"
+            "general-bold" -> "fonts/GeneralSans-Bold.otf"
+            else -> return Typeface.DEFAULT
+        }
+        val loaded = try {
+            Typeface.createFromAsset(context.assets, asset)
+        } catch (_: Exception) {
+            Typeface.DEFAULT
+        }
+        typefaceCache[font] = loaded
+        return loaded
     }
 
     private fun dp(value: Float): Int = (value * density).roundToInt()

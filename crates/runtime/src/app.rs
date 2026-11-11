@@ -223,6 +223,7 @@ fn props_affect_layout(previous: &Props, next: &Props) -> bool {
         || previous.pad != next.pad
         || previous.pad_h != next.pad_h
         || previous.pad_v != next.pad_v
+        || previous.pad_bottom != next.pad_bottom
         || previous.content_width != next.content_width
         || previous.weight != next.weight
         || previous.gap != next.gap
@@ -234,6 +235,10 @@ fn props_affect_layout(previous: &Props, next: &Props) -> bool {
         || previous.bottom != next.bottom
         || previous.size != next.size
         || previous.bold != next.bold
+        || previous.font != next.font
+        || previous.line_height != next.line_height
+        || previous.lines != next.lines
+        || previous.wrap != next.wrap
         || previous.placeholder != next.placeholder
     {
         return true;

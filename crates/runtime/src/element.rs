@@ -70,6 +70,8 @@ pub struct Props {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pad_v: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub pad_bottom: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub radius: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub weight: Option<f32>,
@@ -79,6 +81,26 @@ pub struct Props {
     pub height: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bold: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub font: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub line_height: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lines: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub border_width: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub border_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opacity: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub shadow: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clip: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub wrap: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub placeholder_color: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub align: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -130,6 +152,12 @@ pub struct Props {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub map_dark: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub map_shows_user: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub paged: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scroll_x: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub src: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub fit: Option<String>,
@@ -180,6 +208,11 @@ impl Props {
         self
     }
 
+    pub fn pad_bottom(mut self, value: f32) -> Self {
+        self.pad_bottom = Some(value);
+        self
+    }
+
     pub fn radius(mut self, value: f32) -> Self {
         self.radius = Some(value);
         self
@@ -202,6 +235,52 @@ impl Props {
 
     pub fn bold(mut self, value: bool) -> Self {
         self.bold = Some(value);
+        self
+    }
+
+    pub fn font(mut self, value: impl Into<String>) -> Self {
+        self.font = Some(value.into());
+        self
+    }
+
+    pub fn line_height(mut self, value: f32) -> Self {
+        self.line_height = Some(value);
+        self
+    }
+
+    pub fn lines(mut self, value: u32) -> Self {
+        self.lines = Some(value);
+        self
+    }
+
+    pub fn border(mut self, width: f32, color: impl Into<String>) -> Self {
+        self.border_width = Some(width);
+        self.border_color = Some(color.into());
+        self
+    }
+
+    pub fn opacity(mut self, value: f32) -> Self {
+        self.opacity = Some(value);
+        self
+    }
+
+    pub fn shadow(mut self, value: bool) -> Self {
+        self.shadow = Some(value);
+        self
+    }
+
+    pub fn clip(mut self, value: bool) -> Self {
+        self.clip = Some(value);
+        self
+    }
+
+    pub fn wrap(mut self, value: bool) -> Self {
+        self.wrap = Some(value);
+        self
+    }
+
+    pub fn placeholder_color(mut self, value: impl Into<String>) -> Self {
+        self.placeholder_color = Some(value.into());
         self
     }
 
@@ -438,6 +517,11 @@ impl Element {
         self
     }
 
+    pub fn pad_bottom(mut self, value: f32) -> Self {
+        self.props.pad_bottom = Some(value);
+        self
+    }
+
     pub fn radius(mut self, value: f32) -> Self {
         self.props.radius = Some(value);
         self
@@ -460,6 +544,52 @@ impl Element {
 
     pub fn bold(mut self, value: bool) -> Self {
         self.props.bold = Some(value);
+        self
+    }
+
+    pub fn font(mut self, value: impl Into<String>) -> Self {
+        self.props.font = Some(value.into());
+        self
+    }
+
+    pub fn line_height(mut self, value: f32) -> Self {
+        self.props.line_height = Some(value);
+        self
+    }
+
+    pub fn lines(mut self, value: u32) -> Self {
+        self.props.lines = Some(value);
+        self
+    }
+
+    pub fn border(mut self, width: f32, color: impl Into<String>) -> Self {
+        self.props.border_width = Some(width);
+        self.props.border_color = Some(color.into());
+        self
+    }
+
+    pub fn opacity(mut self, value: f32) -> Self {
+        self.props.opacity = Some(value);
+        self
+    }
+
+    pub fn shadow(mut self, value: bool) -> Self {
+        self.props.shadow = Some(value);
+        self
+    }
+
+    pub fn clip(mut self, value: bool) -> Self {
+        self.props.clip = Some(value);
+        self
+    }
+
+    pub fn wrap(mut self, value: bool) -> Self {
+        self.props.wrap = Some(value);
+        self
+    }
+
+    pub fn placeholder_color(mut self, value: impl Into<String>) -> Self {
+        self.props.placeholder_color = Some(value.into());
         self
     }
 
@@ -579,6 +709,21 @@ impl Element {
 
     pub fn map_dark(mut self, value: bool) -> Self {
         self.props.map_dark = Some(value);
+        self
+    }
+
+    pub fn map_shows_user(mut self, value: bool) -> Self {
+        self.props.map_shows_user = Some(value);
+        self
+    }
+
+    pub fn paged(mut self, value: bool) -> Self {
+        self.props.paged = Some(value);
+        self
+    }
+
+    pub fn scroll_x(mut self, value: f32) -> Self {
+        self.props.scroll_x = Some(value);
         self
     }
 

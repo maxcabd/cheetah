@@ -23,6 +23,7 @@ import kotlin.math.ln
  * surface itself.
  */
 class MapHostView(context: Context) : FrameLayout(context), NativeMapHost {
+    override var onMarker: ((String) -> Unit)? = null
     private val mapView: MapView?
     private var googleMap: GoogleMap? = null
     private var pendingProps: JSONObject? = null
@@ -58,6 +59,13 @@ class MapHostView(context: Context) : FrameLayout(context), NativeMapHost {
                 map.uiSettings.isCompassEnabled = false
                 map.uiSettings.isMapToolbarEnabled = false
                 map.uiSettings.isMyLocationButtonEnabled = false
+                map.setOnMarkerClickListener { marker ->
+                    val id = marker.tag as? String
+                    if (!id.isNullOrEmpty()) {
+                        onMarker?.invoke(id)
+                    }
+                    true
+                }
                 pendingProps?.let { applyToMap(map, it) }
             }
         }
@@ -119,13 +127,25 @@ class MapHostView(context: Context) : FrameLayout(context), NativeMapHost {
             )
         }
 
+        try {
+            map.isMyLocationEnabled = props.optBoolean("mapShowsUser", false)
+        } catch (_: SecurityException) {
+            // The map still works without the user-location layer.
+        }
         map.clear()
         val rawMarkers = props.optString("mapMarkers", "")
         if (rawMarkers.isNotBlank()) {
             val markers = JSONArray(rawMarkers)
             for (index in 0 until markers.length()) {
                 val marker = markers.optJSONObject(index) ?: continue
-                map.addMarker(
+                val bitmap = MarkerBitmapFactory.create(
+                    context,
+                    marker.optString("kind", "static"),
+                    marker.optString("icon", "utensils"),
+                    marker.optString("iconColor", "#D32F2F"),
+                    marker.optBoolean("selected", false),
+                )
+                val added = map.addMarker(
                     MarkerOptions()
                         .position(
                             LatLng(
@@ -134,12 +154,10 @@ class MapHostView(context: Context) : FrameLayout(context), NativeMapHost {
                             ),
                         )
                         .title(marker.optString("name"))
-                        .icon(
-                            BitmapDescriptorFactory.defaultMarker(
-                                BitmapDescriptorFactory.HUE_ORANGE,
-                            ),
-                        ),
+                        .anchor(0.5f, 0.5f)
+                        .icon(BitmapDescriptorFactory.fromBitmap(bitmap)),
                 )
+                added?.tag = marker.optString("id")
             }
         }
     }
