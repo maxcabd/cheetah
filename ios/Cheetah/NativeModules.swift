@@ -4,10 +4,12 @@ import UIKit
 protocol CheetahNativeModule: AnyObject {
     var nativeView: UIView { get }
     func apply(props: [String: Any])
+    func layout()
     func destroy()
 }
 
 extension CheetahNativeModule {
+    func layout() {}
     func destroy() {}
 }
 
@@ -43,6 +45,7 @@ final class NativeModuleHostView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         module?.nativeView.frame = bounds
+        module?.layout()
     }
 
     /// Access hatch for host-side integrations that need the platform object.
@@ -112,6 +115,8 @@ private final class PlaceAnnotation: NSObject, MKAnnotation {
 private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDelegate {
     let map: MKMapView
     private weak var owner: NativeModuleHostView?
+    private var pendingRegion: MKCoordinateRegion?
+    private var regionApplied = false
 
     var nativeView: UIView {
         map
@@ -151,7 +156,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
            let latitudeDelta = props["mapLatitudeDelta"] as? NSNumber,
            let longitudeDelta = props["mapLongitudeDelta"] as? NSNumber
         {
-            let region = MKCoordinateRegion(
+            pendingRegion = MKCoordinateRegion(
                 center: CLLocationCoordinate2D(
                     latitude: latitude.doubleValue,
                     longitude: longitude.doubleValue
@@ -161,12 +166,13 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
                     longitudeDelta: longitudeDelta.doubleValue
                 )
             )
-            map.setRegion(region, animated: false)
+            regionApplied = false
+            applyPendingRegion()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-                self?.map.setRegion(region, animated: false)
+                self?.applyPendingRegion(force: true)
             }
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                self?.map.setRegion(region, animated: false)
+                self?.applyPendingRegion(force: true)
             }
         }
 
@@ -202,13 +208,27 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
         }
     }
 
+    func layout() {
+        applyPendingRegion()
+    }
+
+    private func applyPendingRegion(force: Bool = false) {
+        guard let region = pendingRegion, map.bounds.width > 1, map.bounds.height > 1 else {
+            return
+        }
+        guard force || !regionApplied else {
+            return
+        }
+        map.setRegion(region, animated: false)
+        regionApplied = true
+    }
+
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
         guard let place = annotation as? PlaceAnnotation else {
             return nil
         }
         let identifier = "cheetah-place"
         let marker = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
-            as? MKAnnotationView
             ?? MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
         marker.annotation = annotation
         marker.image = Self.markerImage(place)

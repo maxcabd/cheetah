@@ -492,6 +492,7 @@ impl NightshadeApp {
                 column()
                     .width(width)
                     .height(CARD_HEIGHT - CARD_HEADER)
+                    .bg(CARD_BG)
                     .pad_h(20.0)
                     .pad_v(12.0)
                     .gap(6.0)
@@ -644,7 +645,11 @@ impl NightshadeApp {
     }
 
     fn empty_body(&self) -> Element {
-        let mut suggestions = row().width(-1.0).wrap(true).gap(10.0).align_items("center");
+        let mut suggestions = row()
+            .width(600.0)
+            .wrap(true)
+            .gap(10.0)
+            .align_items("center");
         for (index, suggestion) in SUGGESTIONS.iter().enumerate() {
             suggestions = suggestions.child(Self::chip(suggestion, &format!("suggest:{index}")));
         }
@@ -662,7 +667,13 @@ impl NightshadeApp {
                     .color(TEXT)
                     .height(26.0),
             )
-            .child(suggestions)
+            .child(
+                hscroll()
+                    .width(-1.0)
+                    .height(260.0)
+                    .content_width(600.0)
+                    .child(column().width(600.0).height(260.0).child(suggestions)),
+            )
     }
 
     fn results_body(&self) -> Element {

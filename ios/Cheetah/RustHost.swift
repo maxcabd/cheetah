@@ -758,7 +758,7 @@ final class RustHost: NSObject {
                 node.pendingScrollTo = number(scrollTo)
                 applyScroll(node)
             }
-            if let paged = props["paged"] as? NSNumber, scroll is UIScrollView {
+            if let paged = props["paged"] as? NSNumber {
                 scroll.isPagingEnabled = paged.boolValue
             }
             if let scrollX = props["scrollX"] as? NSNumber {
