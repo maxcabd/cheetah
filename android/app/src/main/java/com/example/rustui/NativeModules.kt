@@ -38,32 +38,57 @@ interface CheetahNativeModule {
  */
 class NativeModuleHostView(context: Context) : FrameLayout(context) {
     private var module: CheetahNativeModule? = null
+    private var pendingName: String? = null
+    private var pendingProps: JSONObject? = null
     private var active = false
     var onEvent: ((String, String) -> Unit)? = null
 
     fun configure(name: String, props: JSONObject) {
+        if (module == null && name == "map" && (width <= 1 || height <= 1)) {
+            pendingName = name
+            pendingProps = props
+            return
+        }
         if (module == null) {
-            module = when (name) {
-                "search" -> SearchNativeModule(context) { kind, payload ->
-                    onEvent?.invoke(kind, payload)
-                }
-                "map" -> MapNativeModule(context, this)
-                "sheet" -> SheetNativeModule(context, this)
-                "menu" -> MenuNativeModule(context, this)
-                "icon" -> IconNativeModule(context)
-                "gradient" -> GradientNativeModule(context)
-                else -> null
-            }
-            if (name != "sheet") {
-                module?.nativeView?.let {
-                    addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
-                }
-            }
-            module?.setActive(active)
+            materialize(name, props)
+            return
         }
         module?.apply(props)
         if (name == "sheet") {
             (module as? SheetNativeModule)?.presentIfNeeded()
+        }
+    }
+
+    private fun materialize(name: String, props: JSONObject) {
+        module = when (name) {
+            "search" -> SearchNativeModule(context) { kind, payload ->
+                onEvent?.invoke(kind, payload)
+            }
+            "map" -> MapNativeModule(context, this)
+            "sheet" -> SheetNativeModule(context, this)
+            "menu" -> MenuNativeModule(context, this)
+            "icon" -> IconNativeModule(context)
+            "gradient" -> GradientNativeModule(context)
+            else -> null
+        }
+        if (name != "sheet") {
+            module?.nativeView?.let {
+                addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+            }
+        }
+        module?.setActive(active)
+        module?.apply(props)
+        if (name == "sheet") {
+            (module as? SheetNativeModule)?.presentIfNeeded()
+        }
+        pendingName = null
+        pendingProps = null
+    }
+
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        if (module == null && pendingName == "map" && width > 1 && height > 1) {
+            pendingName?.let { name -> pendingProps?.let { props -> materialize(name, props) } }
         }
     }
 
@@ -77,6 +102,18 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
     fun destroy() {
         module?.destroy()
         module = null
+    }
+
+    fun resetForReuse() {
+        destroy()
+        removeAllViews()
+        background = null
+        alpha = 1f
+        translationX = 0f
+        translationY = 0f
+        scaleX = 1f
+        scaleY = 1f
+        onEvent = null
     }
 }
 

@@ -665,6 +665,9 @@ class RustHost(
         "column", "row" -> "container"
         "text" -> "text"
         "button" -> "button"
+        "image" -> "image"
+        "input" -> "input"
+        "native" -> "native"
         "space" -> "space"
         else -> null
     }
@@ -676,6 +679,21 @@ class RustHost(
                 view.background = null
                 view.setPadding(0, 0, 0, 0)
             }
+
+            "image" -> {
+                (view as ImageView).setImageDrawable(null)
+                view.background = null
+                view.scaleType = ImageView.ScaleType.CENTER_CROP
+            }
+
+            "input" -> {
+                val field = view as EditText
+                field.setText("")
+                field.hint = null
+                field.background = null
+            }
+
+            "native" -> (view as NativeModuleHostView).resetForReuse()
 
             "text" -> {
                 resetText(view as TextView)
@@ -1068,6 +1086,8 @@ private class WireReader(bytes: ByteArray) {
 
     fun u8(): Int? = if (buffer.remaining() >= 1) buffer.get().toInt() and 0xff else null
 
+    fun u16(): Int? = if (buffer.remaining() >= 2) buffer.short.toInt() and 0xffff else null
+
     fun u32(): Long? = if (buffer.remaining() >= 4) buffer.int.toLong() and 0xffffffffL else null
 
     fun f32(): Float? = if (buffer.remaining() >= 4) buffer.float else null
@@ -1080,11 +1100,15 @@ private class WireReader(bytes: ByteArray) {
         return String(bytes, Charsets.UTF_8)
     }
 
+    private val propNames = arrayOf("text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps")
+
     fun props(): JSONObject? {
         val count = u32()?.toInt() ?: return null
         val props = JSONObject()
         for (index in 0 until count) {
-            val key = string() ?: return null
+            val keyId = u16() ?: return null
+            if (keyId !in propNames.indices) return null
+            val key = propNames[keyId]
             when (val type = u8() ?: return null) {
                 1 -> props.put(key, string() ?: return null)
                 2 -> props.put(key, f32() ?: return null)

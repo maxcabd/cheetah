@@ -18,6 +18,8 @@ extension CheetahNativeModule {
 final class NativeModuleHostView: UIView {
     private(set) var module: CheetahNativeModule?
     var onEvent: ((String, String) -> Void)?
+    private var pendingName: String?
+    private var pendingProps: [String: Any]?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -29,11 +31,15 @@ final class NativeModuleHostView: UIView {
     }
 
     func configure(name: String, props: [String: Any]) {
+        if module == nil, name == "map", bounds.width <= 1 || bounds.height <= 1 {
+            pendingName = name
+            pendingProps = props
+            setNeedsLayout()
+            return
+        }
         if module == nil {
-            module = NativeModuleRegistry.make(name: name, owner: self)
-            if name != "sheet", let native = module?.nativeView {
-                addSubview(native)
-            }
+            materialize(name: name, props: props)
+            return
         }
         module?.apply(props: props)
         if let sheet = module as? SheetNativeModule {
@@ -42,8 +48,25 @@ final class NativeModuleHostView: UIView {
         setNeedsLayout()
     }
 
+    private func materialize(name: String, props: [String: Any]) {
+        let created = NativeModuleRegistry.make(name: name, owner: self)
+        module = created
+        if name != "sheet", let native = created?.nativeView {
+            addSubview(native)
+        }
+        created?.apply(props: props)
+        if let sheet = created as? SheetNativeModule {
+            sheet.presentIfNeeded(owner: self)
+        }
+        pendingName = nil
+        pendingProps = nil
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
+        if module == nil, let name = pendingName, bounds.width > 1, bounds.height > 1 {
+            materialize(name: name, props: pendingProps ?? [:])
+        }
         module?.nativeView.frame = bounds
         module?.layout()
     }

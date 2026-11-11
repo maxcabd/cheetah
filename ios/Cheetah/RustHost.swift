@@ -148,6 +148,12 @@ private struct WireReader {
         return data[offset]
     }
 
+    mutating func u16() -> UInt16? {
+        guard offset + 2 <= data.count else { return nil }
+        defer { offset += 2 }
+        return UInt16(data[offset]) | (UInt16(data[offset + 1]) << 8)
+    }
+
     mutating func u32() -> UInt32? {
         guard offset + 4 <= data.count else { return nil }
         defer { offset += 4 }
@@ -167,6 +173,8 @@ private struct WireReader {
         defer { offset += Int(length) }
         return String(decoding: data[offset..<(offset + Int(length))], as: UTF8.self)
     }
+
+    static let propNames: [String] = ["text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps"]
 
     mutating func take(_ count: Int) -> Data? {
         guard offset + count <= data.count else { return nil }
@@ -190,6 +198,7 @@ final class RustHost: NSObject {
     private var tags: [UInt32: NodeTag] = [:]
     private var scrollTags: [ObjectIdentifier: NodeTag] = [:]
     private var scrollScheduled: Set<ObjectIdentifier> = []
+    private var viewPool: [String: [UIView]] = [:]
     private var sheetController: UIViewController?
 
     var containerSize: CGSize {
@@ -432,7 +441,12 @@ final class RustHost: NSObject {
         guard let count = reader.u32() else { return nil }
         var props: [String: Any] = [:]
         for _ in 0..<count {
-            guard let key = reader.string(), let type = reader.u8() else { return nil }
+            guard
+                let id = reader.u16(),
+                id < WireReader.propNames.count,
+                let type = reader.u8()
+            else { return nil }
+            let key = WireReader.propNames[Int(id)]
             switch type {
             case 1:
                 guard let value = reader.string() else { return nil }
@@ -456,7 +470,7 @@ final class RustHost: NSObject {
     private func create(_ op: [String: Any]) {
         let id = uint32(op["id"])
         let kind = op["kind"] as? String ?? "space"
-        let view = makeView(kind)
+        let view = obtainView(kind)
         view.tag = Int(id)
 
         let node = NodeTag(id: id, kind: kind, view: view)
@@ -718,7 +732,74 @@ final class RustHost: NSObject {
             native.destroy()
         }
         view.removeFromSuperview()
+        if let kind = tags[id]?.kind {
+            recycleView(view, kind: kind)
+        }
         tags.removeValue(forKey: id)
+    }
+
+    private func obtainView(_ kind: String) -> UIView {
+        guard let key = poolKey(kind), var pool = viewPool[key], let view = pool.popLast() else {
+            return makeView(kind)
+        }
+        viewPool[key] = pool
+        resetView(view, kind: kind)
+        return view
+    }
+
+    private func recycleView(_ view: UIView, kind: String) {
+        guard let key = poolKey(kind), viewPool[key, default: []].count < 64 else {
+            return
+        }
+        viewPool[key, default: []].append(view)
+    }
+
+    private func poolKey(_ kind: String) -> String? {
+        switch kind {
+        case "text", "button", "column", "row", "space", "image":
+            return kind
+        default:
+            return nil
+        }
+    }
+
+    private func resetView(_ view: UIView, kind: String) {
+        view.tag = 0
+        view.alpha = 1
+        view.transform = .identity
+        view.layer.borderWidth = 0
+        view.layer.shadowOpacity = 0
+        view.backgroundColor = nil
+        view.layer.cornerRadius = 0
+        view.clipsToBounds = false
+        view.setNeedsLayout()
+        switch kind {
+        case "text":
+            if let label = view as? UILabel {
+                label.text = nil
+                label.attributedText = nil
+                label.numberOfLines = 0
+                label.textAlignment = .natural
+                label.textColor = .white
+            }
+        case "button":
+            if let button = view as? CheetahButton {
+                button.title = nil
+                button.insets = .zero
+                button.titleFont = .systemFont(ofSize: 14)
+                button.titleColor = .white
+                button.titleAlignment = .center
+            }
+        case "column", "row":
+            view.subviews.forEach { $0.removeFromSuperview() }
+        case "image":
+            if let image = view as? UIImageView {
+                image.image = nil
+                image.contentMode = .scaleAspectFill
+            }
+        default:
+            break
+        }
     }
 
     private func applyProps(_ view: UIView, node: NodeTag, props: [String: Any]) {

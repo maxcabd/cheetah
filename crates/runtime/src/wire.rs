@@ -21,6 +21,67 @@ const TYPE_F32: u8 = 2;
 const TYPE_BOOL: u8 = 3;
 const TYPE_U32: u8 = 4;
 
+const PROP_NAMES: &[&str] = &[
+    "text",
+    "size",
+    "color",
+    "bg",
+    "pad",
+    "padH",
+    "padV",
+    "padBottom",
+    "radius",
+    "weight",
+    "width",
+    "height",
+    "bold",
+    "font",
+    "lineHeight",
+    "lines",
+    "borderWidth",
+    "borderColor",
+    "opacity",
+    "shadow",
+    "clip",
+    "animate",
+    "wrap",
+    "placeholderColor",
+    "align",
+    "placeholder",
+    "value",
+    "label",
+    "testId",
+    "gap",
+    "alignItems",
+    "justify",
+    "absolute",
+    "top",
+    "left",
+    "contentHeight",
+    "scrollTo",
+    "glassStyle",
+    "glassTint",
+    "glassInteractive",
+    "contentInsetTop",
+    "contentInsetBottom",
+    "bottom",
+    "mapLatitude",
+    "mapLongitude",
+    "mapLatitudeDelta",
+    "mapLongitudeDelta",
+    "mapMarkers",
+    "mapDark",
+    "mapShowsUser",
+    "paged",
+    "scrollX",
+    "src",
+    "fit",
+    "contentWidth",
+    "pressable",
+    "native",
+    "nativeProps",
+];
+
 pub(crate) fn encode(ops: &[Op]) -> Vec<u8> {
     let mut out = Vec::with_capacity(ops.len() * 64 + 16);
     out.extend_from_slice(MAGIC);
@@ -79,6 +140,14 @@ pub(crate) fn encode(ops: &[Op]) -> Vec<u8> {
     out
 }
 
+fn put_prop_id(out: &mut Vec<u8>, name: &str) {
+    let id = PROP_NAMES
+        .iter()
+        .position(|candidate| *candidate == name)
+        .expect("known prop name") as u16;
+    out.extend_from_slice(&id.to_le_bytes());
+}
+
 fn put_source(out: &mut Vec<u8>, source: Option<&crate::element::SourceLocation>) {
     match source {
         Some(source) => {
@@ -97,7 +166,7 @@ fn put_props(out: &mut Vec<u8>, props: &Props) {
     macro_rules! string_prop {
         ($name:literal, $value:expr) => {
             if let Some(value) = &$value {
-                put_string(out, $name);
+                put_prop_id(out, $name);
                 out.push(TYPE_STRING);
                 put_string(out, value);
             }
@@ -106,7 +175,7 @@ fn put_props(out: &mut Vec<u8>, props: &Props) {
     macro_rules! f32_prop {
         ($name:literal, $value:expr) => {
             if let Some(value) = $value {
-                put_string(out, $name);
+                put_prop_id(out, $name);
                 out.push(TYPE_F32);
                 put_f32(out, value);
             }
@@ -115,7 +184,7 @@ fn put_props(out: &mut Vec<u8>, props: &Props) {
     macro_rules! bool_prop {
         ($name:literal, $value:expr) => {
             if let Some(value) = $value {
-                put_string(out, $name);
+                put_prop_id(out, $name);
                 out.push(TYPE_BOOL);
                 out.push(if value { 1 } else { 0 });
             }
@@ -124,7 +193,7 @@ fn put_props(out: &mut Vec<u8>, props: &Props) {
     macro_rules! u32_prop {
         ($name:literal, $value:expr) => {
             if let Some(value) = $value {
-                put_string(out, $name);
+                put_prop_id(out, $name);
                 out.push(TYPE_U32);
                 put_u32(out, value);
             }
