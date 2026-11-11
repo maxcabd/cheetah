@@ -117,6 +117,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
     private weak var owner: NativeModuleHostView?
     private var pendingRegion: MKCoordinateRegion?
     private var regionApplied = false
+    private var appliedAfterLoad = false
 
     var nativeView: UIView {
         map
@@ -167,6 +168,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
                 )
             )
             regionApplied = false
+            appliedAfterLoad = false
             applyPendingRegion()
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
                 self?.applyPendingRegion(force: true)
@@ -221,6 +223,23 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
         }
         map.setRegion(region, animated: false)
         regionApplied = true
+    }
+
+    func mapViewDidFinishLoadingMap(_ mapView: MKMapView) {
+        applyPendingRegionAfterLoad()
+    }
+
+    func mapViewDidFinishRenderingMap(_ mapView: MKMapView, fullyRendered: Bool) {
+        applyPendingRegionAfterLoad()
+    }
+
+    private func applyPendingRegionAfterLoad() {
+        guard !appliedAfterLoad, let region = pendingRegion else {
+            return
+        }
+        map.setRegion(region, animated: false)
+        regionApplied = true
+        appliedAfterLoad = true
     }
 
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
