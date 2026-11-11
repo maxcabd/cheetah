@@ -402,7 +402,7 @@ private final class SheetNativeModule: CheetahNativeModule {
             sheet.prefersScrollingExpandsWhenScrolledToEdge = false
         }
 
-        presenter.present(controller, animated: false)
+        presenter.present(controller, animated: true)
         self.controller = controller
     }
 
