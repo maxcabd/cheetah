@@ -39,7 +39,6 @@ start nightshade
 wait 1000
 tap "Cafes within 12 min walk"
 wait 400
-expect exists "Ask a follow up"
 expect exists "Clear"
 screenshot target/drive/nightshade-search.png
 tap "Clear"
