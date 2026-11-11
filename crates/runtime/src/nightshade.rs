@@ -666,7 +666,7 @@ impl NightshadeApp {
     }
 
     fn results_body(&self) -> Element {
-        let body = column()
+        let mut body = column()
             .width(-1.0)
             .weight(1.0)
             .pad_h(24.0)
@@ -710,9 +710,14 @@ impl NightshadeApp {
                     .child(Self::icon("chevron-right", 12.0, "#ffffff")),
             );
 
-        if let Some(response) = self.response() {
-            // Follow-ups belong to the expanded state in the native sheet.
-            let _ = response.followups.len();
+        if self.expanded {
+            if let Some(response) = self.response() {
+                let mut followups = row().width(-1.0).wrap(true).gap(10.0);
+                for (index, followup) in response.followups.iter().enumerate() {
+                    followups = followups.child(Self::chip(followup, &format!("followup:{index}")));
+                }
+                body = body.child(followups);
+            }
         }
 
         body

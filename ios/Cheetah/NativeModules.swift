@@ -165,6 +165,9 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
                 self?.map.setRegion(region, animated: false)
             }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.map.setRegion(region, animated: false)
+            }
         }
 
         guard
