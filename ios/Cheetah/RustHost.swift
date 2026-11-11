@@ -626,8 +626,6 @@ final class RustHost: NSObject {
 
         if bool(props["pressable"]), node.tapRecognizer == nil {
             view.isUserInteractionEnabled = true
-            view.isAccessibilityElement = true
-            view.accessibilityTraits = .button
             let tap = UITapGestureRecognizer(target: self, action: #selector(viewTapped(_:)))
             view.addGestureRecognizer(tap)
             node.tapRecognizer = tap
@@ -725,6 +723,8 @@ final class RustHost: NSObject {
 
         if let label = props["label"] as? String {
             view.accessibilityLabel = label
+            view.isAccessibilityElement = true
+            view.accessibilityTraits = .button
         }
 
         if let testID = props["testId"] as? String {
