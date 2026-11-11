@@ -14,6 +14,14 @@ pub struct Frame {
     pub height: f32,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextRequest {
+    pub text: String,
+    pub font_size: f32,
+    pub bold: bool,
+    pub max_width: f32,
+}
+
 struct MeasureCtx {
     text: Option<String>,
     font_size: f32,
@@ -23,6 +31,18 @@ struct MeasureCtx {
 pub trait TextMeasurer {
     /// Returns the content size in dp, excluding padding.
     fn measure(&self, text: &str, font_size: f32, bold: bool, max_width: f32) -> (f32, f32);
+
+    /// Optional batch pre-pass. The default keeps custom measurers simple.
+    fn prime(&self, requests: &[TextRequest]) {
+        for request in requests {
+            let _ = self.measure(
+                &request.text,
+                request.font_size,
+                request.bold,
+                request.max_width,
+            );
+        }
+    }
 }
 
 pub fn compute(

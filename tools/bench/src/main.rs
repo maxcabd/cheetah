@@ -44,6 +44,17 @@ fn main() {
         initial_ops.len(),
         initial_json.len()
     );
+    let metrics = runtime.metrics();
+    println!(
+        "runtime_metrics: build_us={} diff_us={} prime_us={} layout_us={} nodes={} ops={} text_requests={}",
+        metrics.build_us,
+        metrics.diff_us,
+        metrics.prime_us,
+        metrics.layout_us,
+        metrics.nodes,
+        metrics.ops,
+        metrics.text_requests
+    );
 
     let scroll_max = scroll_max_offset(&initial_json).unwrap_or(40_000.0);
     let mut scroll_ms = Vec::new();
@@ -109,11 +120,30 @@ fn main() {
         median(&like_bytes)
     );
 
+    let budget_ms = std::env::var("CHEETAH_BENCH_BUDGET_MS")
+        .ok()
+        .and_then(|value| value.parse::<f64>().ok())
+        .unwrap_or(50.0);
+    println!("frame_budget_ms: {budget_ms:.2}");
+    let mut failed = false;
+    for (name, value) in [
+        ("scroll_p95", scroll_stats.p95),
+        ("like_p95", like_stats.p95),
+    ] {
+        if value > budget_ms {
+            eprintln!("benchmark budget exceeded: {name}={value:.2}ms > {budget_ms:.2}ms");
+            failed = true;
+        }
+    }
+
     drop(runtime);
     let _ = fs::remove_file(path);
 
     println!();
     println!("note: measurements include layout, diff, and JSON serialization; they exclude native text measurement and host rendering");
+    if failed {
+        std::process::exit(1);
+    }
 }
 
 fn build_runtime(path: &Path, extra_messages: usize) -> Runtime {

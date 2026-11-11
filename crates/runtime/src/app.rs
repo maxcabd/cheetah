@@ -1,10 +1,12 @@
 use crate::diff::{diff, Op};
+use crate::element::Kind;
 use crate::element::{Element, Props};
-use crate::layout::{compute, Frame, TextMeasurer};
-use crate::tree::{build, flatten, FlatTree};
+use crate::layout::{compute, Frame, TextMeasurer, TextRequest};
+use crate::tree::{build, flatten, FlatTree, UiNode};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::time::Instant;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Viewport {
@@ -43,6 +45,27 @@ pub struct Event {
     pub payload: String,
 }
 
+pub fn event_kind_from_code(code: u32) -> Option<&'static str> {
+    Some(match code {
+        1 => "click",
+        2 => "change",
+        3 => "submit",
+        4 => "scroll",
+        5 => "page",
+        6 => "focus",
+        7 => "blur",
+        8 => "marker",
+        9 => "host",
+        10 => "incoming",
+        11 => "ack",
+        12 => "fail",
+        13 => "flush",
+        14 => "connection",
+        15 => "select",
+        _ => return None,
+    })
+}
+
 pub enum Action {
     SendMessage { id: u32, body: String },
 }
@@ -76,6 +99,17 @@ pub trait App {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RuntimeMetrics {
+    pub build_us: u64,
+    pub diff_us: u64,
+    pub prime_us: u64,
+    pub layout_us: u64,
+    pub nodes: usize,
+    pub ops: usize,
+    pub text_requests: usize,
+}
+
 pub struct Runtime {
     app: Box<dyn App>,
     previous: Option<FlatTree>,
@@ -83,6 +117,7 @@ pub struct Runtime {
     viewport: Viewport,
     text_measurer: Option<Rc<dyn TextMeasurer>>,
     layout_dirty: bool,
+    metrics: RuntimeMetrics,
 }
 
 impl Runtime {
@@ -94,7 +129,12 @@ impl Runtime {
             viewport: Viewport::default(),
             text_measurer: None,
             layout_dirty: true,
+            metrics: RuntimeMetrics::default(),
         }
+    }
+
+    pub fn metrics(&self) -> RuntimeMetrics {
+        self.metrics
     }
 
     pub fn set_text_measurer(&mut self, measurer: Rc<dyn TextMeasurer>) {
@@ -103,20 +143,30 @@ impl Runtime {
     }
 
     pub fn render(&mut self, viewport: Viewport) -> Vec<Op> {
+        let build_start = Instant::now();
         let root = {
             let context = ViewContext::new(viewport, self.text_measurer.as_deref());
             build(self.app.view(&context))
         };
         let flat = flatten(&root);
+        self.metrics.build_us = build_start.elapsed().as_micros() as u64;
+        self.metrics.nodes = flat.len();
 
         // Scrolling and typing still rebuild the view tree, but an unchanged
         // tree with an unchanged viewport must not pay for Taffy again.
         if !self.layout_dirty && viewport == self.viewport && self.previous.as_ref() == Some(&flat)
         {
+            self.metrics.diff_us = 0;
+            self.metrics.prime_us = 0;
+            self.metrics.layout_us = 0;
+            self.metrics.ops = 0;
+            self.metrics.text_requests = 0;
             return Vec::new();
         }
 
+        let diff_start = Instant::now();
         let mut ops = diff(self.previous.as_ref(), &flat);
+        self.metrics.diff_us = diff_start.elapsed().as_micros() as u64;
         let layout_needed = self.layout_dirty
             || viewport != self.viewport
             || self
@@ -124,15 +174,28 @@ impl Runtime {
                 .as_ref()
                 .is_none_or(|previous| layout_required(previous, &flat));
 
+        self.metrics.prime_us = 0;
+        self.metrics.layout_us = 0;
+        self.metrics.text_requests = 0;
         if layout_needed {
             self.viewport = viewport;
             self.layout_dirty = false;
+            if let Some(measurer) = self.text_measurer.as_deref() {
+                let mut requests = Vec::new();
+                collect_text_requests(&root, viewport.width, &mut requests);
+                self.metrics.text_requests = requests.len();
+                let prime_start = Instant::now();
+                measurer.prime(&requests);
+                self.metrics.prime_us = prime_start.elapsed().as_micros() as u64;
+            }
+            let layout_start = Instant::now();
             let frames = compute(
                 &root,
                 viewport.width,
                 viewport.height,
                 self.text_measurer.as_deref(),
             );
+            self.metrics.layout_us = layout_start.elapsed().as_micros() as u64;
 
             for (id, frame) in &frames {
                 let changed = self
@@ -154,11 +217,12 @@ impl Runtime {
             self.frames = frames;
         }
 
+        self.metrics.ops = ops.len();
         self.previous = Some(flat);
         ops
     }
 
-    pub fn event(&mut self, id: u32, kind: &str, payload: &str) -> Vec<Op> {
+    pub fn apply_event(&mut self, id: u32, kind: &str, payload: &str) {
         let key = self
             .previous
             .as_ref()
@@ -171,12 +235,18 @@ impl Runtime {
             kind: kind.to_string(),
             payload: payload.to_string(),
         });
+    }
 
+    pub fn render_current(&mut self) -> Vec<Op> {
         if self.viewport.width <= 0.0 || self.viewport.height <= 0.0 {
             return Vec::new();
         }
-
         self.render(self.viewport)
+    }
+
+    pub fn event(&mut self, id: u32, kind: &str, payload: &str) -> Vec<Op> {
+        self.apply_event(id, kind, payload);
+        self.render_current()
     }
 
     pub fn dispatch(&mut self, event: Event) -> Vec<Op> {
@@ -215,6 +285,28 @@ fn layout_required(previous: &FlatTree, next: &FlatTree) -> bool {
     }
 
     false
+}
+
+fn collect_text_requests(node: &UiNode, default_width: f32, out: &mut Vec<TextRequest>) {
+    if matches!(node.kind, Kind::Text | Kind::Button) {
+        if let Some(text) = &node.props.text {
+            if !text.is_empty() {
+                let width = match node.props.width {
+                    Some(width) if width > 0.0 => width,
+                    _ => default_width,
+                };
+                out.push(TextRequest {
+                    text: text.clone(),
+                    font_size: node.props.size.unwrap_or(14.0),
+                    bold: node.props.bold.unwrap_or(false),
+                    max_width: width.max(1.0),
+                });
+            }
+        }
+    }
+    for child in &node.children {
+        collect_text_requests(child, default_width, out);
+    }
 }
 
 fn props_affect_layout(previous: &Props, next: &Props) -> bool {

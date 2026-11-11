@@ -98,6 +98,8 @@ pub struct Props {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub clip: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub animate: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub wrap: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub placeholder_color: Option<String>,
@@ -271,6 +273,11 @@ impl Props {
 
     pub fn clip(mut self, value: bool) -> Self {
         self.clip = Some(value);
+        self
+    }
+
+    pub fn animate(mut self, value: bool) -> Self {
+        self.animate = Some(value);
         self
     }
 
@@ -580,6 +587,11 @@ impl Element {
 
     pub fn clip(mut self, value: bool) -> Self {
         self.props.clip = Some(value);
+        self
+    }
+
+    pub fn animate(mut self, value: bool) -> Self {
+        self.props.animate = Some(value);
         self
     }
 

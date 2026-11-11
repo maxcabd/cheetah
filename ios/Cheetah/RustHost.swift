@@ -3,14 +3,15 @@ import MapKit
 import UIKit
 
 private let cheetahOpsCallback: @convention(c) (
-    UnsafePointer<CChar>?,
+    UnsafePointer<UInt8>?,
+    Int,
     UnsafeMutableRawPointer?
-) -> Void = { json, context in
-    guard let json, let context else {
+) -> Void = { bytes, length, context in
+    guard let bytes, length > 0, let context else {
         return
     }
     let hostContext = Unmanaged<HostContext>.fromOpaque(context).takeUnretainedValue()
-    hostContext.host?.onOps(String(cString: json))
+    hostContext.host?.onOps(Data(bytes: bytes, count: length))
 }
 
 private let cheetahMeasureCallback: @convention(c) (
@@ -36,8 +37,53 @@ private let cheetahMeasureCallback: @convention(c) (
     outHeight.pointee = Float(measured.height)
 }
 
+private let cheetahMeasureBatchCallback: @convention(c) (
+    UnsafePointer<UInt8>?,
+    Int,
+    UnsafeMutablePointer<Float>?,
+    Int,
+    UnsafeMutableRawPointer?
+) -> Void = { bytes, length, out, outLength, context in
+    guard let bytes, length > 0, let out, outLength > 0, let context else {
+        return
+    }
+    let hostContext = Unmanaged<HostContext>.fromOpaque(context).takeUnretainedValue()
+    let values = hostContext.measureBatch(Data(bytes: bytes, count: length))
+    for index in 0..<min(values.count, outLength) {
+        out[index] = values[index]
+    }
+}
+
 private final class HostContext {
     weak var host: RustHost?
+
+    func measureBatch(_ data: Data) -> [Float] {
+        var reader = WireReader(data: data)
+        guard let count = reader.u32() else {
+            return []
+        }
+        var result: [Float] = []
+        result.reserveCapacity(Int(count) * 2)
+        for _ in 0..<count {
+            guard
+                let text = reader.string(),
+                let size = reader.f32(),
+                let bold = reader.u8(),
+                let width = reader.f32()
+            else {
+                return result
+            }
+            let measured = measure(
+                text: text,
+                size: CGFloat(size),
+                bold: bold != 0,
+                maxWidth: CGFloat(width)
+            )
+            result.append(Float(measured.width))
+            result.append(Float(measured.height))
+        }
+        return result
+    }
 
     func measure(text: String, size: CGFloat, bold: Bool, maxWidth: CGFloat) -> CGSize {
         let font = UIFont.systemFont(ofSize: max(size, 1), weight: bold ? .bold : .regular)
@@ -92,6 +138,43 @@ private final class NodeTag {
     }
 }
 
+private struct WireReader {
+    let data: Data
+    var offset: Int = 0
+
+    mutating func u8() -> UInt8? {
+        guard offset + 1 <= data.count else { return nil }
+        defer { offset += 1 }
+        return data[offset]
+    }
+
+    mutating func u32() -> UInt32? {
+        guard offset + 4 <= data.count else { return nil }
+        defer { offset += 4 }
+        let value = data[offset..<(offset + 4)].withUnsafeBytes {
+            $0.loadUnaligned(as: UInt32.self)
+        }
+        return UInt32(littleEndian: value)
+    }
+
+    mutating func f32() -> Float? {
+        guard let bits = u32() else { return nil }
+        return Float(bitPattern: bits)
+    }
+
+    mutating func string() -> String? {
+        guard let length = u32(), offset + Int(length) <= data.count else { return nil }
+        defer { offset += Int(length) }
+        return String(decoding: data[offset..<(offset + Int(length))], as: UTF8.self)
+    }
+
+    mutating func take(_ count: Int) -> Data? {
+        guard offset + count <= data.count else { return nil }
+        defer { offset += count }
+        return data[offset..<(offset + count)]
+    }
+}
+
 final class RustHost: NSObject {
     private let container: UIView
     private let context = HostContext()
@@ -141,6 +224,7 @@ final class RustHost: NSObject {
                         appName,
                         cheetahOpsCallback,
                         cheetahMeasureCallback,
+                        cheetahMeasureBatchCallback,
                         contextPointer
                     )
                 }
@@ -241,39 +325,132 @@ final class RustHost: NSObject {
         dispose()
     }
 
-    fileprivate func onOps(_ json: String) {
+    fileprivate func onOps(_ data: Data) {
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.disposed else {
                 return
             }
-            self.applyOps(json)
+            let started = CFAbsoluteTimeGetCurrent()
+            self.applyOps(data)
+            #if DEBUG
+            let elapsed = (CFAbsoluteTimeGetCurrent() - started) * 1_000_000
+            print("CheetahPerf apply_us=\(Int(elapsed)) op_bytes=\(data.count)")
+            #endif
         }
     }
 
-    private func applyOps(_ json: String) {
+    private func applyOps(_ data: Data) {
+        var reader = WireReader(data: data)
         guard
-            let data = json.data(using: .utf8),
-            let ops = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
+            let magic = reader.take(4),
+            magic == Data("CHT1".utf8),
+            let count = reader.u32()
         else {
             return
         }
 
-        for op in ops {
-            switch op["op"] as? String {
-            case "create":
+        for _ in 0..<count {
+            guard let tag = reader.u8() else { return }
+            switch tag {
+            case 1:
+                guard
+                    let id = reader.u32(),
+                    let kind = reader.string(),
+                    let root = reader.u8(),
+                    let hasSource = reader.u8()
+                else { return }
+                var source: [String: Any]?
+                if hasSource != 0 {
+                    guard
+                        let file = reader.string(),
+                        let line = reader.u32(),
+                        let column = reader.u32()
+                    else { return }
+                    source = [
+                        "file": file,
+                        "line": NSNumber(value: line),
+                        "column": NSNumber(value: column),
+                    ]
+                }
+                guard let props = decodeProps(&reader) else { return }
+                var op: [String: Any] = [
+                    "op": "create",
+                    "id": NSNumber(value: id),
+                    "kind": kind,
+                    "root": root != 0,
+                    "props": props,
+                ]
+                if let source {
+                    op["source"] = source
+                }
                 create(op)
-            case "update":
-                update(op)
-            case "children":
-                children(op)
-            case "layout":
-                layout(op)
-            case "remove":
-                remove(op)
+            case 2:
+                guard let id = reader.u32(), let props = decodeProps(&reader) else { return }
+                update([
+                    "op": "update",
+                    "id": NSNumber(value: id),
+                    "props": props,
+                ])
+            case 3:
+                guard let id = reader.u32(), let count = reader.u32() else { return }
+                var children: [NSNumber] = []
+                for _ in 0..<count {
+                    guard let child = reader.u32() else { return }
+                    children.append(NSNumber(value: child))
+                }
+                self.children([
+                    "op": "children",
+                    "id": NSNumber(value: id),
+                    "children": children,
+                ])
+            case 4:
+                guard
+                    let id = reader.u32(),
+                    let x = reader.f32(),
+                    let y = reader.f32(),
+                    let width = reader.f32(),
+                    let height = reader.f32()
+                else { return }
+                layout([
+                    "op": "layout",
+                    "id": NSNumber(value: id),
+                    "x": NSNumber(value: x),
+                    "y": NSNumber(value: y),
+                    "width": NSNumber(value: width),
+                    "height": NSNumber(value: height),
+                ])
+            case 5:
+                guard let id = reader.u32() else { return }
+                remove(["op": "remove", "id": NSNumber(value: id)])
             default:
-                break
+                return
             }
         }
+    }
+
+    private func decodeProps(_ reader: inout WireReader) -> [String: Any]? {
+        guard let count = reader.u32() else { return nil }
+        var props: [String: Any] = [:]
+        for _ in 0..<count {
+            guard let key = reader.string(), let type = reader.u8() else { return nil }
+            switch type {
+            case 1:
+                guard let value = reader.string() else { return nil }
+                props[key] = value
+            case 2:
+                guard let value = reader.f32() else { return nil }
+                props[key] = NSNumber(value: value)
+            case 3:
+                guard let value = reader.u8() else { return nil }
+                props[key] = value != 0
+            case 4:
+                guard let value = reader.u32() else { return nil }
+                props[key] = NSNumber(value: value)
+            default:
+                return nil
+            }
+        }
+        return props
     }
 
     private func create(_ op: [String: Any]) {
@@ -310,6 +487,17 @@ final class RustHost: NSObject {
         }
 
         applyProps(view, node: node, props: nodeProps)
+        if bool(nodeProps["animate"]) {
+            let target = view.alpha
+            view.alpha = 0
+            UIView.animate(
+                withDuration: 0.22,
+                delay: 0,
+                options: [.curveEaseOut, .allowUserInteraction]
+            ) {
+                view.alpha = target
+            }
+        }
     }
 
     private func makeView(_ kind: String) -> UIView {
@@ -938,10 +1126,29 @@ final class RustHost: NSObject {
         guard handle != 0 else {
             return
         }
-        kind.withCString { kindPointer in
-            payload.withCString { payloadPointer in
-                cheetah_event(handle, id, kindPointer, payloadPointer)
-            }
+        payload.withCString { payloadPointer in
+            cheetah_event_code(handle, id, eventCode(kind), payloadPointer)
+        }
+    }
+
+    private func eventCode(_ kind: String) -> UInt32 {
+        switch kind {
+        case "click": return 1
+        case "change": return 2
+        case "submit": return 3
+        case "scroll": return 4
+        case "page": return 5
+        case "focus": return 6
+        case "blur": return 7
+        case "marker": return 8
+        case "host": return 9
+        case "incoming": return 10
+        case "ack": return 11
+        case "fail": return 12
+        case "flush": return 13
+        case "connection": return 14
+        case "select": return 15
+        default: return 0
         }
     }
 

@@ -3,6 +3,8 @@ use crate::element::{
     column, glass, hscroll, image, input, map, native, row, sheet, text, Element,
 };
 use crate::resource::Resource;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 const BG: &str = "#0b0b0f";
 const SHEET_BG: &str = "#171717";
@@ -177,6 +179,8 @@ pub struct NightshadeApp {
     selected: usize,
     focused: bool,
     expanded: bool,
+    suggestion_cache: RefCell<Option<Element>>,
+    card_cache: RefCell<HashMap<(&'static str, u32), Element>>,
 }
 
 impl NightshadeApp {
@@ -190,6 +194,8 @@ impl NightshadeApp {
             selected: 0,
             focused: false,
             expanded: false,
+            suggestion_cache: RefCell::new(None),
+            card_cache: RefCell::new(HashMap::new()),
         };
 
         if demo {
@@ -351,6 +357,10 @@ impl NightshadeApp {
     }
 
     fn card(&self, width: f32, place: Place, _selected: bool) -> Element {
+        let cache_key = (place.id, width.to_bits());
+        if let Some(cached) = self.card_cache.borrow().get(&cache_key) {
+            return cached.clone();
+        }
         let drive_minutes = ((place.distance_m / 1000.0) / 30.0 * 60.0).round().max(1.0) as u32;
         let distance = if place.distance_m < 1000.0 {
             format!("{}m", place.distance_m.round() as u32)
@@ -461,9 +471,10 @@ impl NightshadeApp {
                 r##"{"colors":["#0b0b0f00","#0b0b0f59","#0b0b0fb3","#1f1f1f"],"locations":[0,0.5,0.8,1],"startX":0,"startY":0,"endX":0,"endY":1}"##,
             );
 
-        column()
+        let card = column()
             .key(format!("place-{}", place.id))
             .pressable(true)
+            .animate(true)
             .width(width)
             .height(CARD_HEIGHT)
             .bg(CARD_BG)
@@ -557,7 +568,9 @@ impl NightshadeApp {
                                     .height(16.0),
                             ),
                     ),
-            )
+            );
+        self.card_cache.borrow_mut().insert(cache_key, card.clone());
+        card
     }
 
     fn carousel(&self, context: &ViewContext, places: &[Place]) -> Element {
@@ -647,6 +660,10 @@ impl NightshadeApp {
     }
 
     fn empty_body(&self) -> Element {
+        if let Some(cached) = self.suggestion_cache.borrow().as_ref() {
+            return cached.clone();
+        }
+
         let mut suggestions = row()
             .width(600.0)
             .wrap(true)
@@ -656,7 +673,7 @@ impl NightshadeApp {
             suggestions = suggestions.child(Self::chip(suggestion, &format!("suggest:{index}")));
         }
 
-        column()
+        let grid = column()
             .width(-1.0)
             .weight(1.0)
             .pad_h(24.0)
@@ -675,7 +692,9 @@ impl NightshadeApp {
                     .height(260.0)
                     .content_width(600.0)
                     .child(column().width(600.0).height(260.0).child(suggestions)),
-            )
+            );
+        *self.suggestion_cache.borrow_mut() = Some(grid.clone());
+        grid
     }
 
     fn results_body(&self) -> Element {

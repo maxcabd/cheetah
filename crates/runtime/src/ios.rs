@@ -5,13 +5,15 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_void};
 use std::sync::Arc;
 
-type OpsCallback = extern "C" fn(*const c_char, *mut c_void);
+type OpsCallback = extern "C" fn(*const u8, usize, *mut c_void);
 type MeasureCallback =
     extern "C" fn(*const c_char, f32, c_int, f32, *mut f32, *mut f32, *mut c_void);
+type MeasureBatchCallback = extern "C" fn(*const u8, usize, *mut f32, usize, *mut c_void);
 
 struct CffiHost {
     ops: OpsCallback,
     measure: MeasureCallback,
+    measure_batch: MeasureBatchCallback,
     context: *mut c_void,
 }
 
@@ -37,9 +39,33 @@ impl Host for CffiHost {
         (width, height)
     }
 
-    fn emit_ops(&self, json: &str) {
-        let json = CString::new(json).unwrap_or_default();
-        (self.ops)(json.as_ptr(), self.context);
+    fn measure_text_batch(&self, requests: &[crate::layout::TextRequest]) -> Vec<(f32, f32)> {
+        if requests.is_empty() {
+            return Vec::new();
+        }
+        let mut bytes = Vec::with_capacity(requests.len() * 32);
+        bytes.extend_from_slice(&(requests.len() as u32).to_le_bytes());
+        for request in requests {
+            let text = request.text.as_bytes();
+            bytes.extend_from_slice(&(text.len() as u32).to_le_bytes());
+            bytes.extend_from_slice(text);
+            bytes.extend_from_slice(&request.font_size.to_bits().to_le_bytes());
+            bytes.push(if request.bold { 1 } else { 0 });
+            bytes.extend_from_slice(&request.max_width.to_bits().to_le_bytes());
+        }
+        let mut out = vec![0.0f32; requests.len() * 2];
+        (self.measure_batch)(
+            bytes.as_ptr(),
+            bytes.len(),
+            out.as_mut_ptr(),
+            out.len(),
+            self.context,
+        );
+        out.chunks_exact(2).map(|pair| (pair[0], pair[1])).collect()
+    }
+
+    fn emit_ops(&self, bytes: &[u8]) {
+        (self.ops)(bytes.as_ptr(), bytes.len(), self.context);
     }
 }
 
@@ -49,9 +75,18 @@ pub unsafe extern "C" fn cheetah_new(
     gateway_url: *const c_char,
     ops: OpsCallback,
     measure: MeasureCallback,
+    measure_batch: MeasureBatchCallback,
     context: *mut c_void,
 ) -> i64 {
-    new_actor(store_path, gateway_url, "chat", ops, measure, context)
+    new_actor(
+        store_path,
+        gateway_url,
+        "chat",
+        ops,
+        measure,
+        measure_batch,
+        context,
+    )
 }
 
 #[no_mangle]
@@ -61,13 +96,22 @@ pub unsafe extern "C" fn cheetah_new_app(
     app: *const c_char,
     ops: OpsCallback,
     measure: MeasureCallback,
+    measure_batch: MeasureBatchCallback,
     context: *mut c_void,
 ) -> i64 {
     if app.is_null() {
         return 0;
     }
     let app = CStr::from_ptr(app).to_string_lossy().into_owned();
-    new_actor(store_path, gateway_url, &app, ops, measure, context)
+    new_actor(
+        store_path,
+        gateway_url,
+        &app,
+        ops,
+        measure,
+        measure_batch,
+        context,
+    )
 }
 
 unsafe fn new_actor(
@@ -76,6 +120,7 @@ unsafe fn new_actor(
     app: &str,
     ops: OpsCallback,
     measure: MeasureCallback,
+    measure_batch: MeasureBatchCallback,
     context: *mut c_void,
 ) -> i64 {
     if store_path.is_null() || gateway_url.is_null() {
@@ -87,6 +132,7 @@ unsafe fn new_actor(
     let host: Arc<dyn Host> = Arc::new(CffiHost {
         ops,
         measure,
+        measure_batch,
         context,
     });
     let actor = spawn(host, store_path, gateway_url, app.to_string());
@@ -119,6 +165,28 @@ pub unsafe extern "C" fn cheetah_event(
     let payload = CStr::from_ptr(payload).to_string_lossy().into_owned();
     let actor = &*(handle as *const ActorHandle);
     let _ = actor.sender.send(Command::Event { id, kind, payload });
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn cheetah_event_code(
+    handle: i64,
+    id: u32,
+    kind_code: u32,
+    payload: *const c_char,
+) {
+    if handle == 0 || payload.is_null() {
+        return;
+    }
+    let Some(kind) = crate::app::event_kind_from_code(kind_code) else {
+        return;
+    };
+    let payload = CStr::from_ptr(payload).to_string_lossy().into_owned();
+    let actor = &*(handle as *const ActorHandle);
+    let _ = actor.sender.send(Command::Event {
+        id,
+        kind: kind.to_string(),
+        payload,
+    });
 }
 
 #[no_mangle]

@@ -37,6 +37,8 @@ import org.json.JSONObject
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -154,13 +156,40 @@ class RustHost(
         RustBridge.nativeResize(handle, width, height)
     }
 
-    fun onOps(json: String) {
+    fun onOps(bytes: ByteArray) {
         if (handle == 0L) return
         mainHandler.post {
             if (handle != 0L) {
-                applyOps(json)
+                val started = System.nanoTime()
+                applyOps(bytes)
+                if (BuildConfig.DEBUG) {
+                    Log.d(
+                        "CheetahPerf",
+                        "apply_us=${(System.nanoTime() - started) / 1000} op_bytes=${bytes.size}",
+                    )
+                }
             }
         }
+    }
+
+    fun measureTextBatch(
+        texts: Array<String>,
+        sizes: FloatArray,
+        bold: BooleanArray,
+        widths: FloatArray,
+    ): FloatArray {
+        val result = FloatArray(texts.size * 2)
+        for (index in texts.indices) {
+            val measured = measureText(
+                texts[index],
+                sizes.getOrElse(index) { 14f },
+                bold.getOrElse(index) { false },
+                widths.getOrElse(index) { 1f },
+            )
+            result[index * 2] = measured[0]
+            result[index * 2 + 1] = measured[1]
+        }
+        return result
     }
 
     fun measureText(text: String, size: Float, bold: Boolean, maxWidth: Float): FloatArray {
@@ -221,18 +250,72 @@ class RustHost(
         }
     }
 
-    private fun applyOps(json: String?) {
-        if (json.isNullOrBlank()) return
-
-        val ops = JSONArray(json)
-        for (index in 0 until ops.length()) {
-            val op = ops.getJSONObject(index)
-            when (op.getString("op")) {
-                "create" -> create(op)
-                "update" -> update(op)
-                "children" -> children(op)
-                "layout" -> layout(op)
-                "remove" -> remove(op.getInt("id"))
+    private fun applyOps(bytes: ByteArray) {
+        if (bytes.isEmpty()) return
+        val reader = WireReader(bytes)
+        if (!reader.magic()) return
+        val count = reader.u32() ?: return
+        for (index in 0 until count) {
+            val tag = reader.u8() ?: return
+            when (tag) {
+                1 -> {
+                    val id = reader.u32() ?: return
+                    val kind = reader.string() ?: return
+                    val root = reader.u8() ?: return
+                    val sourceFlag = reader.u8() ?: return
+                    val source = if (sourceFlag != 0) {
+                        val file = reader.string() ?: return
+                        val line = reader.u32() ?: return
+                        val column = reader.u32() ?: return
+                        JSONObject().put("file", file).put("line", line).put("column", column)
+                    } else {
+                        null
+                    }
+                    val props = reader.props() ?: return
+                    val op = JSONObject()
+                        .put("op", "create")
+                        .put("id", id)
+                        .put("kind", kind)
+                        .put("root", root != 0)
+                        .put("props", props)
+                    if (source != null) op.put("source", source)
+                    create(op)
+                }
+                2 -> {
+                    val id = reader.u32() ?: return
+                    val props = reader.props() ?: return
+                    update(JSONObject().put("op", "update").put("id", id).put("props", props))
+                }
+                3 -> {
+                    val id = reader.u32() ?: return
+                    val childCount = reader.u32() ?: return
+                    val children = JSONArray()
+                    for (child in 0 until childCount) {
+                        children.put(reader.u32() ?: return)
+                    }
+                    children(JSONObject().put("op", "children").put("id", id).put("children", children))
+                }
+                4 -> {
+                    val id = reader.u32() ?: return
+                    val x = reader.f32() ?: return
+                    val y = reader.f32() ?: return
+                    val width = reader.f32() ?: return
+                    val height = reader.f32() ?: return
+                    layout(
+                        JSONObject()
+                            .put("op", "layout")
+                            .put("id", id)
+                            .put("x", x)
+                            .put("y", y)
+                            .put("width", width)
+                            .put("height", height),
+                    )
+                }
+                5 -> {
+                    val id = reader.u32() ?: return
+                    remove(id.toInt())
+                }
+                else -> return
             }
         }
     }
@@ -310,6 +393,14 @@ class RustHost(
         }
 
         applyProps(view, props)
+        if (props.optBoolean("animate", false)) {
+            val target = view.alpha
+            view.alpha = 0f
+            view.animate()
+                .alpha(target)
+                .setDuration(220L)
+                .start()
+        }
         if (kind == "sheet") {
             presentSheetIfNeeded(view)
         }
@@ -617,7 +708,26 @@ class RustHost(
 
     private fun event(id: Int, kind: String, payload: String) {
         if (handle == 0L) return
-        RustBridge.nativeEvent(handle, id, kind, payload)
+        RustBridge.nativeEventCode(handle, id, eventCode(kind), payload)
+    }
+
+    private fun eventCode(kind: String): Int = when (kind) {
+        "click" -> 1
+        "change" -> 2
+        "submit" -> 3
+        "scroll" -> 4
+        "page" -> 5
+        "focus" -> 6
+        "blur" -> 7
+        "marker" -> 8
+        "host" -> 9
+        "incoming" -> 10
+        "ack" -> 11
+        "fail" -> 12
+        "flush" -> 13
+        "connection" -> 14
+        "select" -> 15
+        else -> 0
     }
 
     private fun applyProps(view: View, props: JSONObject) {
@@ -943,5 +1053,46 @@ class RustHost(
         private const val DEBUG_SLOT_REBINDS = false
         private val MATCH_PARENT = ViewGroup.LayoutParams.MATCH_PARENT
         private val WRAP_CONTENT = ViewGroup.LayoutParams.WRAP_CONTENT
+    }
+}
+
+private class WireReader(bytes: ByteArray) {
+    private val buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN)
+
+    fun magic(): Boolean {
+        if (buffer.remaining() < 4) return false
+        val bytes = ByteArray(4)
+        buffer.get(bytes)
+        return bytes.contentEquals(byteArrayOf('C'.code.toByte(), 'H'.code.toByte(), 'T'.code.toByte(), '1'.code.toByte()))
+    }
+
+    fun u8(): Int? = if (buffer.remaining() >= 1) buffer.get().toInt() and 0xff else null
+
+    fun u32(): Long? = if (buffer.remaining() >= 4) buffer.int.toLong() and 0xffffffffL else null
+
+    fun f32(): Float? = if (buffer.remaining() >= 4) buffer.float else null
+
+    fun string(): String? {
+        val length = u32()?.toInt() ?: return null
+        if (length < 0 || buffer.remaining() < length) return null
+        val bytes = ByteArray(length)
+        buffer.get(bytes)
+        return String(bytes, Charsets.UTF_8)
+    }
+
+    fun props(): JSONObject? {
+        val count = u32()?.toInt() ?: return null
+        val props = JSONObject()
+        for (index in 0 until count) {
+            val key = string() ?: return null
+            when (val type = u8() ?: return null) {
+                1 -> props.put(key, string() ?: return null)
+                2 -> props.put(key, f32() ?: return null)
+                3 -> props.put(key, (u8() ?: return null) != 0)
+                4 -> props.put(key, u32() ?: return null)
+                else -> return null
+            }
+        }
+        return props
     }
 }

@@ -1,8 +1,9 @@
 use crate::actor::{spawn, ActorHandle, Command};
 use crate::app::Viewport;
 use crate::bridge::Host;
+use crate::layout::TextRequest;
 use jni::objects::{GlobalRef, JFloatArray, JObject, JString, JValue};
-use jni::sys::{jboolean, jfloat, jint, jlong};
+use jni::sys::{jboolean, jbyte, jfloat, jint, jlong};
 use jni::{JNIEnv, JavaVM};
 use std::sync::Arc;
 
@@ -70,20 +71,110 @@ impl JniHost {
         (buffer[0], buffer[1])
     }
 
-    pub(crate) fn emit_ops(&self, json: &str) {
+    pub(crate) fn measure_text_batch(&self, requests: &[TextRequest]) -> Vec<(f32, f32)> {
+        if requests.is_empty() {
+            return Vec::new();
+        }
+        let mut env = match self.vm.get_env() {
+            Ok(env) => env,
+            Err(_) => return vec![(0.0, 0.0); requests.len()],
+        };
+        let string_class = match env.find_class("java/lang/String") {
+            Ok(class) => class,
+            Err(_) => return vec![(0.0, 0.0); requests.len()],
+        };
+        let texts =
+            match env.new_object_array(requests.len() as i32, &string_class, JObject::null()) {
+                Ok(array) => array,
+                Err(_) => return vec![(0.0, 0.0); requests.len()],
+            };
+        let mut sizes = Vec::with_capacity(requests.len());
+        let mut bolds = Vec::with_capacity(requests.len());
+        let mut widths = Vec::with_capacity(requests.len());
+        for (index, request) in requests.iter().enumerate() {
+            let text = match env.new_string(&request.text) {
+                Ok(text) => text,
+                Err(_) => return vec![(0.0, 0.0); requests.len()],
+            };
+            if env
+                .set_object_array_element(&texts, index as i32, &text)
+                .is_err()
+            {
+                return vec![(0.0, 0.0); requests.len()];
+            }
+            sizes.push(request.font_size);
+            bolds.push(request.bold as jboolean);
+            widths.push(request.max_width);
+        }
+        let size_array = match env.new_float_array(requests.len() as i32) {
+            Ok(array) => array,
+            Err(_) => return vec![(0.0, 0.0); requests.len()],
+        };
+        let width_array = match env.new_float_array(requests.len() as i32) {
+            Ok(array) => array,
+            Err(_) => return vec![(0.0, 0.0); requests.len()],
+        };
+        let bold_array = match env.new_boolean_array(requests.len() as i32) {
+            Ok(array) => array,
+            Err(_) => return vec![(0.0, 0.0); requests.len()],
+        };
+        if env.set_float_array_region(&size_array, 0, &sizes).is_err()
+            || env
+                .set_float_array_region(&width_array, 0, &widths)
+                .is_err()
+            || env
+                .set_boolean_array_region(&bold_array, 0, &bolds)
+                .is_err()
+        {
+            return vec![(0.0, 0.0); requests.len()];
+        }
+
+        let result = env.call_method(
+            self.object.as_obj(),
+            "measureTextBatch",
+            "([Ljava/lang/String;[F[Z[F)[F",
+            &[
+                JValue::Object(&texts),
+                JValue::Object(&size_array),
+                JValue::Object(&bold_array),
+                JValue::Object(&width_array),
+            ],
+        );
+        let array = match result.and_then(|value| value.l()) {
+            Ok(object) => JFloatArray::from(object),
+            Err(_) => return vec![(0.0, 0.0); requests.len()],
+        };
+        let mut flat = vec![0.0f32; requests.len() * 2];
+        if env.get_float_array_region(&array, 0, &mut flat).is_err() {
+            return vec![(0.0, 0.0); requests.len()];
+        }
+        flat.chunks_exact(2)
+            .map(|pair| (pair[0], pair[1]))
+            .collect()
+    }
+
+    pub(crate) fn emit_ops(&self, bytes: &[u8]) {
         let mut env = match self.vm.get_env() {
             Ok(env) => env,
             Err(_) => return,
         };
-        let json = match env.new_string(json) {
-            Ok(json) => json,
+        let array = match env.new_byte_array(bytes.len() as i32) {
+            Ok(array) => array,
             Err(_) => return,
         };
+        let mut signed = Vec::with_capacity(bytes.len());
+        for byte in bytes {
+            signed.push(*byte as jbyte);
+        }
+        if env.set_byte_array_region(&array, 0, &signed).is_err() {
+            return;
+        }
+        let array = JObject::from(array);
         let _ = env.call_method(
             self.object.as_obj(),
             "onOps",
-            "(Ljava/lang/String;)V",
-            &[JValue::Object(&json)],
+            "([B)V",
+            &[JValue::Object(&array)],
         );
     }
 }
@@ -97,8 +188,12 @@ impl Host for JniHost {
         JniHost::measure_text(self, text, font_size, bold, max_width)
     }
 
-    fn emit_ops(&self, json: &str) {
-        JniHost::emit_ops(self, json);
+    fn measure_text_batch(&self, requests: &[TextRequest]) -> Vec<(f32, f32)> {
+        JniHost::measure_text_batch(self, requests)
+    }
+
+    fn emit_ops(&self, bytes: &[u8]) {
+        JniHost::emit_ops(self, bytes);
     }
 }
 
@@ -162,6 +257,33 @@ pub extern "system" fn Java_com_example_rustui_RustBridge_nativeResize<'local>(
     let _ = actor
         .sender
         .send(Command::Resize(Viewport { width, height }));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_com_example_rustui_RustBridge_nativeEventCode<'local>(
+    mut env: JNIEnv<'local>,
+    _this: JObject<'local>,
+    handle: jlong,
+    id: jint,
+    kind_code: jint,
+    payload: JString<'local>,
+) {
+    let Some(kind) = crate::app::event_kind_from_code(kind_code as u32) else {
+        return;
+    };
+    let payload: String = match env.get_string(&payload) {
+        Ok(value) => value.into(),
+        Err(_) => return,
+    };
+    if handle == 0 {
+        return;
+    }
+    let actor = unsafe { &*(handle as *const ActorHandle) };
+    let _ = actor.sender.send(Command::Event {
+        id: id as u32,
+        kind: kind.to_string(),
+        payload,
+    });
 }
 
 #[no_mangle]

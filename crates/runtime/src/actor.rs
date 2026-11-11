@@ -4,6 +4,7 @@ use crate::demo::ChatApp;
 use crate::gateway::{self, Gateway};
 use crate::nightshade::NightshadeApp;
 use crate::Op;
+use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::thread::JoinHandle;
@@ -70,15 +71,28 @@ pub(crate) fn spawn(
             };
 
             let mut paused = false;
+            let mut pending: VecDeque<Command> = VecDeque::new();
 
-            while let Some(command) = receiver.blocking_recv() {
+            while let Some(command) = pending.pop_front().or_else(|| receiver.blocking_recv()) {
                 match command {
                     Command::Resize(viewport) => {
                         let ops = runtime.render(viewport);
                         emit(host.as_ref(), ops);
                     }
                     Command::Event { id, kind, payload } => {
-                        let ops = runtime.event(id, &kind, &payload);
+                        runtime.apply_event(id, &kind, &payload);
+                        while let Ok(next) = receiver.try_recv() {
+                            match next {
+                                Command::Event { id, kind, payload } => {
+                                    runtime.apply_event(id, &kind, &payload);
+                                }
+                                other => {
+                                    pending.push_back(other);
+                                    break;
+                                }
+                            }
+                        }
+                        let ops = runtime.render_current();
                         emit(host.as_ref(), ops);
                         process_actions(
                             &mut runtime,
@@ -202,9 +216,7 @@ fn emit(host: &dyn Host, ops: Vec<Op>) {
     if ops.is_empty() {
         return;
     }
-    if let Ok(json) = serde_json::to_string(&ops) {
-        host.emit_ops(&json);
-    }
+    host.emit_ops(&crate::wire::encode(&ops));
 }
 
 fn process_actions(
