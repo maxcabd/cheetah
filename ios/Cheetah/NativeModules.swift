@@ -541,7 +541,7 @@ private final class SheetNativeModule: CheetahNativeModule {
             }
             return
         }
-        guard let baseBottom = bar.superview?.convert(bar.frame, to: window)?.maxY else {
+        guard let baseBottom = bar.superview?.convert(bar.frame, to: window).maxY else {
             return
         }
         let target = min(0, keyboardTop - 12 - baseBottom)
