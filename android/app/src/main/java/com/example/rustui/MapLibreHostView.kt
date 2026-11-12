@@ -13,6 +13,7 @@ import org.maplibre.android.annotations.IconFactory
 import org.maplibre.android.annotations.Marker
 import org.maplibre.android.annotations.MarkerOptions
 import org.maplibre.android.camera.CameraPosition
+import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
@@ -122,10 +123,16 @@ class MapLibreHostView(context: Context) : FrameLayout(context), NativeMapHost {
         if (!latitude.isNaN() && !longitude.isNaN() && regionKey != lastRegion) {
             val zoom = (ln(360.0 / latitudeDelta.coerceAtLeast(0.0001)) / ln(2.0))
                 .coerceIn(2.0, 20.0)
-            nativeMap.cameraPosition = CameraPosition.Builder()
+            val position = CameraPosition.Builder()
                 .target(LatLng(latitude, longitude))
                 .zoom(zoom)
                 .build()
+            val update = CameraUpdateFactory.newCameraPosition(position)
+            if (lastRegion == null) {
+                nativeMap.cameraPosition = position
+            } else {
+                nativeMap.animateCamera(update, 420, null)
+            }
             lastRegion = regionKey
         }
 

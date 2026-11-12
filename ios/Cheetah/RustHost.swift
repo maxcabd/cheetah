@@ -128,6 +128,7 @@ private final class NodeTag {
     var props: [String: Any]?
     var animate = false
     var lastPage: Int = -1
+    var paged = false
 
     var isSheet: Bool {
         kind == "sheet" || native == "sheet"
@@ -999,6 +1000,7 @@ final class RustHost: NSObject {
         node.animate = bool(props["animate"])
         let radius = number(props["radius"])
         view.layer.cornerRadius = radius
+        view.layer.cornerCurve = .continuous
         if let scroll = view as? UIScrollView {
             // Rows include overscan outside the viewport. UIScrollView must
             // clip even when it has no corner radius.
@@ -1081,13 +1083,20 @@ final class RustHost: NSObject {
                 applyScroll(node)
             }
             if let paged = props["paged"] as? NSNumber {
+                node.paged = paged.boolValue
                 scroll.isPagingEnabled = paged.boolValue
             }
             if let scrollX = props["scrollX"] as? NSNumber {
+                let target = CGFloat(scrollX.doubleValue)
+                let animated = node.paged && abs(scroll.contentOffset.x - target) > 1
                 scroll.setContentOffset(
-                    CGPoint(x: CGFloat(scrollX.doubleValue), y: scroll.contentOffset.y),
-                    animated: false
+                    CGPoint(x: target, y: scroll.contentOffset.y),
+                    animated: animated
                 )
+                DispatchQueue.main.async { [weak self, weak scroll] in
+                    guard let self, let scroll else { return }
+                    self.updateCarouselScale(scroll, node)
+                }
             }
         }
     }
@@ -1236,6 +1245,21 @@ final class RustHost: NSObject {
         }
     }
 
+    private func updateCarouselScale(_ scroll: UIScrollView, _ node: NodeTag) {
+        guard node.paged, scroll.bounds.width > 0, let content = node.container else {
+            return
+        }
+        let pageWidth = scroll.bounds.width
+        let viewportCenter = scroll.contentOffset.x + pageWidth / 2
+        for (index, page) in content.subviews.enumerated() {
+            guard let card = page.subviews.first else { continue }
+            let pageCenter = CGFloat(index) * pageWidth + pageWidth / 2
+            let distance = min(abs(viewportCenter - pageCenter) / pageWidth, 1)
+            let scale = 1 - 0.15 * distance
+            card.transform = CGAffineTransform(scaleX: scale, y: scale)
+        }
+    }
+
     @objc private func buttonTapped(_ sender: CheetahButton) {
         event(id: UInt32(sender.tag), kind: "click", payload: "")
     }
@@ -1354,7 +1378,14 @@ extension RustHost: UIScrollViewDelegate {
 
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         let key = ObjectIdentifier(scrollView)
-        guard let node = scrollTags[key], node.pendingScrollTo == nil else {
+        guard let node = scrollTags[key] else {
+            return
+        }
+        if node.kind == "hscroll" {
+            updateCarouselScale(scrollView, node)
+            return
+        }
+        guard node.pendingScrollTo == nil else {
             return
         }
 

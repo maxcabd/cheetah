@@ -90,8 +90,10 @@ final class GlassView: UIView {
 
     func updateShape(radius: CGFloat) {
         layer.cornerRadius = radius
+        layer.cornerCurve = .continuous
         clipsToBounds = radius > 0
         effectView.layer.cornerRadius = radius
+        effectView.layer.cornerCurve = .continuous
         effectView.clipsToBounds = radius > 0
     }
 
@@ -124,7 +126,7 @@ final class GlassView: UIView {
 
         backgroundColor = .clear
         effectView.contentView.backgroundColor = tint.map { UIColor(hex: $0) } ?? .clear
-        effectView.effect = UIBlurEffect(style: .systemThinMaterialDark)
+        effectView.effect = UIBlurEffect(style: .systemUltraThinMaterialLight)
     }
 }
 

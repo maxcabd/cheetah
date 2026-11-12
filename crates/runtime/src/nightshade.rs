@@ -19,6 +19,7 @@ const RESULT_SHEET_HEIGHT: f32 = 205.0;
 const CAROUSEL_BOTTOM: f32 = 225.0;
 const CARD_HEIGHT: f32 = 320.0;
 const CARD_HEADER: f32 = 180.0;
+const SEARCH_BOTTOM_GAP: f32 = 112.0;
 
 const INITIAL_LAT: f32 = 37.7749;
 const INITIAL_LNG: f32 = -122.4194;
@@ -222,7 +223,12 @@ impl NightshadeApp {
 
     fn sheet_height(&self, context: &ViewContext) -> f32 {
         if self.expanded {
-            (context.viewport.height * 0.85).max(520.0)
+            let fraction = if self.host.keyboard_inset > 0.0 {
+                0.92
+            } else {
+                0.85
+            };
+            (context.viewport.height * fraction).max(520.0)
         } else if self.has_results() {
             RESULT_SHEET_HEIGHT
         } else {
@@ -310,7 +316,7 @@ impl NightshadeApp {
             .height(38.0)
             .radius(19.0)
             .glass_style("regular")
-            .glass_tint("#00000040")
+            .glass_tint("#00000047")
             .glass_interactive(true)
             .align_items("center")
             .justify("center")
@@ -506,6 +512,7 @@ impl NightshadeApp {
                     .bg(CARD_BG)
                     .pad_h(20.0)
                     .pad_v(12.0)
+                    .pad_bottom(20.0)
                     .gap(6.0)
                     .child(
                         text(place.name)
@@ -626,7 +633,7 @@ impl NightshadeApp {
                     .font("satoshi-medium")
                     .color("#ffffff")
                     .placeholder_color("#737373")
-                    .pad_h(20.0)
+                    .pad_h(32.0)
                     .align("start"),
             );
 
@@ -656,6 +663,7 @@ impl NightshadeApp {
             .height(SEARCH_HEIGHT)
             .pad_h(24.0)
             .justify("end")
+            .test_id("cheetah-search-bar")
             .child(bar)
     }
 
@@ -818,7 +826,7 @@ impl NightshadeApp {
 
     fn sheet(&self, context: &ViewContext) -> Element {
         let height = self.sheet_height(context);
-        let body_height = (height - 24.0 - SEARCH_HEIGHT).max(0.0);
+        let body_height = (height - 24.0 - SEARCH_HEIGHT - SEARCH_BOTTOM_GAP).max(0.0);
         let body = if self.has_results() && !self.expanded {
             column().width(-1.0).height(body_height)
         } else {
@@ -860,7 +868,8 @@ impl NightshadeApp {
                             .clip(true)
                             .child(body),
                     )
-                    .child(self.search_bar(context)),
+                    .child(self.search_bar(context))
+                    .child(column().width(-1.0).height(SEARCH_BOTTOM_GAP)),
             )
     }
 }

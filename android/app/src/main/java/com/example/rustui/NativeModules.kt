@@ -17,6 +17,8 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.appcompat.view.ContextThemeWrapper
 import androidx.appcompat.widget.SearchView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import org.json.JSONObject
@@ -413,6 +415,9 @@ private class SheetNativeModule(
     private var dialog: BottomSheetDialog? = null
     private var sheetHeightDp = 230f
     private var sheetRadiusDp = 28f
+    private var searchBar: View? = null
+    private var lastKeyboardInset = 0
+    private var heightAnimator: android.animation.ValueAnimator? = null
 
     override val nativeView: View
         get() = placeholder
@@ -443,9 +448,7 @@ private class SheetNativeModule(
         )).apply {
             this.height = height
         }
-        owner.requestLayout()
-        current.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, height)
-        current.behavior.peekHeight = height
+        animateHeight(current, height)
     }
 
     fun presentIfNeeded() {
@@ -463,6 +466,9 @@ private class SheetNativeModule(
         dialog.setCancelable(false)
         dialog.setCanceledOnTouchOutside(false)
         dialog.window?.setDimAmount(0f)
+        dialog.window?.setSoftInputMode(
+            android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING,
+        )
         dialog.window?.addFlags(
             android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
         )
@@ -494,6 +500,7 @@ private class SheetNativeModule(
                 sheetHeight.toInt(),
             )
             dialog.window?.setGravity(Gravity.BOTTOM)
+            owner.post { attachKeyboardBehavior() }
         }
         dialog.setOnDismissListener {
             if (this.dialog === dialog) {
@@ -505,7 +512,101 @@ private class SheetNativeModule(
         this.dialog = dialog
     }
 
+    private fun animateHeight(current: BottomSheetDialog, target: Int) {
+        heightAnimator?.cancel()
+        val start = owner.height.takeIf { it > 0 } ?: target
+        if (start == target) {
+            current.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, target)
+            current.behavior.peekHeight = target
+            return
+        }
+        heightAnimator = android.animation.ValueAnimator.ofInt(start, target).apply {
+            duration = 300L
+            interpolator = android.view.animation.DecelerateInterpolator(1.4f)
+            addUpdateListener { animator ->
+                val height = animator.animatedValue as Int
+                owner.layoutParams = (owner.layoutParams ?: FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    height,
+                )).apply { this.height = height }
+                owner.requestLayout()
+                current.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, height)
+                current.behavior.peekHeight = height
+            }
+            start()
+        }
+    }
+
+    private fun attachKeyboardBehavior() {
+        searchBar = findSearchBar(owner)
+        val decor = dialog?.window?.decorView
+        if (decor != null) {
+            ViewCompat.setOnApplyWindowInsetsListener(decor) { view, insets ->
+                val previousInset = lastKeyboardInset
+                lastKeyboardInset = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+                if (lastKeyboardInset == 0 && previousInset > 0) {
+                    owner.findFocus()?.clearFocus()
+                }
+                applyKeyboardOffset()
+                ViewCompat.onApplyWindowInsets(view, insets)
+            }
+            decor.requestApplyInsets()
+        }
+        owner.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            ViewCompat.getRootWindowInsets(owner)?.let { insets ->
+                lastKeyboardInset = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            }
+            applyKeyboardOffset()
+        }
+        owner.requestApplyInsets()
+    }
+
+    private fun findSearchBar(view: View): View? {
+        if (view.contentDescription?.toString() == "cheetah-search-bar") {
+            return view
+        }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                findSearchBar(view.getChildAt(index))?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private fun applyKeyboardOffset() {
+        val bar = searchBar ?: return
+        if (bar.height <= 0 || owner.height <= 0) return
+        if (lastKeyboardInset <= 0) {
+            animateSearchBar(bar, 0f)
+            return
+        }
+        var baseBottom = bar.bottom
+        var parent = bar.parent as? View
+        while (parent != null && parent !== owner) {
+            baseBottom += parent.top
+            parent = parent.parent as? View
+        }
+        val targetBottom = owner.height - lastKeyboardInset - dp(12)
+        val target = (targetBottom - baseBottom).coerceAtMost(0)
+        animateSearchBar(bar, target.toFloat())
+    }
+
+    private fun animateSearchBar(bar: View, target: Float) {
+        if (kotlin.math.abs(bar.translationY - target) < 0.5f) return
+        bar.animate().cancel()
+        bar.animate()
+            .translationY(target)
+            .setDuration(220L)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .start()
+    }
+
+    private fun dp(value: Int): Int =
+        (value * owner.resources.displayMetrics.density).toInt()
+
     override fun destroy() {
+        heightAnimator?.cancel()
+        heightAnimator = null
         dialog?.dismiss()
         dialog = null
     }

@@ -133,9 +133,12 @@ class MapHostView(context: Context) : FrameLayout(context), NativeMapHost {
             val zoom = (ln(360.0 / latitudeDelta.coerceAtLeast(0.0001)) / ln(2.0))
                 .toFloat()
                 .coerceIn(2f, 20f)
-            map.moveCamera(
-                CameraUpdateFactory.newLatLngZoom(LatLng(latitude, longitude), zoom),
-            )
+            val update = CameraUpdateFactory.newLatLngZoom(LatLng(latitude, longitude), zoom)
+            if (lastRegion == null) {
+                map.moveCamera(update)
+            } else {
+                map.animateCamera(update, 420, null)
+            }
             lastRegion = regionKey
         }
 

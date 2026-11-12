@@ -177,6 +177,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
     private var lastMarkers: String?
     private var lastDark: Bool?
     private var lastShowUser: Bool?
+    private var nextRegionAnimated = false
     private var annotationsByID: [String: PlaceAnnotation] = [:]
 
     var nativeView: UIView {
@@ -228,6 +229,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
         {
             let regionKey = "\(latitude.doubleValue),\(longitude.doubleValue),\(latitudeDelta.doubleValue),\(longitudeDelta.doubleValue)"
             if regionKey != lastRegionKey {
+                nextRegionAnimated = lastRegionKey != nil
                 lastRegionKey = regionKey
                 pendingRegion = MKCoordinateRegion(
                     center: CLLocationCoordinate2D(
@@ -332,7 +334,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
         guard force || !regionApplied else {
             return
         }
-        map.setRegion(region, animated: false)
+        map.setRegion(region, animated: nextRegionAnimated)
         regionApplied = true
     }
 

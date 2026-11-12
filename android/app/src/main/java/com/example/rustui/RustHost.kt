@@ -875,10 +875,32 @@ class RustHost(
 
         if (props.optBoolean("pressable", false)) {
             view.isClickable = true
+            if (!tag.pressFeedbackInstalled) {
+                tag.pressFeedbackInstalled = true
+                view.setOnTouchListener { target, event ->
+                    when (event.actionMasked) {
+                        android.view.MotionEvent.ACTION_DOWN -> target.animate()
+                            .scaleX(0.97f)
+                            .scaleY(0.97f)
+                            .alpha(0.9f)
+                            .setDuration(90L)
+                            .start()
+                        android.view.MotionEvent.ACTION_UP,
+                        android.view.MotionEvent.ACTION_CANCEL -> target.animate()
+                            .scaleX(1f)
+                            .scaleY(1f)
+                            .alpha(1f)
+                            .setDuration(140L)
+                            .start()
+                    }
+                    false
+                }
+            }
             view.setOnClickListener {
                 val input = context.getSystemService(Context.INPUT_METHOD_SERVICE)
                     as? android.view.inputmethod.InputMethodManager
                 input?.hideSoftInputFromWindow(view.windowToken, 0)
+                view.rootView.findFocus()?.clearFocus()
                 event(tag.id, "click", "")
             }
         }
@@ -1085,7 +1107,7 @@ class RustHost(
                 view.paged = props.getBoolean("paged")
             }
             if (props.has("scrollX")) {
-                view.scrollTo(dp(props.getDouble("scrollX").toFloat()), 0)
+                view.animateToX(dp(props.getDouble("scrollX").toFloat()))
             }
         }
     }

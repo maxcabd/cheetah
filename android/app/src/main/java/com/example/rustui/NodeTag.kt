@@ -22,6 +22,7 @@ class NodeTag(val id: Int, val view: View, val kind: String) {
     var native: String? = null
     var animate: Boolean = false
     var props: org.json.JSONObject? = null
+    var pressFeedbackInstalled: Boolean = false
 
     val isSheet: Boolean
         get() = kind == "sheet" || native == "sheet"
