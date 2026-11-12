@@ -113,6 +113,7 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
             "menu" -> MenuNativeModule(context, this)
             "icon" -> IconNativeModule(context)
             "gradient" -> GradientNativeModule(context)
+            "photo" -> PhotoPagerNativeModule(context)
             else -> null
         }
         if (name != "sheet") {
@@ -286,6 +287,22 @@ private class IconNativeModule(private val context: Context) : CheetahNativeModu
             return Color.argb(alpha, red, green, blue)
         }
         return Color.parseColor(value)
+    }
+}
+
+private class PhotoPagerNativeModule(context: Context) : CheetahNativeModule {
+    private val photo = PhotoPagerView(context)
+
+    override val nativeView: View
+        get() = photo
+
+    override fun apply(props: JSONObject) {
+        if (!props.has("nativeProps")) return
+        val config = JSONObject(props.getString("nativeProps"))
+        photo.configure(
+            config.optString("src", "asset://second-cup-card-full.jpeg"),
+            config.optInt("pages", 5),
+        )
     }
 }
 

@@ -133,6 +133,8 @@ private enum NativeModuleRegistry {
             return IconNativeModule()
         case "gradient":
             return GradientNativeModule()
+        case "photo":
+            return PhotoPagerNativeModule()
         default:
             return nil
         }
@@ -727,6 +729,27 @@ private final class IconNativeModule: CheetahNativeModule {
         "circle-xmark": "xmark.circle.fill",
         "star": "star.fill",
     ]
+}
+
+private final class PhotoPagerNativeModule: CheetahNativeModule {
+    private let pager = PhotoPagerView()
+
+    var nativeView: UIView {
+        pager
+    }
+
+    func apply(props: [String: Any]) {
+        guard let raw = props["nativeProps"] as? String,
+              let data = raw.data(using: .utf8),
+              let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return
+        }
+        pager.configure(
+            src: config["src"] as? String ?? "asset://second-cup-card-full.jpeg",
+            count: (config["pages"] as? NSNumber)?.intValue ?? 5
+        )
+    }
 }
 
 private final class GradientNativeModule: CheetahNativeModule {

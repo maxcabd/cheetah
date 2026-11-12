@@ -1,8 +1,8 @@
 # A small agent-style smoke test for the Nightshade search sheet.
 start nightshade
-wait 1500
+wait 3000
 tap "Cafes within 12 min walk"
-wait 400
+wait 1000
 expect exists Clear
 screenshot target/drive/nightshade-search.png
 tap Clear

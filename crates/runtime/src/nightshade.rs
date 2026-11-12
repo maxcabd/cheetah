@@ -1,7 +1,5 @@
 use crate::app::{App, Event, HostInfo, ViewContext};
-use crate::element::{
-    column, glass, hscroll, image, input, map, native, row, sheet, text, Element,
-};
+use crate::element::{column, glass, hscroll, input, map, native, row, sheet, text, Element};
 use crate::resource::Resource;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -255,7 +253,7 @@ impl NightshadeApp {
         if self.focused || places.len() == 1 {
             let place = places.get(self.selected).copied().unwrap_or(*first);
             let delta = 0.018;
-            return (place.lat - delta * 0.32, place.lng, delta, delta);
+            return (place.lat - delta * 0.40, place.lng, delta, delta);
         }
 
         let mut min_lat = first.lat;
@@ -273,6 +271,8 @@ impl NightshadeApp {
         let longitude = (min_lng + max_lng) / 2.0;
         let latitude_delta = ((max_lat - min_lat) * 2.4).max(0.015);
         let longitude_delta = ((max_lng - min_lng) * 2.4).max(0.015);
+        // Keep result pins above the card carousel and search bar.
+        let latitude = latitude - latitude_delta * 0.28;
         (latitude, longitude, latitude_delta, longitude_delta)
     }
 
@@ -351,15 +351,6 @@ impl NightshadeApp {
             .lines(1)
             .align("center")
             .radius(18.0)
-    }
-
-    fn dot(active: bool) -> Element {
-        column()
-            .width(if active { 8.0 } else { 5.0 })
-            .height(if active { 8.0 } else { 5.0 })
-            .radius(4.0)
-            .bg("#ffffff")
-            .opacity(if active { 1.0 } else { 0.22 })
     }
 
     fn card(&self, width: f32, place: Place, _selected: bool) -> Element {
@@ -455,27 +446,13 @@ impl NightshadeApp {
                     .child(Self::glass_icon("plus", "card:plus")),
             );
 
-        let dots = row()
-            .width(width)
-            .height(8.0)
-            .justify("center")
-            .align_items("center")
-            .gap(6.0)
-            .child(Self::dot(true))
-            .child(Self::dot(false))
-            .child(Self::dot(false))
-            .child(Self::dot(false))
-            .child(Self::dot(false));
-
-        let gradient = native("gradient")
+        let photo = native("photo")
             .absolute()
-            .bottom(0.0)
+            .top(0.0)
             .left(0.0)
             .width(width)
-            .height(45.0)
-            .native_props(
-                r##"{"colors":["#0b0b0f00","#0b0b0f59","#0b0b0fb3","#1f1f1f"],"locations":[0,0.5,0.8,1],"startX":0,"startY":0,"endX":0,"endY":1}"##,
-            );
+            .height(CARD_HEADER)
+            .native_props(r##"{"src":"asset://second-cup-card-full.jpeg","pages":5}"##);
 
         let card = column()
             .key(format!("place-{}", place.id))
@@ -493,17 +470,8 @@ impl NightshadeApp {
                     .height(CARD_HEADER)
                     .justify("end")
                     .pad_bottom(12.0)
-                    .child(
-                        image("asset://second-cup-card-full.jpeg")
-                            .absolute()
-                            .top(0.0)
-                            .left(0.0)
-                            .width(width)
-                            .height(CARD_HEADER),
-                    )
-                    .child(gradient)
-                    .child(top_controls)
-                    .child(dots),
+                    .child(photo)
+                    .child(top_controls),
             )
             .child(
                 column()

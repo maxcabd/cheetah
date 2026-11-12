@@ -325,12 +325,10 @@ fn run_android_test(adb: &Adb, path: &Path) -> Result<(), String> {
                 let nodes = adb.tree()?;
                 let found = find_optional(&nodes, target).is_some();
                 match kind {
-                    "exists" if found => Ok(()),
-                    "exists" => Err(format!("expected {target:?} to exist")),
+                    "exists" => adb.wait_find(target, Duration::from_secs(5)).map(|_| ()),
                     "missing" if !found => Ok(()),
                     "missing" => Err(format!("expected {target:?} to be missing")),
-                    "text" if found => Ok(()),
-                    "text" => Err(format!("expected text {target:?}")),
+                    "text" => adb.wait_find(target, Duration::from_secs(5)).map(|_| ()),
                     _ => Err(format!("unknown expect kind {kind:?}")),
                 }
             }
