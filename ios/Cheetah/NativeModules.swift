@@ -147,6 +147,10 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
     private var pendingRegion: MKCoordinateRegion?
     private var regionApplied = false
     private var appliedAfterLoad = false
+    private var lastRegionKey: String?
+    private var lastMarkers: String?
+    private var lastDark: Bool?
+    private var lastShowUser: Bool?
 
     var nativeView: UIView {
         map
@@ -175,47 +179,62 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
 
     func apply(props: [String: Any]) {
         if let dark = props["mapDark"] as? NSNumber {
-            map.overrideUserInterfaceStyle = dark.boolValue ? .dark : .light
+            let value = dark.boolValue
+            let changed = lastDark.map { $0 != value } ?? true
+            if changed {
+                map.overrideUserInterfaceStyle = value ? .dark : .light
+                lastDark = value
+            }
         }
 
         let showUser = (props["mapShowsUser"] as? NSNumber)?.boolValue ?? false
-        map.showsUserLocation = showUser
+        let showUserChanged = lastShowUser.map { $0 != showUser } ?? true
+        if showUserChanged {
+            map.showsUserLocation = showUser
+            lastShowUser = showUser
+        }
 
         if let latitude = props["mapLatitude"] as? NSNumber,
            let longitude = props["mapLongitude"] as? NSNumber,
            let latitudeDelta = props["mapLatitudeDelta"] as? NSNumber,
            let longitudeDelta = props["mapLongitudeDelta"] as? NSNumber
         {
-            pendingRegion = MKCoordinateRegion(
-                center: CLLocationCoordinate2D(
-                    latitude: latitude.doubleValue,
-                    longitude: longitude.doubleValue
-                ),
-                span: MKCoordinateSpan(
-                    latitudeDelta: latitudeDelta.doubleValue,
-                    longitudeDelta: longitudeDelta.doubleValue
+            let regionKey = "\(latitude.doubleValue),\(longitude.doubleValue),\(latitudeDelta.doubleValue),\(longitudeDelta.doubleValue)"
+            if regionKey != lastRegionKey {
+                lastRegionKey = regionKey
+                pendingRegion = MKCoordinateRegion(
+                    center: CLLocationCoordinate2D(
+                        latitude: latitude.doubleValue,
+                        longitude: longitude.doubleValue
+                    ),
+                    span: MKCoordinateSpan(
+                        latitudeDelta: latitudeDelta.doubleValue,
+                        longitudeDelta: longitudeDelta.doubleValue
+                    )
                 )
-            )
-            regionApplied = false
-            appliedAfterLoad = false
-            applyPendingRegion()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-                self?.applyPendingRegion(force: true)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                self?.applyPendingRegion(force: true)
+                regionApplied = false
+                appliedAfterLoad = false
+                applyPendingRegion()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
+                    self?.applyPendingRegion(force: true)
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                    self?.applyPendingRegion(force: true)
+                }
             }
         }
 
+        guard let rawMarkers = props["mapMarkers"] as? String, rawMarkers != lastMarkers else {
+            return
+        }
+        lastMarkers = rawMarkers
+        map.removeAnnotations(map.annotations.filter { $0 is PlaceAnnotation })
         guard
-            let rawMarkers = props["mapMarkers"] as? String,
             let data = rawMarkers.data(using: .utf8),
             let markers = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
         else {
             return
         }
-
-        map.removeAnnotations(map.annotations.filter { $0 is PlaceAnnotation })
         for marker in markers {
             guard
                 let latitude = marker["lat"] as? NSNumber,
@@ -368,13 +387,16 @@ private final class SheetNativeModule: CheetahNativeModule {
     }
 
     func apply(props: [String: Any]) {
-        if let height = props["height"] as? NSNumber {
+        var changed = false
+        if let height = props["height"] as? NSNumber, CGFloat(height.doubleValue) != sheetHeight {
             sheetHeight = CGFloat(height.doubleValue)
+            changed = true
         }
-        if let radius = props["radius"] as? NSNumber {
+        if let radius = props["radius"] as? NSNumber, CGFloat(radius.doubleValue) != sheetRadius {
             sheetRadius = CGFloat(radius.doubleValue)
+            changed = true
         }
-        guard let sheet = controller?.sheetPresentationController else {
+        guard changed, let sheet = controller?.sheetPresentationController else {
             return
         }
         let identifier = UISheetPresentationController.Detent.Identifier("cheetah-search")

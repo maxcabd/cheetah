@@ -10,6 +10,20 @@ import kotlin.math.roundToInt
 
 /** Renders the same marker vocabulary on Google Maps and MapLibre. */
 object MarkerBitmapFactory {
+    private var typeface: Typeface? = null
+    private val bitmaps = HashMap<String, Bitmap>()
+
+    private fun fontAwesome(context: Context): Typeface {
+        typeface?.let { return it }
+        val loaded = try {
+            Typeface.createFromAsset(context.assets, "fonts/FontAwesome6_Solid.ttf")
+        } catch (_: Exception) {
+            Typeface.DEFAULT
+        }
+        typeface = loaded
+        return loaded
+    }
+
     private val glyphs = mapOf(
         "coffee" to "\uF0F4",
         "hamburger" to "\uF805",
@@ -26,6 +40,8 @@ object MarkerBitmapFactory {
         selected: Boolean,
     ): Bitmap {
         val density = context.resources.displayMetrics.density
+        val cacheKey = "$kind|$icon|$iconColor|$selected|$density"
+        bitmaps[cacheKey]?.let { return it }
         val result = kind == "result"
         val sizeDp = if (result) 40f else 56f
         val size = (sizeDp * density).roundToInt()
@@ -52,11 +68,7 @@ object MarkerBitmapFactory {
         canvas.drawCircle(center, center, center - 2f * density, paint)
 
         val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            typeface = try {
-                Typeface.createFromAsset(context.assets, "fonts/FontAwesome6_Solid.ttf")
-            } catch (_: Exception) {
-                Typeface.DEFAULT
-            }
+            typeface = fontAwesome(context)
             textSize = (if (result) 14f else 20f) * density
             color = if (result) Color.WHITE else parseColor(iconColor)
             textAlign = Paint.Align.CENTER
@@ -65,6 +77,7 @@ object MarkerBitmapFactory {
         val metrics = glyphPaint.fontMetrics
         val baseline = center - (metrics.ascent + metrics.descent) / 2f
         canvas.drawText(glyph, center, baseline, glyphPaint)
+        bitmaps[cacheKey] = bitmap
         return bitmap
     }
 

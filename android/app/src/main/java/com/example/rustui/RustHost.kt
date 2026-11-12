@@ -71,6 +71,10 @@ class RustHost(
     private val typefaceCache = HashMap<String, Typeface>()
     private val imageLoader = Executors.newFixedThreadPool(2)
     private var sheetDialog: BottomSheetDialog? = null
+    private var perfCreateUs = 0L
+    private var perfUpdateUs = 0L
+    private var perfLayoutUs = 0L
+    private var perfChildrenUs = 0L
 
     init {
         root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
@@ -161,11 +165,18 @@ class RustHost(
         mainHandler.post {
             if (handle != 0L) {
                 val started = System.nanoTime()
+                perfCreateUs = 0
+                perfUpdateUs = 0
+                perfLayoutUs = 0
+                perfChildrenUs = 0
                 applyOps(bytes)
                 if (BuildConfig.DEBUG) {
                     Log.d(
                         "CheetahPerf",
-                        "apply_us=${(System.nanoTime() - started) / 1000} op_bytes=${bytes.size}",
+                        "apply_us=${(System.nanoTime() - started) / 1000} " +
+                            "create_us=${perfCreateUs / 1000} update_us=${perfUpdateUs / 1000} " +
+                            "children_us=${perfChildrenUs / 1000} layout_us=${perfLayoutUs / 1000} " +
+                            "op_bytes=${bytes.size}",
                     )
                 }
             }
@@ -326,6 +337,15 @@ class RustHost(
     }
 
     private fun create(op: JSONObject) {
+        val started = System.nanoTime()
+        try {
+            createInner(op)
+        } finally {
+            perfCreateUs += System.nanoTime() - started
+        }
+    }
+
+    private fun createInner(op: JSONObject) {
         val id = op.getInt("id")
         val kind = op.getString("kind")
         val view = obtainView(kind)
@@ -532,11 +552,25 @@ class RustHost(
     }
 
     private fun update(op: JSONObject) {
-        val view = views[op.getInt("id")] ?: return
-        applyProps(view, op.getJSONObject("props"))
+        val started = System.nanoTime()
+        try {
+            val view = views[op.getInt("id")] ?: return
+            applyProps(view, op.getJSONObject("props"))
+        } finally {
+            perfUpdateUs += System.nanoTime() - started
+        }
     }
 
     private fun children(op: JSONObject) {
+        val started = System.nanoTime()
+        try {
+            childrenInner(op)
+        } finally {
+            perfChildrenUs += System.nanoTime() - started
+        }
+    }
+
+    private fun childrenInner(op: JSONObject) {
         val parentId = op.getInt("id")
         val parent = tags[parentId]?.container ?: return
 
@@ -569,6 +603,15 @@ class RustHost(
     }
 
     private fun layout(op: JSONObject) {
+        val started = System.nanoTime()
+        try {
+            layoutInner(op)
+        } finally {
+            perfLayoutUs += System.nanoTime() - started
+        }
+    }
+
+    private fun layoutInner(op: JSONObject) {
         val id = op.getInt("id")
         val view = views[id] ?: return
         if (tags[id]?.isSheet == true) return

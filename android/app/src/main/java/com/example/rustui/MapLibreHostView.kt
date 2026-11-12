@@ -29,6 +29,8 @@ class MapLibreHostView(context: Context) : FrameLayout(context), NativeMapHost {
     private var map: MapLibreMap? = null
     private var style: Style? = null
     private var pendingProps: JSONObject? = null
+    private var lastMarkers: String? = null
+    private var lastRegion: String? = null
     private var started = false
     private var resumed = false
     private val markerIds = HashMap<Marker, String>()
@@ -62,7 +64,7 @@ class MapLibreHostView(context: Context) : FrameLayout(context), NativeMapHost {
             }
             nativeMap.setStyle(Style.Builder().fromUri(STYLE_URL)) { loadedStyle ->
                 style = loadedStyle
-                pendingProps?.let { applyToMap(nativeMap, loadedStyle, it) }
+                pendingProps?.let { applyToMap(nativeMap, it) }
             }
         }
     }
@@ -106,26 +108,32 @@ class MapLibreHostView(context: Context) : FrameLayout(context), NativeMapHost {
     override fun apply(props: JSONObject) {
         pendingProps = props
         val nativeMap = map ?: return
-        val loadedStyle = style ?: return
-        applyToMap(nativeMap, loadedStyle, props)
+        if (style == null) return
+        applyToMap(nativeMap, props)
     }
 
-    private fun applyToMap(nativeMap: MapLibreMap, loadedStyle: Style, props: JSONObject) {
+    private fun applyToMap(nativeMap: MapLibreMap, props: JSONObject) {
         val latitude = props.optDouble("mapLatitude", Double.NaN)
         val longitude = props.optDouble("mapLongitude", Double.NaN)
         val latitudeDelta = props.optDouble("mapLatitudeDelta", 0.025)
-        if (!latitude.isNaN() && !longitude.isNaN()) {
+        val regionKey = "$latitude,$longitude,$latitudeDelta"
+        if (!latitude.isNaN() && !longitude.isNaN() && regionKey != lastRegion) {
             val zoom = (ln(360.0 / latitudeDelta.coerceAtLeast(0.0001)) / ln(2.0))
                 .coerceIn(2.0, 20.0)
             nativeMap.cameraPosition = CameraPosition.Builder()
                 .target(LatLng(latitude, longitude))
                 .zoom(zoom)
                 .build()
+            lastRegion = regionKey
         }
 
+        val rawMarkers = props.optString("mapMarkers", "")
+        if (rawMarkers == lastMarkers) {
+            return
+        }
+        lastMarkers = rawMarkers
         nativeMap.clear()
         markerIds.clear()
-        val rawMarkers = props.optString("mapMarkers", "")
         if (rawMarkers.isBlank()) {
             return
         }

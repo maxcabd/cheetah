@@ -21,6 +21,19 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import org.json.JSONObject
 
+private var cheetahFontAwesomeTypeface: Typeface? = null
+
+private fun fontAwesome(context: Context): Typeface {
+    cheetahFontAwesomeTypeface?.let { return it }
+    val typeface = try {
+        Typeface.createFromAsset(context.assets, "fonts/FontAwesome6_Solid.ttf")
+    } catch (_: Exception) {
+        Typeface.DEFAULT
+    }
+    cheetahFontAwesomeTypeface = typeface
+    return typeface
+}
+
 interface CheetahNativeModule {
     val nativeView: View
 
@@ -60,7 +73,21 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
         }
     }
 
+    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
+        super.onLayout(changed, left, top, right, bottom)
+        if (module == null && pendingName == "map" && width > 1 && height > 1) {
+            val name = pendingName
+            val props = pendingProps
+            pendingName = null
+            pendingProps = null
+            if (name != null && props != null) {
+                materialize(name, props)
+            }
+        }
+    }
+
     private fun materialize(name: String, props: JSONObject) {
+        val started = System.nanoTime()
         module = when (name) {
             "search" -> SearchNativeModule(context) { kind, payload ->
                 onEvent?.invoke(kind, payload)
@@ -85,12 +112,11 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
         }
         pendingName = null
         pendingProps = null
-    }
-
-    override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
-        super.onLayout(changed, left, top, right, bottom)
-        if (module == null && pendingName == "map" && width > 1 && height > 1) {
-            pendingName?.let { name -> pendingProps?.let { props -> materialize(name, props) } }
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d(
+                "CheetahPerf",
+                "module_create name=$name us=${(System.nanoTime() - started) / 1000}",
+            )
         }
     }
 
@@ -123,10 +149,20 @@ private class MapNativeModule(
     context: Context,
     private val owner: NativeModuleHostView,
 ) : CheetahNativeModule {
-    private val map: NativeMapHost = if (BuildConfig.MAPS_API_KEY.isBlank()) {
-        MapLibreHostView(context)
-    } else {
-        MapHostView(context)
+    private val map: NativeMapHost = run {
+        val started = System.nanoTime()
+        val result = if (BuildConfig.MAPS_API_KEY.isBlank()) {
+            MapLibreHostView(context)
+        } else {
+            MapHostView(context)
+        }
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d(
+                "CheetahPerf",
+                "map_create_us=${(System.nanoTime() - started) / 1000}",
+            )
+        }
+        result
     }
 
     override val nativeView: View
@@ -160,11 +196,7 @@ private class IconNativeModule(private val context: Context) : CheetahNativeModu
         gravity = Gravity.CENTER
         includeFontPadding = false
         setTextColor(Color.WHITE)
-        typeface = try {
-            Typeface.createFromAsset(context.assets, "fonts/FontAwesome6_Solid.ttf")
-        } catch (_: Exception) {
-            Typeface.DEFAULT
-        }
+        typeface = fontAwesome(context)
     }
 
     override val nativeView: View
@@ -188,11 +220,7 @@ private class IconNativeModule(private val context: Context) : CheetahNativeModu
             iconView.typeface = Typeface.DEFAULT_BOLD
             iconView.text = "G"
         } else {
-            iconView.typeface = try {
-                Typeface.createFromAsset(context.assets, "fonts/FontAwesome6_Solid.ttf")
-            } catch (_: Exception) {
-                Typeface.DEFAULT
-            }
+            iconView.typeface = fontAwesome(context)
             iconView.text = glyph(name) ?: ""
         }
         iconView.contentDescription = name
@@ -363,13 +391,23 @@ private class SheetNativeModule(
         get() = placeholder
 
     override fun apply(props: JSONObject) {
+        var changed = false
         if (props.has("height")) {
-            sheetHeightDp = props.getDouble("height").toFloat()
+            val height = props.getDouble("height").toFloat()
+            if (height != sheetHeightDp) {
+                sheetHeightDp = height
+                changed = true
+            }
         }
         if (props.has("radius")) {
-            sheetRadiusDp = props.getDouble("radius").toFloat()
+            val radius = props.getDouble("radius").toFloat()
+            if (radius != sheetRadiusDp) {
+                sheetRadiusDp = radius
+                changed = true
+            }
         }
         val current = dialog ?: return
+        if (!changed) return
         val density = owner.resources.displayMetrics.density
         val height = (sheetHeightDp * density).toInt()
         owner.layoutParams = (owner.layoutParams ?: FrameLayout.LayoutParams(

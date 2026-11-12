@@ -27,6 +27,10 @@ class MapHostView(context: Context) : FrameLayout(context), NativeMapHost {
     private val mapView: MapView?
     private var googleMap: GoogleMap? = null
     private var pendingProps: JSONObject? = null
+    private var lastMarkers: String? = null
+    private var lastRegion: String? = null
+    private var lastDark: Boolean? = null
+    private var lastShowsUser: Boolean? = null
     private var started = false
     private var resumed = false
 
@@ -113,52 +117,67 @@ class MapHostView(context: Context) : FrameLayout(context), NativeMapHost {
 
     private fun applyToMap(map: GoogleMap, props: JSONObject) {
         val dark = props.optBoolean("mapDark", true)
-        map.setMapStyle(if (dark) MapStyleOptions(DARK_STYLE) else null)
+        if (dark != lastDark) {
+            map.setMapStyle(if (dark) MapStyleOptions(DARK_STYLE) else null)
+            lastDark = dark
+        }
 
         val latitude = props.optDouble("mapLatitude", Double.NaN)
         val longitude = props.optDouble("mapLongitude", Double.NaN)
         val latitudeDelta = props.optDouble("mapLatitudeDelta", 0.025)
-        if (!latitude.isNaN() && !longitude.isNaN()) {
+        val regionKey = "$latitude,$longitude,$latitudeDelta"
+        if (!latitude.isNaN() && !longitude.isNaN() && regionKey != lastRegion) {
             val zoom = (ln(360.0 / latitudeDelta.coerceAtLeast(0.0001)) / ln(2.0))
                 .toFloat()
                 .coerceIn(2f, 20f)
             map.moveCamera(
                 CameraUpdateFactory.newLatLngZoom(LatLng(latitude, longitude), zoom),
             )
+            lastRegion = regionKey
         }
 
-        try {
-            map.isMyLocationEnabled = props.optBoolean("mapShowsUser", false)
-        } catch (_: SecurityException) {
-            // The map still works without the user-location layer.
-        }
-        map.clear()
-        val rawMarkers = props.optString("mapMarkers", "")
-        if (rawMarkers.isNotBlank()) {
-            val markers = JSONArray(rawMarkers)
-            for (index in 0 until markers.length()) {
-                val marker = markers.optJSONObject(index) ?: continue
-                val bitmap = MarkerBitmapFactory.create(
-                    context,
-                    marker.optString("kind", "static"),
-                    marker.optString("icon", "utensils"),
-                    marker.optString("iconColor", "#D32F2F"),
-                    marker.optBoolean("selected", false),
-                )
-                val added = map.addMarker(
-                    MarkerOptions()
-                        .position(
-                            LatLng(
-                                marker.optDouble("lat"),
-                                marker.optDouble("lng"),
-                            ),
-                        )
-                        .title(marker.optString("name"))
-                        .anchor(0.5f, 0.5f)
-                        .icon(BitmapDescriptorFactory.fromBitmap(bitmap)),
-                )
-                added?.tag = marker.optString("id")
+        val showsUser = props.optBoolean("mapShowsUser", false)
+        if (showsUser != lastShowsUser) {
+            try {
+                map.isMyLocationEnabled = showsUser
+            } catch (_: SecurityException) {
+                // The map still works without the user-location layer.
             }
+            lastShowsUser = showsUser
+        }
+
+        val rawMarkers = props.optString("mapMarkers", "")
+        if (rawMarkers == lastMarkers) {
+            return
+        }
+        lastMarkers = rawMarkers
+        map.clear()
+        if (rawMarkers.isBlank()) {
+            return
+        }
+        val markers = JSONArray(rawMarkers)
+        for (index in 0 until markers.length()) {
+            val marker = markers.optJSONObject(index) ?: continue
+            val bitmap = MarkerBitmapFactory.create(
+                context,
+                marker.optString("kind", "static"),
+                marker.optString("icon", "utensils"),
+                marker.optString("iconColor", "#D32F2F"),
+                marker.optBoolean("selected", false),
+            )
+            val added = map.addMarker(
+                MarkerOptions()
+                    .position(
+                        LatLng(
+                            marker.optDouble("lat"),
+                            marker.optDouble("lng"),
+                        ),
+                    )
+                    .title(marker.optString("name"))
+                    .anchor(0.5f, 0.5f)
+                    .icon(BitmapDescriptorFactory.fromBitmap(bitmap)),
+            )
+            added?.tag = marker.optString("id")
         }
     }
 
