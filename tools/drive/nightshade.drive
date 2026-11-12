@@ -1,6 +1,6 @@
 # A small agent-style smoke test for the Nightshade search sheet.
 start nightshade
-wait 1000
+wait 1500
 tap "Cafes within 12 min walk"
 wait 400
 expect exists Clear

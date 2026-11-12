@@ -16,6 +16,10 @@ pub enum Op {
         id: u32,
         props: Props,
     },
+    UpdateProps {
+        id: u32,
+        props: Props,
+    },
     Text {
         id: u32,
         text: String,
@@ -56,11 +60,18 @@ pub fn diff(old: Option<&FlatTree>, new: &FlatTree) -> Vec<Op> {
                 root: node.parent.is_none(),
             }),
             Some(previous) if previous.kind != node.kind || previous.props != node.props => {
-                if previous.kind == node.kind && only_text_diff(&previous.props, &node.props) {
+                if previous.kind != node.kind {
+                    updates.push(Op::Update {
+                        id: *id,
+                        props: node.props.clone(),
+                    });
+                } else if only_text_diff(&previous.props, &node.props) {
                     updates.push(Op::Text {
                         id: *id,
                         text: node.props.text.clone().unwrap_or_default(),
                     });
+                } else if let Some(props) = node.props.delta_from(&previous.props) {
+                    updates.push(Op::UpdateProps { id: *id, props });
                 } else {
                     updates.push(Op::Update {
                         id: *id,

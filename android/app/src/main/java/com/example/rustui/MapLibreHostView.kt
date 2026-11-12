@@ -31,9 +31,11 @@ class MapLibreHostView(context: Context) : FrameLayout(context), NativeMapHost {
     private var pendingProps: JSONObject? = null
     private var lastMarkers: String? = null
     private var lastRegion: String? = null
+    private var markerStructure: String? = null
     private var started = false
     private var resumed = false
     private val markerIds = HashMap<Marker, String>()
+    private val markersById = HashMap<String, Marker>()
 
     init {
         setBackgroundColor(Color.parseColor("#101826"))
@@ -132,37 +134,71 @@ class MapLibreHostView(context: Context) : FrameLayout(context), NativeMapHost {
             return
         }
         lastMarkers = rawMarkers
-        nativeMap.clear()
-        markerIds.clear()
-        if (rawMarkers.isBlank()) {
+        val markers = parseMarkers(rawMarkers)
+        val structure = markerStructure(markers)
+        if (structure == markerStructure && markersById.size == markers.size) {
+            updateMarkerImages(markers)
             return
         }
-
-        val markers = JSONArray(rawMarkers)
-        val icons = IconFactory.getInstance(context)
-        for (index in 0 until markers.length()) {
-            val marker = markers.optJSONObject(index) ?: continue
-            val icon = MarkerBitmapFactory.create(
-                context,
-                marker.optString("kind", "static"),
-                marker.optString("icon", "utensils"),
-                marker.optString("iconColor", "#D32F2F"),
-                marker.optBoolean("selected", false),
-            )
-            val added = nativeMap.addMarker(
-                MarkerOptions()
-                    .position(
-                        LatLng(
-                            marker.optDouble("lat"),
-                            marker.optDouble("lng"),
-                        ),
-                    )
-                    .title(marker.optString("name"))
-                    .icon(icons.fromBitmap(icon)),
-            )
-            markerIds[added] = marker.optString("id")
+        markerStructure = structure
+        nativeMap.clear()
+        markerIds.clear()
+        markersById.clear()
+        for (marker in markers) {
+            val added = addMarker(nativeMap, marker) ?: continue
+            val id = marker.optString("id")
+            markerIds[added] = id
+            markersById[id] = added
         }
     }
+
+    private fun parseMarkers(raw: String): List<JSONObject> {
+        if (raw.isBlank()) return emptyList()
+        val array = JSONArray(raw)
+        return buildList(array.length()) {
+            for (index in 0 until array.length()) {
+                array.optJSONObject(index)?.let { add(it) }
+            }
+        }
+    }
+
+    private fun markerStructure(markers: List<JSONObject>): String =
+        markers.joinToString("|") {
+            val id = it.optString("id")
+            "${id}@${it.optDouble("lat")},${it.optDouble("lng")}"
+        }
+
+    private fun addMarker(nativeMap: MapLibreMap, marker: JSONObject): Marker? {
+        val icons = IconFactory.getInstance(context)
+        return nativeMap.addMarker(
+            MarkerOptions()
+                .position(
+                    LatLng(
+                        marker.optDouble("lat"),
+                        marker.optDouble("lng"),
+                    ),
+                )
+                .title(marker.optString("name"))
+                .icon(icons.fromBitmap(markerBitmap(marker))),
+        )
+    }
+
+    private fun updateMarkerImages(markers: List<JSONObject>) {
+        val icons = IconFactory.getInstance(context)
+        for (marker in markers) {
+            val existing = markersById[marker.optString("id")] ?: continue
+            existing.title = marker.optString("name")
+            existing.setIcon(icons.fromBitmap(markerBitmap(marker)))
+        }
+    }
+
+    private fun markerBitmap(marker: JSONObject) = MarkerBitmapFactory.create(
+        context,
+        marker.optString("kind", "static"),
+        marker.optString("icon", "utensils"),
+        marker.optString("iconColor", "#D32F2F"),
+        marker.optBoolean("selected", false),
+    )
 
     private companion object {
         const val PLACES_SOURCE = "cheetah-places"

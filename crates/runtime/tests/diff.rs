@@ -66,3 +66,31 @@ fn keyed_children_keep_identity_when_the_middle_changes() {
     assert!(ops.iter().any(|op| matches!(op, Op::Remove { .. })));
     assert!(ops.iter().any(|op| matches!(op, Op::Children { .. })));
 }
+
+#[test]
+fn style_change_is_a_sparse_property_update() {
+    let first = flat(column().child(text("hello").color("#ffffff").bg("#000000")));
+    let second = flat(column().child(text("hello").color("#ffffff").bg("#111111")));
+    let ops = diff(Some(&first), &second);
+
+    let props = ops
+        .iter()
+        .find_map(|op| match op {
+            Op::UpdateProps { props, .. } => Some(props),
+            _ => None,
+        })
+        .expect("sparse update");
+    assert_eq!(props.bg.as_deref(), Some("#111111"));
+    assert!(props.color.is_none());
+    assert!(props.text.is_none());
+}
+
+#[test]
+fn removed_property_falls_back_to_a_full_update() {
+    let first = flat(column().child(text("hello").bg("#000000")));
+    let second = flat(column().child(text("hello")));
+    let ops = diff(Some(&first), &second);
+
+    assert!(ops.iter().any(|op| matches!(op, Op::Update { .. })));
+    assert!(!ops.iter().any(|op| matches!(op, Op::UpdateProps { .. })));
+}

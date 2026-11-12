@@ -297,6 +297,16 @@ class RustHost(
                     val props = reader.props() ?: return
                     update(JSONObject().put("op", "update").put("id", id).put("props", props))
                 }
+                7 -> {
+                    val id = reader.u32() ?: return
+                    val props = reader.props() ?: return
+                    updateProps(
+                        JSONObject()
+                            .put("op", "updateprops")
+                            .put("id", id)
+                            .put("props", props),
+                    )
+                }
                 3 -> {
                     val id = reader.u32() ?: return
                     val childCount = reader.u32() ?: return
@@ -329,7 +339,9 @@ class RustHost(
                 6 -> {
                     val id = reader.u32() ?: return
                     val text = reader.string() ?: return
-                    (views[id.toInt()] as? TextView)?.text = text
+                    val view = views[id.toInt()]
+                    (view as? TextView)?.text = text
+                    (view?.tag as? NodeTag)?.props?.put("text", text)
                 }
                 else -> return
             }
@@ -351,6 +363,7 @@ class RustHost(
         val view = obtainView(kind)
         val tag = NodeTag(id, view, kind)
         val props = op.getJSONObject("props")
+        tag.props = props
         tag.native = props.optString("native").takeIf { it.isNotEmpty() }
         val source = op.optJSONObject("source")
         if (source != null) {
@@ -555,7 +568,35 @@ class RustHost(
         val started = System.nanoTime()
         try {
             val view = views[op.getInt("id")] ?: return
-            applyProps(view, op.getJSONObject("props"))
+            val props = op.getJSONObject("props")
+            (view.tag as? NodeTag)?.props = props
+            applyProps(view, props)
+        } finally {
+            perfUpdateUs += System.nanoTime() - started
+        }
+    }
+
+    private fun updateProps(op: JSONObject) {
+        val started = System.nanoTime()
+        try {
+            val view = views[op.getInt("id")] ?: return
+            val tag = view.tag as? NodeTag ?: return
+            val delta = op.getJSONObject("props")
+            val merged = JSONObject()
+            tag.props?.let { cached ->
+                val keys = cached.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    merged.put(key, cached.opt(key))
+                }
+            }
+            val keys = delta.keys()
+            while (keys.hasNext()) {
+                val key = keys.next()
+                merged.put(key, delta.opt(key))
+            }
+            tag.props = merged
+            applyProps(view, merged)
         } finally {
             perfUpdateUs += System.nanoTime() - started
         }

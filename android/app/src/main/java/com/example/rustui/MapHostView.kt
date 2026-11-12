@@ -12,6 +12,7 @@ import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.android.gms.maps.model.Marker
 import com.google.android.gms.maps.model.MarkerOptions
 import org.json.JSONArray
 import org.json.JSONObject
@@ -31,6 +32,8 @@ class MapHostView(context: Context) : FrameLayout(context), NativeMapHost {
     private var lastRegion: String? = null
     private var lastDark: Boolean? = null
     private var lastShowsUser: Boolean? = null
+    private var markerStructure: String? = null
+    private val markersById = HashMap<String, Marker>()
     private var started = false
     private var resumed = false
 
@@ -151,35 +154,71 @@ class MapHostView(context: Context) : FrameLayout(context), NativeMapHost {
             return
         }
         lastMarkers = rawMarkers
-        map.clear()
-        if (rawMarkers.isBlank()) {
+        val markers = parseMarkers(rawMarkers)
+        val structure = markerStructure(markers)
+        if (structure == markerStructure && markersById.size == markers.size) {
+            updateMarkerImages(markers)
             return
         }
-        val markers = JSONArray(rawMarkers)
-        for (index in 0 until markers.length()) {
-            val marker = markers.optJSONObject(index) ?: continue
-            val bitmap = MarkerBitmapFactory.create(
-                context,
-                marker.optString("kind", "static"),
-                marker.optString("icon", "utensils"),
-                marker.optString("iconColor", "#D32F2F"),
-                marker.optBoolean("selected", false),
-            )
-            val added = map.addMarker(
-                MarkerOptions()
-                    .position(
-                        LatLng(
-                            marker.optDouble("lat"),
-                            marker.optDouble("lng"),
-                        ),
-                    )
-                    .title(marker.optString("name"))
-                    .anchor(0.5f, 0.5f)
-                    .icon(BitmapDescriptorFactory.fromBitmap(bitmap)),
-            )
-            added?.tag = marker.optString("id")
+        markerStructure = structure
+        map.clear()
+        markersById.clear()
+        for (marker in markers) {
+            val added = addMarker(map, marker) ?: continue
+            markersById[marker.optString("id")] = added
         }
     }
+
+    private fun parseMarkers(raw: String): List<JSONObject> {
+        if (raw.isBlank()) return emptyList()
+        val array = JSONArray(raw)
+        return buildList(array.length()) {
+            for (index in 0 until array.length()) {
+                array.optJSONObject(index)?.let(::add)
+            }
+        }
+    }
+
+    private fun markerStructure(markers: List<JSONObject>): String =
+        markers.joinToString("|") {
+            val id = it.optString("id")
+            "${id}@${it.optDouble("lat")},${it.optDouble("lng")}"
+        }
+
+    private fun addMarker(map: GoogleMap, marker: JSONObject): Marker? {
+        val added = map.addMarker(
+            MarkerOptions()
+                .position(
+                    LatLng(
+                        marker.optDouble("lat"),
+                        marker.optDouble("lng"),
+                    ),
+                )
+                .title(marker.optString("name"))
+                .anchor(0.5f, 0.5f)
+                .icon(markerIcon(marker)),
+        )
+        added?.tag = marker.optString("id")
+        return added
+    }
+
+    private fun updateMarkerImages(markers: List<JSONObject>) {
+        for (marker in markers) {
+            val existing = markersById[marker.optString("id")] ?: continue
+            existing.title = marker.optString("name")
+            existing.setIcon(markerIcon(marker))
+        }
+    }
+
+    private fun markerIcon(marker: JSONObject) = BitmapDescriptorFactory.fromBitmap(
+        MarkerBitmapFactory.create(
+            context,
+            marker.optString("kind", "static"),
+            marker.optString("icon", "utensils"),
+            marker.optString("iconColor", "#D32F2F"),
+            marker.optBoolean("selected", false),
+        ),
+    )
 
     private companion object {
         const val DARK_STYLE = """

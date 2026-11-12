@@ -174,6 +174,86 @@ pub struct Props {
 }
 
 impl Props {
+    /// Build the subset of properties that changed since `previous`.
+    ///
+    /// A removed property has no representation in the sparse update, so it
+    /// falls back to a full update instead of leaving a stale native value.
+    pub(crate) fn delta_from(&self, previous: &Self) -> Option<Self> {
+        let mut delta = Self::default();
+        let mut changed = false;
+
+        macro_rules! changed_field {
+            ($field:ident) => {
+                if self.$field != previous.$field {
+                    self.$field.as_ref()?;
+                    delta.$field = self.$field.clone();
+                    changed = true;
+                }
+            };
+        }
+
+        changed_field!(text);
+        changed_field!(size);
+        changed_field!(color);
+        changed_field!(bg);
+        changed_field!(pad);
+        changed_field!(pad_h);
+        changed_field!(pad_v);
+        changed_field!(pad_bottom);
+        changed_field!(radius);
+        changed_field!(weight);
+        changed_field!(width);
+        changed_field!(height);
+        changed_field!(bold);
+        changed_field!(font);
+        changed_field!(line_height);
+        changed_field!(lines);
+        changed_field!(border_width);
+        changed_field!(border_color);
+        changed_field!(opacity);
+        changed_field!(shadow);
+        changed_field!(clip);
+        changed_field!(animate);
+        changed_field!(wrap);
+        changed_field!(placeholder_color);
+        changed_field!(align);
+        changed_field!(placeholder);
+        changed_field!(value);
+        changed_field!(label);
+        changed_field!(test_id);
+        changed_field!(gap);
+        changed_field!(align_items);
+        changed_field!(justify);
+        changed_field!(absolute);
+        changed_field!(top);
+        changed_field!(left);
+        changed_field!(content_height);
+        changed_field!(scroll_to);
+        changed_field!(glass_style);
+        changed_field!(glass_tint);
+        changed_field!(glass_interactive);
+        changed_field!(content_inset_top);
+        changed_field!(content_inset_bottom);
+        changed_field!(bottom);
+        changed_field!(map_latitude);
+        changed_field!(map_longitude);
+        changed_field!(map_latitude_delta);
+        changed_field!(map_longitude_delta);
+        changed_field!(map_markers);
+        changed_field!(map_dark);
+        changed_field!(map_shows_user);
+        changed_field!(paged);
+        changed_field!(scroll_x);
+        changed_field!(src);
+        changed_field!(fit);
+        changed_field!(content_width);
+        changed_field!(pressable);
+        changed_field!(native);
+        changed_field!(native_props);
+
+        changed.then_some(delta)
+    }
+
     #[track_caller]
     pub fn text(mut self, value: impl Into<String>) -> Self {
         self.text = Some(value.into());

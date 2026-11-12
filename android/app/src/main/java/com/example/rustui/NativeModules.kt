@@ -53,13 +53,16 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
     private var module: CheetahNativeModule? = null
     private var pendingName: String? = null
     private var pendingProps: JSONObject? = null
+    private var mapScheduled = false
     private var active = false
     var onEvent: ((String, String) -> Unit)? = null
 
     fun configure(name: String, props: JSONObject) {
-        if (module == null && name == "map" && (width <= 1 || height <= 1)) {
+        if (module == null && name == "map" && (width <= 1 || height <= 1 || mapScheduled)) {
             pendingName = name
             pendingProps = props
+            setBackgroundColor(Color.parseColor("#101826"))
+            requestLayout()
             return
         }
         if (module == null) {
@@ -75,13 +78,24 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
 
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
-        if (module == null && pendingName == "map" && width > 1 && height > 1) {
-            val name = pendingName
-            val props = pendingProps
-            pendingName = null
-            pendingProps = null
-            if (name != null && props != null) {
-                materialize(name, props)
+        if (module == null && pendingName == "map" && width > 1 && height > 1 && !mapScheduled) {
+            mapScheduled = true
+            postOnAnimation {
+                mapScheduled = false
+                if (
+                    module == null &&
+                    isAttachedToWindow &&
+                    width > 1 &&
+                    height > 1
+                ) {
+                    val name = pendingName
+                    val props = pendingProps
+                    pendingName = null
+                    pendingProps = null
+                    if (name != null && props != null) {
+                        materialize(name, props)
+                    }
+                }
             }
         }
     }
@@ -100,8 +114,15 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
             else -> null
         }
         if (name != "sheet") {
-            module?.nativeView?.let {
-                addView(it, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+            module?.nativeView?.let { native ->
+                addView(native, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+                if (name == "map" && width > 1 && height > 1) {
+                    native.measure(
+                        View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(height, View.MeasureSpec.EXACTLY),
+                    )
+                    native.layout(0, 0, width, height)
+                }
             }
         }
         module?.setActive(active)
@@ -130,11 +151,17 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
     fun destroy() {
         module?.destroy()
         module = null
+        pendingName = null
+        pendingProps = null
+        mapScheduled = false
     }
 
     fun resetForReuse() {
         destroy()
         removeAllViews()
+        pendingName = null
+        pendingProps = null
+        mapScheduled = false
         background = null
         alpha = 1f
         translationX = 0f

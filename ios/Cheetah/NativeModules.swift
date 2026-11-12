@@ -20,6 +20,7 @@ final class NativeModuleHostView: UIView {
     var onEvent: ((String, String) -> Void)?
     private var pendingName: String?
     private var pendingProps: [String: Any]?
+    private var mapScheduled = false
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -31,9 +32,12 @@ final class NativeModuleHostView: UIView {
     }
 
     func configure(name: String, props: [String: Any]) {
-        if module == nil, name == "map", bounds.width <= 1 || bounds.height <= 1 {
+        if module == nil, name == "map",
+           bounds.width <= 1 || bounds.height <= 1 || mapScheduled
+        {
             pendingName = name
             pendingProps = props
+            backgroundColor = UIColor(hex: "#101826")
             setNeedsLayout()
             return
         }
@@ -70,8 +74,27 @@ final class NativeModuleHostView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        if module == nil, let name = pendingName, bounds.width > 1, bounds.height > 1 {
-            materialize(name: name, props: pendingProps ?? [:])
+        if module == nil, pendingName == "map", bounds.width > 1, bounds.height > 1,
+           !mapScheduled
+        {
+            mapScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                guard let self else {
+                    return
+                }
+                self.mapScheduled = false
+                guard self.module == nil, self.bounds.width > 1,
+                      self.bounds.height > 1
+                else {
+                    return
+                }
+                guard let name = self.pendingName, let props = self.pendingProps else {
+                    return
+                }
+                self.pendingName = nil
+                self.pendingProps = nil
+                self.materialize(name: name, props: props)
+            }
         }
         module?.nativeView.frame = bounds
         module?.layout()
@@ -89,6 +112,9 @@ final class NativeModuleHostView: UIView {
     func destroy() {
         module?.destroy()
         module = nil
+        pendingName = nil
+        pendingProps = nil
+        mapScheduled = false
     }
 }
 
@@ -116,11 +142,11 @@ private enum NativeModuleRegistry {
 private final class PlaceAnnotation: NSObject, MKAnnotation {
     let coordinate: CLLocationCoordinate2D
     let placeID: String
-    let title: String?
-    let kind: String
-    let icon: String
-    let iconColor: String
-    let selected: Bool
+    var title: String?
+    var kind: String
+    var icon: String
+    var iconColor: String
+    var selected: Bool
 
     init(
         coordinate: CLLocationCoordinate2D,
@@ -151,6 +177,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
     private var lastMarkers: String?
     private var lastDark: Bool?
     private var lastShowUser: Bool?
+    private var annotationsByID: [String: PlaceAnnotation] = [:]
 
     var nativeView: UIView {
         map
@@ -228,13 +255,48 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
             return
         }
         lastMarkers = rawMarkers
-        map.removeAnnotations(map.annotations.filter { $0 is PlaceAnnotation })
         guard
             let data = rawMarkers.data(using: .utf8),
             let markers = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
         else {
             return
         }
+
+        let samePlaces = markers.count == annotationsByID.count && markers.allSatisfy { marker in
+            guard
+                let id = marker["id"] as? String,
+                let existing = annotationsByID[id],
+                let latitude = marker["lat"] as? NSNumber,
+                let longitude = marker["lng"] as? NSNumber
+            else {
+                return false
+            }
+            return abs(existing.coordinate.latitude - latitude.doubleValue) < 0.0000001
+                && abs(existing.coordinate.longitude - longitude.doubleValue) < 0.0000001
+        }
+
+        if samePlaces {
+            for marker in markers {
+                guard
+                    let id = marker["id"] as? String,
+                    let existing = annotationsByID[id]
+                else {
+                    continue
+                }
+                existing.title = marker["name"] as? String
+                existing.kind = marker["kind"] as? String ?? "static"
+                existing.icon = marker["icon"] as? String ?? "utensils"
+                existing.iconColor = marker["iconColor"] as? String ?? "#D32F2F"
+                existing.selected = (marker["selected"] as? NSNumber)?.boolValue ?? false
+                if let view = map.view(for: existing) as? MKAnnotationView {
+                    view.image = Self.markerImage(existing)
+                }
+            }
+            return
+        }
+
+        map.removeAnnotations(Array(annotationsByID.values))
+        annotationsByID.removeAll(keepingCapacity: true)
         for marker in markers {
             guard
                 let latitude = marker["lat"] as? NSNumber,
@@ -254,6 +316,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
                 iconColor: marker["iconColor"] as? String ?? "#D32F2F",
                 selected: (marker["selected"] as? NSNumber)?.boolValue ?? false
             )
+            annotationsByID[annotation.placeID] = annotation
             map.addAnnotation(annotation)
         }
     }
@@ -312,11 +375,23 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
         mapView.deselectAnnotation(annotation, animated: false)
     }
 
+    private static var markerImageCache: [String: UIImage] = [:]
+
     private static func markerImage(_ place: PlaceAnnotation) -> UIImage {
+        let cacheKey = [
+            place.placeID,
+            place.kind,
+            place.icon,
+            place.iconColor,
+            place.selected ? "selected" : "idle",
+        ].joined(separator: "|")
+        if let cached = markerImageCache[cacheKey] {
+            return cached
+        }
         let result = place.kind == "result"
         let size = result ? CGSize(width: 40, height: 40) : CGSize(width: 56, height: 56)
         let renderer = UIGraphicsImageRenderer(size: size)
-        return renderer.image { context in
+        let image = renderer.image { context in
             let rect = CGRect(origin: .zero, size: size).insetBy(dx: 2, dy: 2)
             let circle = UIBezierPath(ovalIn: rect)
             context.cgContext.setShadow(
@@ -360,6 +435,8 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
                 )
             }
         }
+        markerImageCache[cacheKey] = image
+        return image
     }
 
     private static let symbols: [String: String] = [

@@ -125,6 +125,7 @@ private final class NodeTag {
     var tapRecognizer: UITapGestureRecognizer?
     var source: String?
     var native: String?
+    var props: [String: Any]?
     var animate = false
     var lastPage: Int = -1
 
@@ -401,6 +402,9 @@ final class RustHost: NSObject {
                     "id": NSNumber(value: id),
                     "props": props,
                 ])
+            case 7:
+                guard let id = reader.u32(), let props = decodeProps(&reader) else { return }
+                updateProps(id: id, delta: props)
             case 3:
                 guard let id = reader.u32(), let count = reader.u32() else { return }
                 var children: [NSNumber] = []
@@ -448,6 +452,10 @@ final class RustHost: NSObject {
         } else if let button = view as? CheetahButton {
             button.title = text
         }
+        if var props = tags[id]?.props {
+            props["text"] = text
+            tags[id]?.props = props
+        }
     }
 
     private func decodeProps(_ reader: inout WireReader) -> [String: Any]? {
@@ -488,6 +496,7 @@ final class RustHost: NSObject {
 
         let node = NodeTag(id: id, kind: kind, view: view)
         let nodeProps = op["props"] as? [String: Any] ?? [:]
+        node.props = nodeProps
         node.native = nodeProps["native"] as? String
         if let source = op["source"] as? [String: Any],
            let file = source["file"] as? String,
@@ -614,7 +623,21 @@ final class RustHost: NSObject {
         guard let view = views[id], let node = tags[id] else {
             return
         }
-        applyProps(view, node: node, props: op["props"] as? [String: Any] ?? [:])
+        let props = op["props"] as? [String: Any] ?? [:]
+        node.props = props
+        applyProps(view, node: node, props: props)
+    }
+
+    private func updateProps(id: UInt32, delta: [String: Any]) {
+        guard let view = views[id], let node = tags[id] else {
+            return
+        }
+        var props = node.props ?? [:]
+        for (key, value) in delta {
+            props[key] = value
+        }
+        node.props = props
+        applyProps(view, node: node, props: props)
     }
 
     private func children(_ op: [String: Any]) {

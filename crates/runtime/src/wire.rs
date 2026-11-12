@@ -16,6 +16,7 @@ const OP_CHILDREN: u8 = 3;
 const OP_LAYOUT: u8 = 4;
 const OP_REMOVE: u8 = 5;
 const OP_TEXT: u8 = 6;
+const OP_UPDATE_PROPS: u8 = 7;
 
 const TYPE_STRING: u8 = 1;
 const TYPE_F32: u8 = 2;
@@ -106,6 +107,11 @@ pub(crate) fn encode(ops: &[Op]) -> Vec<u8> {
             }
             Op::Update { id, props } => {
                 out.push(OP_UPDATE);
+                put_u32(&mut out, *id);
+                put_props(&mut out, props);
+            }
+            Op::UpdateProps { id, props } => {
+                out.push(OP_UPDATE_PROPS);
                 put_u32(&mut out, *id);
                 put_props(&mut out, props);
             }
@@ -354,6 +360,21 @@ fn put_string(out: &mut Vec<u8>, value: &str) {
 mod tests {
     use super::*;
     use crate::element::{column, text};
+
+    #[test]
+    fn encodes_sparse_property_update() {
+        let ops = vec![Op::UpdateProps {
+            id: 7,
+            props: Props {
+                bg: Some("#111111".into()),
+                ..Props::default()
+            },
+        }];
+        let bytes = encode(&ops);
+        assert_eq!(&bytes[0..4], MAGIC);
+        assert_eq!(bytes[8], OP_UPDATE_PROPS);
+        assert!(bytes.len() < 40);
+    }
 
     #[test]
     fn encodes_header_and_create() {
