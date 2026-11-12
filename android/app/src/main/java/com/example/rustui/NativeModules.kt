@@ -55,7 +55,8 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
         }
         module?.apply(props)
         if (name == "sheet") {
-            (module as? SheetNativeModule)?.presentIfNeeded()
+            val sheet = module as? SheetNativeModule
+            android.os.Handler(android.os.Looper.getMainLooper()).post { sheet?.presentIfNeeded() }
         }
     }
 
@@ -79,7 +80,8 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
         module?.setActive(active)
         module?.apply(props)
         if (name == "sheet") {
-            (module as? SheetNativeModule)?.presentIfNeeded()
+            val sheet = module as? SheetNativeModule
+            android.os.Handler(android.os.Looper.getMainLooper()).post { sheet?.presentIfNeeded() }
         }
         pendingName = null
         pendingProps = null

@@ -16,6 +16,10 @@ pub enum Op {
         id: u32,
         props: Props,
     },
+    Text {
+        id: u32,
+        text: String,
+    },
     Children {
         id: u32,
         children: Vec<u32>,
@@ -32,6 +36,12 @@ pub enum Op {
     },
 }
 
+fn only_text_diff(previous: &Props, next: &Props) -> bool {
+    let mut candidate = previous.clone();
+    candidate.text = next.text.clone();
+    candidate == *next
+}
+
 pub fn diff(old: Option<&FlatTree>, new: &FlatTree) -> Vec<Op> {
     let mut creates = Vec::new();
     let mut updates = Vec::new();
@@ -46,10 +56,17 @@ pub fn diff(old: Option<&FlatTree>, new: &FlatTree) -> Vec<Op> {
                 root: node.parent.is_none(),
             }),
             Some(previous) if previous.kind != node.kind || previous.props != node.props => {
-                updates.push(Op::Update {
-                    id: *id,
-                    props: node.props.clone(),
-                });
+                if previous.kind == node.kind && only_text_diff(&previous.props, &node.props) {
+                    updates.push(Op::Text {
+                        id: *id,
+                        text: node.props.text.clone().unwrap_or_default(),
+                    });
+                } else {
+                    updates.push(Op::Update {
+                        id: *id,
+                        props: node.props.clone(),
+                    });
+                }
             }
             Some(_) => {}
         }

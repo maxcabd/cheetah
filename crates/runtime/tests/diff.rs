@@ -37,12 +37,12 @@ fn unchanged_tree_emits_nothing() {
 }
 
 #[test]
-fn unkeyed_text_change_is_an_update() {
+fn unkeyed_text_change_is_a_text_update() {
     let first = flat(column().child(text("hello")));
     let second = flat(column().child(text("goodbye")));
     let ops = diff(Some(&first), &second);
 
-    assert!(ops.iter().any(|op| matches!(op, Op::Update { .. })));
+    assert!(ops.iter().any(|op| matches!(op, Op::Text { .. })));
     assert!(!ops.iter().any(|op| matches!(op, Op::Create { .. })));
 }
 

@@ -125,6 +125,7 @@ private final class NodeTag {
     var tapRecognizer: UITapGestureRecognizer?
     var source: String?
     var native: String?
+    var animate = false
     var lastPage: Int = -1
 
     var isSheet: Bool {
@@ -431,9 +432,21 @@ final class RustHost: NSObject {
             case 5:
                 guard let id = reader.u32() else { return }
                 remove(["op": "remove", "id": NSNumber(value: id)])
+            case 6:
+                guard let id = reader.u32(), let text = reader.string() else { return }
+                applyText(id: id, text: text)
             default:
                 return
             }
+        }
+    }
+
+    private func applyText(id: UInt32, text: String) {
+        guard let view = views[id] else { return }
+        if let label = view as? UILabel {
+            label.text = text
+        } else if let button = view as? CheetahButton {
+            button.title = text
         }
     }
 
@@ -651,12 +664,28 @@ final class RustHost: NSObject {
             return
         }
 
-        view.frame = CGRect(
+        let target = CGRect(
             x: number(op["x"]),
             y: number(op["y"]),
             width: number(op["width"]),
             height: number(op["height"])
         )
+        if let node = tags[id], node.animate, view.superview != nil,
+           view.frame.width > 0, view.frame.height > 0, view.frame != target
+        {
+            let previous = view.frame
+            view.frame = target
+            view.frame = previous
+            UIView.animate(
+                withDuration: 0.2,
+                delay: 0,
+                options: [.curveEaseOut, .allowUserInteraction]
+            ) {
+                view.frame = target
+            }
+        } else {
+            view.frame = target
+        }
 
         if let node = tags[id], node.scrollView != nil {
             updateScrollContent(node)
@@ -944,6 +973,7 @@ final class RustHost: NSObject {
             }
         }
 
+        node.animate = bool(props["animate"])
         let radius = number(props["radius"])
         view.layer.cornerRadius = radius
         if let scroll = view as? UIScrollView {

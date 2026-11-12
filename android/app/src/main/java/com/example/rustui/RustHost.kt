@@ -315,6 +315,11 @@ class RustHost(
                     val id = reader.u32() ?: return
                     remove(id.toInt())
                 }
+                6 -> {
+                    val id = reader.u32() ?: return
+                    val text = reader.string() ?: return
+                    (views[id.toInt()] as? TextView)?.text = text
+                }
                 else -> return
             }
         }
@@ -573,12 +578,31 @@ class RustHost(
         params.height = dp(op.getDouble("height").toFloat())
         params.leftMargin = dp(op.getDouble("x").toFloat())
         params.topMargin = dp(op.getDouble("y").toFloat())
+        planLayoutTransition(view)
         view.layoutParams = params
 
         if (view is ScrollView) {
             val tag = view.tag as? NodeTag
             if (tag != null) {
                 view.post { applyScroll(view, tag) }
+            }
+        }
+    }
+
+    private fun planLayoutTransition(view: View) {
+        val tag = view.tag as? NodeTag ?: return
+        if (!tag.animate || view.width <= 0 || view.height <= 0) return
+        val oldX = view.left
+        val oldY = view.top
+        view.post {
+            if (view.left != oldX || view.top != oldY) {
+                view.translationX = (oldX - view.left).toFloat()
+                view.translationY = (oldY - view.top).toFloat()
+                view.animate()
+                    .translationX(0f)
+                    .translationY(0f)
+                    .setDuration(200L)
+                    .start()
             }
         }
     }
@@ -750,6 +774,7 @@ class RustHost(
 
     private fun applyProps(view: View, props: JSONObject) {
         val tag = view.tag as? NodeTag ?: return
+        tag.animate = props.optBoolean("animate", false)
 
         if (view is NativeMapHost) {
             view.apply(props)

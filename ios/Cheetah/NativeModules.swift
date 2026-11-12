@@ -43,7 +43,10 @@ final class NativeModuleHostView: UIView {
         }
         module?.apply(props: props)
         if let sheet = module as? SheetNativeModule {
-            sheet.presentIfNeeded(owner: self)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                sheet.presentIfNeeded(owner: self)
+            }
         }
         setNeedsLayout()
     }
@@ -56,7 +59,10 @@ final class NativeModuleHostView: UIView {
         }
         created?.apply(props: props)
         if let sheet = created as? SheetNativeModule {
-            sheet.presentIfNeeded(owner: self)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                sheet.presentIfNeeded(owner: self)
+            }
         }
         pendingName = nil
         pendingProps = nil

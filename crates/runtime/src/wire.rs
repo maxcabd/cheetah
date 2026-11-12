@@ -15,6 +15,7 @@ const OP_UPDATE: u8 = 2;
 const OP_CHILDREN: u8 = 3;
 const OP_LAYOUT: u8 = 4;
 const OP_REMOVE: u8 = 5;
+const OP_TEXT: u8 = 6;
 
 const TYPE_STRING: u8 = 1;
 const TYPE_F32: u8 = 2;
@@ -107,6 +108,11 @@ pub(crate) fn encode(ops: &[Op]) -> Vec<u8> {
                 out.push(OP_UPDATE);
                 put_u32(&mut out, *id);
                 put_props(&mut out, props);
+            }
+            Op::Text { id, text } => {
+                out.push(OP_TEXT);
+                put_u32(&mut out, *id);
+                put_string(&mut out, text);
             }
             Op::Children { id, children } => {
                 out.push(OP_CHILDREN);
