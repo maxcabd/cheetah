@@ -456,6 +456,9 @@ private final class SheetNativeModule: CheetahNativeModule {
     private let placeholder = UIView()
     private var sheetHeight: CGFloat = 230
     private var sheetRadius: CGFloat = 28
+    private var searchBar: UIView?
+    private var keyboardTop: CGFloat = 0
+    private var keyboardObservers: [NSObjectProtocol] = []
 
     var nativeView: UIView {
         placeholder
@@ -487,6 +490,79 @@ private final class SheetNativeModule: CheetahNativeModule {
             sheet.selectedDetentIdentifier = identifier
             sheet.largestUndimmedDetentIdentifier = identifier
         }
+    }
+
+    func layout() {
+        updateKeyboardOffset()
+    }
+
+    private func installKeyboardObservers() {
+        guard keyboardObservers.isEmpty else { return }
+        let center = NotificationCenter.default
+        keyboardObservers.append(center.addObserver(
+            forName: UIResponder.keyboardWillChangeFrameNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            self?.readKeyboard(note)
+        })
+        keyboardObservers.append(center.addObserver(
+            forName: UIResponder.keyboardWillHideNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.keyboardTop = 0
+            self?.updateKeyboardOffset()
+        })
+    }
+
+    private func readKeyboard(_ note: Notification) {
+        guard
+            let owner,
+            let window = owner.window,
+            let value = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue
+        else {
+            return
+        }
+        let frame = window.convert(value.cgRectValue, from: nil)
+        keyboardTop = frame.minY < window.bounds.maxY ? frame.minY : 0
+        updateKeyboardOffset()
+    }
+
+    private func updateKeyboardOffset() {
+        guard let owner, let window = owner.window else { return }
+        if searchBar?.window == nil {
+            searchBar = findSearchBar(owner)
+        }
+        guard let bar = searchBar, bar.window != nil else { return }
+        if keyboardTop <= 0 {
+            if abs(bar.transform.ty) > 0.5 {
+                UIView.animate(withDuration: 0.22) { bar.transform = .identity }
+            }
+            return
+        }
+        guard let baseBottom = bar.superview?.convert(bar.frame, to: window)?.maxY else {
+            return
+        }
+        let target = min(0, keyboardTop - 12 - baseBottom)
+        if abs(bar.transform.ty - target) < 0.5 {
+            return
+        }
+        UIView.animate(withDuration: 0.22) {
+            bar.transform = CGAffineTransform(translationX: 0, y: target)
+        }
+    }
+
+    private func findSearchBar(_ view: UIView) -> UIView? {
+        if view.accessibilityIdentifier == "cheetah-search-bar" {
+            return view
+        }
+        for child in view.subviews {
+            if let match = findSearchBar(child) {
+                return match
+            }
+        }
+        return nil
     }
 
     func presentIfNeeded(owner: NativeModuleHostView) {
@@ -534,6 +610,7 @@ private final class SheetNativeModule: CheetahNativeModule {
 
         presenter.present(controller, animated: true)
         self.controller = controller
+        installKeyboardObservers()
     }
 
     func dismiss() {
@@ -542,6 +619,11 @@ private final class SheetNativeModule: CheetahNativeModule {
     }
 
     func destroy() {
+        let center = NotificationCenter.default
+        for observer in keyboardObservers {
+            center.removeObserver(observer)
+        }
+        keyboardObservers.removeAll()
         dismiss()
     }
 }
