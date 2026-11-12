@@ -269,10 +269,10 @@ impl NightshadeApp {
 
         let latitude = (min_lat + max_lat) / 2.0;
         let longitude = (min_lng + max_lng) / 2.0;
-        let latitude_delta = ((max_lat - min_lat) * 2.4).max(0.015);
-        let longitude_delta = ((max_lng - min_lng) * 2.4).max(0.015);
+        let latitude_delta = ((max_lat - min_lat) * 1.4).max(0.012);
+        let longitude_delta = ((max_lng - min_lng) * 1.4).max(0.012);
         // Keep result pins above the card carousel and search bar.
-        let latitude = latitude - latitude_delta * 0.28;
+        let latitude = latitude - latitude_delta * 0.32;
         (latitude, longitude, latitude_delta, longitude_delta)
     }
 
