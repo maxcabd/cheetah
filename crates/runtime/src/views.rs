@@ -31,6 +31,9 @@
 //!   arguments, and `const`s.
 //! - `for item[, index] in path`, `if [!]path`, `if path == value`, `else`.
 //! - `use Component arg=value ...` renders another component.
+//! - `style name = attr=value ...` names a set of attributes; `.name` on an
+//!   element applies it in place, so later attributes override it. Styles
+//!   may include styles defined above them.
 //! - Indentation (spaces) nests children.
 
 use crate::dynprops::{self, DynValue};
@@ -147,6 +150,8 @@ enum Token {
     NotEq,
     Bang,
     Comma,
+    /// `.name`: apply a style.
+    Style(String),
 }
 
 struct Line {
@@ -208,6 +213,17 @@ fn lex_line(text: &str, file: &str, number: usize) -> Result<Vec<Token>, ViewErr
         } else if c == ',' {
             tokens.push(Token::Comma);
             i += 1;
+        } else if c == '.'
+            && chars
+                .get(i + 1)
+                .is_some_and(|n| n.is_alphabetic() || *n == '_')
+        {
+            let start = i + 1;
+            i += 1;
+            while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
+                i += 1;
+            }
+            tokens.push(Token::Style(chars[start..i].iter().collect()));
         } else if c.is_ascii_digit()
             || (c == '-'
                 && chars
@@ -269,10 +285,13 @@ fn lex(file: &str, source: &str) -> Result<Vec<Line>, ViewError> {
 // Parser
 // ---------------------------------------------------------------------------
 
+type Attrs = Vec<(String, Expr)>;
+
 struct Parser<'a> {
     file: &'a str,
     lines: Vec<Line>,
     at: usize,
+    styles: &'a HashMap<String, Attrs>,
 }
 
 fn path_of(word: &str) -> Path {
@@ -344,12 +363,20 @@ impl<'a> Parser<'a> {
         })
     }
 
-    /// `name=value name=value ...`
-    fn attrs(&self, tokens: &[Token], line: usize) -> Result<Vec<(String, Expr)>, ViewError> {
+    /// `name=value .style name=value ...`, styles expanded in place.
+    fn attrs(&self, tokens: &[Token], line: usize) -> Result<Attrs, ViewError> {
         let mut attrs = Vec::new();
         let mut i = 0;
         while i < tokens.len() {
             match (&tokens[i], tokens.get(i + 1), tokens.get(i + 2)) {
+                (Token::Style(name), ..) => {
+                    let style = self
+                        .styles
+                        .get(name)
+                        .ok_or_else(|| self.err(line, format!("unknown style `.{name}`")))?;
+                    attrs.extend(style.iter().cloned());
+                    i += 1;
+                }
                 (Token::Word(name), Some(Token::Eq), Some(value)) => {
                     attrs.push((name.clone(), self.expr(value, line)?));
                     i += 3;
@@ -456,6 +483,9 @@ impl<'a> Parser<'a> {
                 let Some(Token::Word(name)) = tokens.get(1) else {
                     return Err(self.err(number, "expected `use ComponentName`"));
                 };
+                if tokens[2..].iter().any(|t| matches!(t, Token::Style(_))) {
+                    return Err(self.err(number, "styles apply to elements, not `use`"));
+                }
                 let args = self.attrs(&tokens[2..], number)?;
                 if self.lines.get(self.at).is_some_and(|l| l.indent > indent) {
                     return Err(self.err(number, "`use` takes no children"));
@@ -471,7 +501,10 @@ impl<'a> Parser<'a> {
                 let mut args = Vec::new();
                 let mut i = 1;
                 // Positional arguments come before the first `name=`.
-                while i < tokens.len() && tokens.get(i + 1) != Some(&Token::Eq) {
+                while i < tokens.len()
+                    && !matches!(tokens[i], Token::Style(_))
+                    && tokens.get(i + 1) != Some(&Token::Eq)
+                {
                     args.push(self.expr(&tokens[i], number)?);
                     i += 1;
                 }
@@ -506,9 +539,56 @@ impl Views {
     /// Parse `(file name, source)` pairs into one set of components.
     pub fn parse(files: &[(&str, &str)]) -> Result<Self, ViewError> {
         let mut views = Views::default();
+        let mut lexed = Vec::new();
         for (file, source) in files {
-            let lines = lex(file, source)?;
-            let mut parser = Parser { file, lines, at: 0 };
+            lexed.push((*file, lex(file, source)?));
+        }
+
+        // Styles first, so any component can use any style.
+        let mut styles: HashMap<String, Attrs> = HashMap::new();
+        for (file, lines) in &lexed {
+            for line in lines.iter().filter(|line| line.indent == 0) {
+                let [Token::Word(kw), rest @ ..] = line.tokens.as_slice() else {
+                    continue;
+                };
+                if kw != "style" {
+                    continue;
+                }
+                let parser = Parser {
+                    file,
+                    lines: Vec::new(),
+                    at: 0,
+                    styles: &styles,
+                };
+                let (name, attrs) = match rest {
+                    [Token::Word(name), Token::Eq, attrs @ ..] if !attrs.is_empty() => {
+                        (name.clone(), parser.attrs(attrs, line.number)?)
+                    }
+                    _ => {
+                        return Err(
+                            parser.err(line.number, "expected `style name = attr=value ...`")
+                        )
+                    }
+                };
+                for (attr, _) in &attrs {
+                    if !dynprops::supports(attr, 0) {
+                        return Err(parser.err(line.number, format!("unknown attribute `{attr}`")));
+                    }
+                }
+                if styles.contains_key(&name) {
+                    return Err(parser.err(line.number, format!("style `{name}` is defined twice")));
+                }
+                styles.insert(name, attrs);
+            }
+        }
+
+        for (file, lines) in lexed {
+            let mut parser = Parser {
+                file,
+                lines,
+                at: 0,
+                styles: &styles,
+            };
             while parser.at < parser.lines.len() {
                 let line = &parser.lines[parser.at];
                 let (number, indent, tokens) = (line.number, line.indent, line.tokens.clone());
@@ -519,6 +599,7 @@ impl Views {
                 }
                 parser.at += 1;
                 match tokens.as_slice() {
+                    [Token::Word(kw), ..] if kw == "style" => {}
                     [Token::Word(kw), Token::Word(name)] if kw == "component" => {
                         let body = parser.block(0)?;
                         if body.is_empty() {
@@ -931,6 +1012,41 @@ component Inner
                 .message
                 .contains("indent")
         );
+    }
+
+    #[test]
+    fn styles_expand_in_place_and_later_attributes_win() {
+        let views = parse(
+            r##"
+component A
+  column
+    text "x" .body color="#ff0000"
+    text "y" color="#00ff00" .body
+
+style base = size=14 color="#ffffff"
+style body = .base font="satoshi-medium" height=18
+"##,
+        );
+        let root = views.render("A", &json!({}));
+        let (x, y) = (&root.children[0].props, &root.children[1].props);
+        assert_eq!(x.text.as_deref(), Some("x"));
+        assert_eq!((x.size, x.height), (Some(14.0), Some(18.0)));
+        assert_eq!(x.font.as_deref(), Some("satoshi-medium"));
+        assert_eq!(x.color.as_deref(), Some("#ff0000"));
+        assert_eq!(y.color.as_deref(), Some("#ffffff"));
+
+        let err = |source: &str| Views::parse(&[("bad.view", source)]).unwrap_err().message;
+        assert!(err("component A
+  text \"x\" .nope
+")
+        .contains("unknown style `.nope`"));
+        assert!(err("style s = sizee=1
+")
+        .contains("unknown attribute"));
+        assert!(err("style s = .later
+style later = size=1
+")
+        .contains("unknown style"));
     }
 
     #[test]
