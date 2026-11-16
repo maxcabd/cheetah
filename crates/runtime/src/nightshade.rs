@@ -40,6 +40,36 @@ const SUGGESTIONS: [&str; 7] = [
 /// Unset, Nightshade searches its local sample places.
 const API_URL: Option<&str> = option_env!("NIGHTSHADE_API_URL");
 const SEARCH_TIMEOUT_MS: u32 = 60_000;
+/// The backend only has Ottawa data for now. The device location is sent as
+/// the search center only when it is in the Ottawa area; elsewhere (or on an
+/// emulator's default location) the backend's own Ottawa default is used.
+const MARKET_CENTER: (f32, f32) = (45.4215, -75.6972);
+const MARKET_RADIUS_KM: f32 = 60.0;
+
+/// Great-circle distance in kilometres.
+fn distance_km((lat1, lng1): (f32, f32), (lat2, lng2): (f32, f32)) -> f32 {
+    let (lat1, lng1, lat2, lng2) = (
+        lat1.to_radians(),
+        lng1.to_radians(),
+        lat2.to_radians(),
+        lng2.to_radians(),
+    );
+    let a = ((lat2 - lat1) / 2.0).sin().powi(2)
+        + lat1.cos() * lat2.cos() * ((lng2 - lng1) / 2.0).sin().powi(2);
+    6371.0 * 2.0 * a.sqrt().min(1.0).asin()
+}
+
+/// `POST /v1/search` body: the query, plus the device location when usable.
+fn search_body(query: &str, center: Option<(f32, f32)>) -> serde_json::Value {
+    let mut body = serde_json::json!({ "text": query });
+    if let Some((lat, lng)) =
+        center.filter(|&point| distance_km(point, MARKET_CENTER) <= MARKET_RADIUS_KM)
+    {
+        body["lat"] = lat.into();
+        body["lng"] = lng.into();
+    }
+    body
+}
 
 #[derive(Clone, Debug, PartialEq)]
 struct Place {
@@ -934,7 +964,7 @@ impl NightshadeApp {
                 }
                 let request = client
                     .post("/v1/search")
-                    .json(&serde_json::json!({ "text": query }));
+                    .json(&search_body(query, self.center));
                 *pending = Some(request.id);
                 self.calls.push(request.into_call());
                 return;
@@ -1314,6 +1344,22 @@ mod tests {
         assert_eq!(args["method"], "POST");
         assert_eq!(args["timeoutMs"], 60_000);
         args["id"].as_u64().unwrap()
+    }
+
+    #[test]
+    fn search_sends_location_only_inside_the_market() {
+        let glebe = super::search_body("sushi", Some((45.4005, -75.6870)));
+        assert_eq!(glebe["text"], "sushi");
+        assert!((glebe["lat"].as_f64().unwrap() - 45.4005).abs() < 1e-4);
+        assert!((glebe["lng"].as_f64().unwrap() + 75.6870).abs() < 1e-4);
+
+        // Emulator default (Mountain View) and no fix: backend default center.
+        let far = super::search_body("sushi", Some((37.422, -122.084)));
+        assert!(far.get("lat").is_none() && far.get("lng").is_none());
+        assert!(super::search_body("sushi", None).get("lat").is_none());
+
+        let ottawa_to_toronto = super::distance_km((45.4215, -75.6972), (43.6532, -79.3832));
+        assert!((ottawa_to_toronto - 352.0).abs() < 5.0);
     }
 
     #[test]
