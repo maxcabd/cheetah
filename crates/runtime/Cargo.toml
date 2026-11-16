@@ -10,6 +10,9 @@ crate-type = ["cdylib", "staticlib", "rlib"]
 # Dev-only call-site metadata for the agent tree. Enable this in local host
 # builds; production builds should leave it off.
 source-map = []
+# Run the runtime on a desktop and drive a device host over the network
+# (tools/devserver). Never enable in app builds.
+devserver = []
 
 [dependencies]
 futures-util = { version = "0.3.34", features = ["sink"] }

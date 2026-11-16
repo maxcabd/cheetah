@@ -55,6 +55,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "cheetah-devserver"
+version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "runtime",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite",
+]
+
+[[package]]
 name = "cheetah-drive"
 version = "0.1.0"
 dependencies = [

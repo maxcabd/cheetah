@@ -66,4 +66,6 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     // Keyless fallback used by the Nightshade lab when MAPS_API_KEY is absent.
     implementation("org.maplibre.gl:android-sdk:11.13.5")
+    // WebSocket client for the dev server link (debug builds only).
+    debugImplementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

@@ -32,6 +32,7 @@ class MainActivity : Activity() {
             root,
             edgeToEdge,
             intent.getStringExtra("app") ?: "chat",
+            intent.getStringExtra("devServer"),
         )
         root.setOnApplyWindowInsetsListener { _, insets ->
             if (edgeToEdge) {

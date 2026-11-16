@@ -48,12 +48,12 @@ class RustHost(
     private val root: FrameLayout,
     private val edgeToEdge: Boolean,
     app: String = "chat",
+    /** ws:// URL of tools/devserver; debug builds render the app it runs. */
+    devServer: String? = null,
 ) {
-    private var handle: Long = RustBridge.nativeNewApp(
-        this,
-        File(context.filesDir, "cheetah.redb").absolutePath,
-        app,
-    )
+    private var link: RuntimeLink? = devServer
+        ?.let { DevRuntimeLinks.create(this, it) }
+        ?: NativeRuntimeLink.create(this, File(context.filesDir, "cheetah.redb").absolutePath, app)
     private val views = HashMap<Int, View>()
     private val tags = HashMap<Int, NodeTag>()
     private val density = context.resources.displayMetrics.density
@@ -84,11 +84,12 @@ class RustHost(
     }
 
     fun start() {
-        if (handle == 0L) return
+        if (link == null) return
         if (root.width <= 0 || root.height <= 0) {
             root.post { start() }
             return
         }
+        link?.start()
         sendHostInfo()
         resizeIfNeeded()
     }
@@ -110,14 +111,11 @@ class RustHost(
             }
         }
 
-        val current = handle
-        if (current != 0L) {
-            RustBridge.nativeLifecycle(current, active)
-        }
+        link?.lifecycle(active)
     }
 
     fun onWindowInsets(insets: WindowInsets) {
-        if (!edgeToEdge || handle == 0L || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+        if (!edgeToEdge || link == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             return
         }
 
@@ -139,13 +137,13 @@ class RustHost(
      * false at the root so the activity performs its default action.
      */
     fun onBackPressed(): Boolean {
-        if (handle == 0L || !nativeApis.canGoBack) return false
+        if (link == null || !nativeApis.canGoBack) return false
         event(0, "native", """{"module":"navigation","method":"back"}""")
         return true
     }
 
     private fun sendHostInfo() {
-        if (handle == 0L) return
+        if (link == null) return
 
         val payload = JSONObject().apply {
             put("safeTop", safeTop)
@@ -158,11 +156,11 @@ class RustHost(
 
         if (payload == lastHostInfo) return
         lastHostInfo = payload
-        RustBridge.nativeEvent(handle, 0, "host", payload)
+        link?.event(0, "host", payload)
     }
 
     private fun resizeIfNeeded() {
-        if (handle == 0L) return
+        if (link == null) return
         if (root.width <= 0 || root.height <= 0) return
 
         val width = (root.width - root.paddingLeft - root.paddingRight) / density
@@ -172,13 +170,31 @@ class RustHost(
 
         lastWidth = width
         lastHeight = height
-        RustBridge.nativeResize(handle, width, height)
+        link?.resize(width, height)
+    }
+
+    /**
+     * A dev server (re)connected: it runs a fresh app that will send a whole
+     * new view tree, so drop the current one and re-send size and insets.
+     * Main thread.
+     */
+    fun onRuntimeConnected() {
+        for (id in views.keys.toList()) {
+            remove(id)
+        }
+        root.removeAllViews()
+        pools.clear()
+        lastWidth = 0f
+        lastHeight = 0f
+        lastHostInfo = null
+        sendHostInfo()
+        resizeIfNeeded()
     }
 
     fun onOps(bytes: ByteArray) {
-        if (handle == 0L) return
+        if (link == null) return
         mainHandler.post {
-            if (handle != 0L) {
+            if (link != null) {
                 val started = System.nanoTime()
                 perfCreateUs = 0
                 perfUpdateUs = 0
@@ -269,11 +285,11 @@ class RustHost(
         sheetDialog = null
         imageLoader.shutdownNow()
 
-        val current = handle
-        if (current != 0L) {
-            handle = 0L
+        val current = link
+        if (current != null) {
+            link = null
             mainHandler.removeCallbacksAndMessages(null)
-            RustBridge.nativeFree(current)
+            current.free()
         }
     }
 
@@ -862,8 +878,8 @@ class RustHost(
     }
 
     private fun event(id: Int, kind: String, payload: String) {
-        if (handle == 0L) return
-        RustBridge.nativeEventCode(handle, id, eventCode(kind), payload)
+        if (link == null) return
+        link?.eventCode(id, eventCode(kind), payload)
     }
 
     private fun eventCode(kind: String): Int = when (kind) {

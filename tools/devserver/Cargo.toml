@@ -1,0 +1,20 @@
+[package]
+name = "cheetah-devserver"
+version = "0.1.0"
+edition = "2021"
+description = "Run Cheetah apps on the desktop and render them on a device over WebSocket"
+
+[[bin]]
+name = "cheetah-devserver"
+path = "src/main.rs"
+
+[[bin]]
+name = "cheetah-dev"
+path = "src/bin/cheetah-dev.rs"
+
+[dependencies]
+futures-util = { version = "0.3.34", features = ["sink"] }
+runtime = { path = "../../crates/runtime", features = ["devserver", "source-map"] }
+serde_json = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
+tokio-tungstenite = "0.30.0"

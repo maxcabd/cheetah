@@ -190,7 +190,9 @@ final class RustHost: NSObject {
     private let container: UIView
     private let context = HostContext()
     private let contextPointer: UnsafeMutableRawPointer
-    private var handle: Int64 = 0
+    private var link: RuntimeLink?
+    /// Last insets, re-sent when a dev server reconnects.
+    private var hostInfoArgs: (CGFloat, CGFloat, CGFloat, Bool)?
     private var disposed = false
     private var lastSize: CGSize = .zero
     private var lastSafeTop: CGFloat = -1
@@ -237,21 +239,60 @@ final class RustHost: NSObject {
             app = configured.flatMap { $0.isEmpty ? nil : $0 } ?? "chat"
         }
 
-        handle = storePath.withCString { store in
-            "ws://127.0.0.1:9001".withCString { gateway in
-                app.withCString { appName in
-                    cheetah_new_app(
-                        store,
-                        gateway,
-                        appName,
-                        cheetahOpsCallback,
-                        cheetahMeasureCallback,
-                        cheetahMeasureBatchCallback,
-                        contextPointer
-                    )
-                }
-            }
+        // Debug builds: `--dev-server ws://host:8787` renders the app run by
+        // tools/devserver instead of the linked runtime.
+        if let index = arguments.firstIndex(of: "--dev-server"),
+           index + 1 < arguments.count,
+           let dev = DevRuntimeLinks.make(host: self, url: arguments[index + 1])
+        {
+            link = dev
+        } else {
+            link = NativeRuntimeLink(
+                storePath: storePath,
+                app: app,
+                ops: cheetahOpsCallback,
+                measure: cheetahMeasureCallback,
+                measureBatch: cheetahMeasureBatchCallback,
+                context: contextPointer
+            )
         }
+    }
+
+    /// A dev server (re)connected: it runs a fresh app that will send a whole
+    /// new view tree, so drop the current one and re-send size and insets.
+    /// Main thread.
+    func onRuntimeConnected() {
+        for id in Array(views.keys) {
+            remove(["id": NSNumber(value: id)])
+        }
+        viewPool.removeAll()
+        let size = lastSize
+        lastSize = .zero
+        lastSafeTop = -1
+        lastSafeBottom = -1
+        lastKeyboardInset = -1
+        lastGlass = nil
+        if let args = hostInfoArgs {
+            updateHostInfo(safeTop: args.0, safeBottom: args.1, keyboardInset: args.2, glass: args.3)
+        }
+        resize(to: size == .zero ? container.bounds.size : size)
+    }
+
+    /// Op frames from the dev server (any thread).
+    func receiveDevOps(_ data: Data) {
+        onOps(data)
+    }
+
+    /// Text measurement for the dev server (any thread).
+    func measureForDev(_ requests: [(String, CGFloat, Bool, CGFloat)]) -> [Float] {
+        var out: [Float] = []
+        out.reserveCapacity(requests.count * 2)
+        for (text, size, bold, maxWidth) in requests {
+            let measured = context.measure(text: text, size: size, bold: bold, maxWidth: maxWidth)
+            out.append(Float(measured.width))
+            out.append(Float(measured.height))
+        }
+        return out
     }
 
     func updateHostInfo(
@@ -260,9 +301,10 @@ final class RustHost: NSObject {
         keyboardInset: CGFloat,
         glass: Bool
     ) {
-        guard handle != 0 else {
+        guard link != nil else {
             return
         }
+        hostInfoArgs = (safeTop, safeBottom, keyboardInset, glass)
 
         let safeTop = max(safeTop, 0)
         let safeBottom = max(safeBottom, 0)
@@ -296,29 +338,25 @@ final class RustHost: NSObject {
             return
         }
 
-        "host".withCString { kind in
-            json.withCString { payload in
-                cheetah_event(handle, 0, kind, payload)
-            }
-        }
+        link?.event(id: 0, kind: "host", payload: json)
     }
 
     func setActive(_ active: Bool) {
-        guard handle != 0, !disposed else {
+        guard link != nil, !disposed else {
             return
         }
-        cheetah_lifecycle(handle, active ? 1 : 0)
+        link?.lifecycle(active: active)
     }
 
     func resize(to size: CGSize) {
-        guard handle != 0, size.width > 0, size.height > 0 else {
+        guard link != nil, size.width > 0, size.height > 0 else {
             return
         }
         if abs(size.width - lastSize.width) < 0.5, abs(size.height - lastSize.height) < 0.5 {
             return
         }
         lastSize = size
-        cheetah_resize(handle, Float(size.width), Float(size.height))
+        link?.resize(width: Float(size.width), height: Float(size.height))
     }
 
     func dispose() {
@@ -327,10 +365,8 @@ final class RustHost: NSObject {
         }
         disposed = true
 
-        if handle != 0 {
-            cheetah_free(handle)
-            handle = 0
-        }
+        link?.free()
+        link = nil
 
         sheetController?.dismiss(animated: false)
         sheetController = nil
@@ -1302,12 +1338,10 @@ final class RustHost: NSObject {
     }
 
     private func event(id: UInt32, kind: String, payload: String) {
-        guard handle != 0 else {
+        guard link != nil else {
             return
         }
-        payload.withCString { payloadPointer in
-            cheetah_event_code(handle, id, eventCode(kind), payloadPointer)
-        }
+        link?.eventCode(id: id, code: eventCode(kind), payload: payload)
     }
 
     private func eventCode(_ kind: String) -> UInt32 {

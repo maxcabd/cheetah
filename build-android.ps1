@@ -7,7 +7,11 @@ param(
     # A localhost URL is forwarded to this machine with `adb reverse`.
     [string]$ApiUrl,
     # Build every ABI even when installing (default: only the device's ABI).
-    [switch]$AllAbis
+    [switch]$AllAbis,
+    # Render the app run by tools/devserver instead of the bundled runtime
+    # (debug builds). Start it with: cargo run -p cheetah-devserver --bin cheetah-dev
+    [switch]$DevServer,
+    [int]$DevPort = 8787
 )
 
 $ErrorActionPreference = "Stop"
@@ -65,8 +69,15 @@ if ($Install) {
         adb reverse "tcp:$port" "tcp:$port" | Out-Null
     }
 
+    $launch = @("shell", "am", "start", "-n", "com.example.rustui/.MainActivity", "--es", "app", $App)
+    if ($DevServer) {
+        Write-Host "==> Dev server mode: device localhost:$DevPort -> this machine"
+        adb reverse "tcp:$DevPort" "tcp:$DevPort" | Out-Null
+        $launch += @("--es", "devServer", "ws://localhost:$DevPort")
+    }
+
     Write-Host "==> Installing and launching $App"
     adb install -r $apk
     adb shell am force-stop com.example.rustui
-    adb shell am start -n com.example.rustui/.MainActivity --es app $App
+    & adb @launch
 }

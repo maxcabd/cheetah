@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-pub(crate) trait Host: Send + Sync {
+pub trait Host: Send + Sync {
     fn attach(&self) {}
     fn measure_text(&self, text: &str, font_size: f32, bold: bool, max_width: f32) -> (f32, f32);
 
