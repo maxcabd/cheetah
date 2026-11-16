@@ -18,28 +18,28 @@ component Card
           use GlassIcon icon="plus" key="card:plus"
     column width=width height=CARD_BODY bg=CARD_BG pad_h=20 pad_v=12 pad_bottom=20 gap=6
       text place.name size=18 font="brice-bold" color="#ffffff" lines=1 height=22
-      row width=inner height=18 gap=6 align_items="center"
-        text place.address size=14 font="satoshi-medium" color="#fffffff2" width=120 lines=1 height=18
+      row width=inner .line gap=6
+        text place.address .label color="#fffffff2" width=120 lines=1
         use Icon name="car" size=14 color="#ffffff"
-        text "{place.distance} • {place.drive_minutes} min • {place.price}" size=14 font="satoshi-medium" color="#fffffff2" height=18
+        text "{place.distance} • {place.drive_minutes} min • {place.price}" .label color="#fffffff2"
       use Hours place=place inner=inner
       row width=150 height=30 pad_h=12 gap=8 radius=15 border=1 border_color="#404040" align_items="center"
-        row width=16 height=16 radius=8 bg="#ffffff" align_items="center" justify="center"
+        row width=16 height=16 radius=8 bg="#ffffff" .center
           use Icon name="google" size=9 color="#4285F4"
         text place.rating size=12 font="satoshi-medium" color="#ffffff" width=80 height=16
 
 # Open / closed line; `place.hours` is "Closes at …" or "Opens at …".
 component Hours
   if place.status == "open"
-    row width=inner height=18 gap=4 align_items="center"
-      text "Open" size=14 font="satoshi-bold" color=GREEN width=38 height=18
-      text "·" size=14 font="satoshi-medium" color="#ffffff" width=10 height=18
-      text place.hours size=14 font="satoshi-medium" color="#ffffff" width=130 height=18
+    row width=inner .line
+      text "Open" .label font="satoshi-bold" color=GREEN width=38
+      text "·" .label width=10
+      text place.hours .label width=130
   if place.status == "closed"
-    row width=inner height=18 gap=4 align_items="center"
-      text "Closed" size=14 font="satoshi-bold" color=RED width=48 height=18
-      text "·" size=14 font="satoshi-medium" color="#ffffff" width=10 height=18
-      text place.hours size=14 font="satoshi-medium" color="#ffffffb3" width=130 height=18
+    row width=inner .line
+      text "Closed" .label font="satoshi-bold" color=RED width=48
+      text "·" .label width=10
+      text place.hours .label color="#ffffffb3" width=130
   if place.status == "unknown"
     row width=inner height=18
-      text "Hours unavailable" size=14 font="satoshi-medium" color="#ffffffb3" width=160 height=18
+      text "Hours unavailable" .label color="#ffffffb3" width=160

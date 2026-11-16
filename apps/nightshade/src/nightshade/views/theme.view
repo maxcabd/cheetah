@@ -14,3 +14,11 @@ const CAROUSEL_BOTTOM = 225
 const CARD_HEIGHT = 320
 const CARD_HEADER = 180
 const CARD_BODY = 140
+
+# Shared attribute sets: `.name` on an element; later attributes override.
+style center = align_items="center" justify="center"
+style label = size=14 font="satoshi-medium" color="#ffffff" height=18
+style line = height=18 gap=4 align_items="center"
+style heading = size=20 font="brice-semibold" line_height=26 color=TEXT height=26
+style sheet_body = width=-1 weight=1 pad_h=24
+style chip_frame = bg=CHIP_BG border=1 border_color="#ffffff14"

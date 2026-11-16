@@ -3,7 +3,7 @@
 component Sheet
   sheet key="search-panel" absolute=true bottom=0 left=0 width=-1 height=sheet.height radius=54 clip=true bg=SHEET_BG
     column width=-1 height=sheet.height
-      row key="sheet:toggle" pressable=true width=-1 height=24 justify="center" align_items="center"
+      row key="sheet:toggle" pressable=true width=-1 height=24 .center
         row width=30 height=6 bg="#404040" radius=3
       column width=-1 height=sheet.body_height clip=true
         if sheet.body == "collapsed"
@@ -29,8 +29,8 @@ component SearchBar
 
 # No search yet: heading and suggestion chips.
 component EmptyBody
-  column width=-1 weight=1 pad_h=24 gap=14
-    text "Ready to discover?" size=20 font="brice-semibold" line_height=26 color=TEXT height=26
+  column .sheet_body gap=14
+    text "Ready to discover?" .heading
     hscroll width=-1 height=260 content_width=600
       column width=600 height=260
         row width=600 wrap=true gap=10 align_items="center"
@@ -38,11 +38,11 @@ component EmptyBody
             use Chip label=chip.label key=chip.key width=chip.width
 
 component ResultsBody
-  column width=-1 weight=1 pad_h=24 gap=8
-    text query size=20 font="brice-semibold" line_height=26 color=TEXT height=26
+  column .sheet_body gap=8
+    text query .heading
     text "Alright, here's what I'd check out if I were you." size=16 font="satoshi-medium" line_height=20 color=MUTED height=20
-    row key="show-on-map" pressable=true width=154 height=40 pad_h=16 gap=10 radius=18 bg=CHIP_BG border=1 border_color="#ffffff14" align_items="center"
-      text "Show on map" size=14 font="satoshi-medium" color="#ffffff" width=96 height=18
+    row key="show-on-map" pressable=true width=154 height=40 pad_h=16 gap=10 radius=18 .chip_frame align_items="center"
+      text "Show on map" .label width=96
       use Icon name="chevron-right" size=12 color="#ffffff"
     if show_followups
       row width=-1 wrap=true gap=10
@@ -50,6 +50,6 @@ component ResultsBody
           use Chip label=chip.label key=chip.key width=chip.width
 
 component SearchingBody
-  column width=-1 weight=1 pad_h=24 gap=10
+  column .sheet_body gap=10
     text query size=20 font="brice-semibold" color="#ffffff" height=26
     text "Searching..." size=16 height=24
