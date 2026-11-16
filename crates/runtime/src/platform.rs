@@ -201,7 +201,8 @@ pub mod picker {
 }
 
 /// Camera, photo library, and documents. Event: `result {id, files: [{path,
-/// name, mime, size}]}` (empty when cancelled). Files are copied into the
+/// name, mime, size}]}` (empty when cancelled); [`save_image`](media::save_image)
+/// answers `saved {id, ok}`. Files are copied into the
 /// app's cache directory, so Rust can read them with `std::fs`.
 pub mod media {
     use super::*;

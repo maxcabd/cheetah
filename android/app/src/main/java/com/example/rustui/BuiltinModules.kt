@@ -8,6 +8,9 @@ object BuiltinModules {
         ApiModuleSpec("auth") { AuthModule(it) },
         ApiModuleSpec("dialog") { DialogModule(it) },
         ApiModuleSpec("picker") { PickerModule(it) },
+        ApiModuleSpec("media") { MediaModule(it) },
+        ApiModuleSpec("files") { FilesModule(it) },
+        ApiModuleSpec("purchases") { PurchasesModule(it) },
     )
     val views: List<ViewModuleSpec> = listOf(
         ViewModuleSpec("switch") { context, host -> SwitchViewModule(context, host) },

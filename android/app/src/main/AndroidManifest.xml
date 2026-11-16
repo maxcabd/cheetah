@@ -37,6 +37,17 @@
         <receiver
             android:name=".NotificationReceiver"
             android:exported="false" />
+
+        <!-- Shares captured and app files with the camera and share sheet. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.cheetah.files"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/cheetah_file_paths" />
+        </provider>
     </application>
 
 </manifest>

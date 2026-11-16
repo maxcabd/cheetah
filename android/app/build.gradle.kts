@@ -86,6 +86,10 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     // Keyless fallback used by the Nightshade lab when MAPS_API_KEY is absent.
     implementation("org.maplibre.gl:android-sdk:11.13.5")
+    // FileProvider for camera capture and file sharing.
+    implementation("androidx.core:core:1.13.1")
+    // In-app purchases (purchases module).
+    implementation("com.android.billingclient:billing:7.1.1")
     // WebSocket client for the dev server link (debug builds only).
     debugImplementation("com.squareup.okhttp3:okhttp:4.12.0")
 }

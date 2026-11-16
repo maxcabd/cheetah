@@ -8,6 +8,9 @@ enum BuiltinModules {
         AuthModule.self,
         DialogModule.self,
         PickerModule.self,
+        MediaModule.self,
+        FilesModule.self,
+        PurchasesModule.self,
     ]
     static let views: [CheetahViewModule.Type] = [
         SwitchViewModule.self,
