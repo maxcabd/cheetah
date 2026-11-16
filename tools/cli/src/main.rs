@@ -1,0 +1,667 @@
+//! `cheetah`: one command surface for developing and shipping Cheetah apps.
+//!
+//!   cheetah dev [--app nightshade] [--port 8787] [--host IP] [--no-qr]
+//!   cheetah build ios|android [--dev] [--app nightshade] [--install]
+//!   cheetah fingerprint [ios|android]
+//!   cheetah doctor
+//!
+//! Every command takes `--json` for machine-readable output (one JSON object
+//! per line), which is what agents should use.
+
+use cheetah_cli::{dev_link, fingerprint, lan_ip, repo_root};
+use serde_json::{json, Value};
+use std::io::Write;
+use std::path::Path;
+use std::process::{Command, ExitCode, Stdio};
+
+const USAGE: &str = "\
+cheetah: develop and ship Cheetah apps
+
+  cheetah dev [--app NAME] [--port N] [--host IP] [--no-qr]
+      Run the app on this machine with live reload, and print a QR code that
+      connects a dev build to it. A USB Android device is connected
+      automatically.
+  cheetah build ios|android [--dev] [--app NAME] [--install]
+      --dev builds the dev client (connects to `cheetah dev`). Android builds
+      locally (--install puts it on the USB device); iOS queues the TestFlight
+      workflow on GitHub (needs GITHUB_TOKEN).
+  cheetah fingerprint [ios|android]
+      Native code fingerprint. A dev build needs rebuilding only when this
+      changes; Rust and .view edits never need one.
+  cheetah doctor
+      Check the tools each command needs.
+
+  --json   machine-readable output (one JSON object per line)";
+
+const ANDROID_PACKAGE: &str = "com.example.rustui";
+const TESTFLIGHT_WORKFLOW: &str = "testflight.yml";
+
+struct Args {
+    json: bool,
+    positional: Vec<String>,
+    flags: Vec<(String, Option<String>)>,
+}
+
+impl Args {
+    fn parse(raw: Vec<String>) -> Self {
+        const VALUED: &[&str] = &["--app", "--port", "--host"];
+        let mut args = Args {
+            json: false,
+            positional: Vec::new(),
+            flags: Vec::new(),
+        };
+        let mut iter = raw.into_iter();
+        while let Some(arg) = iter.next() {
+            if arg == "--json" {
+                args.json = true;
+            } else if VALUED.contains(&arg.as_str()) {
+                let value = iter.next();
+                args.flags.push((arg, value));
+            } else if arg.starts_with("--") {
+                args.flags.push((arg, None));
+            } else {
+                args.positional.push(arg);
+            }
+        }
+        args
+    }
+
+    fn flag(&self, name: &str) -> bool {
+        self.flags.iter().any(|(flag, _)| flag == name)
+    }
+
+    fn value(&self, name: &str) -> Option<&str> {
+        self.flags
+            .iter()
+            .rev()
+            .find(|(flag, _)| flag == name)
+            .and_then(|(_, value)| value.as_deref())
+    }
+
+    fn unknown_flags(&self, known: &[&str]) -> Option<String> {
+        self.flags
+            .iter()
+            .map(|(flag, _)| flag)
+            .find(|flag| !known.contains(&flag.as_str()))
+            .cloned()
+    }
+}
+
+/// Prints for people, or one JSON line for agents.
+struct Out {
+    json: bool,
+}
+
+impl Out {
+    fn say(&self, text: impl AsRef<str>) {
+        if !self.json {
+            println!("{}", text.as_ref());
+        }
+    }
+
+    fn data(&self, value: Value) {
+        if self.json {
+            println!("{value}");
+            let _ = std::io::stdout().flush();
+        }
+    }
+
+    fn fail(&self, command: &str, message: &str) -> ExitCode {
+        if self.json {
+            println!(
+                "{}",
+                json!({"command": command, "ok": false, "error": message})
+            );
+        } else {
+            eprintln!("cheetah {command}: {message}");
+        }
+        ExitCode::FAILURE
+    }
+}
+
+fn main() -> ExitCode {
+    let raw: Vec<String> = std::env::args().skip(1).collect();
+    let Some(command) = raw.first().cloned() else {
+        println!("{USAGE}");
+        return ExitCode::SUCCESS;
+    };
+    let args = Args::parse(raw[1..].to_vec());
+    let out = Out { json: args.json };
+    if args.flag("--help") || command == "help" || command == "-h" {
+        println!("{USAGE}");
+        return ExitCode::SUCCESS;
+    }
+    match command.as_str() {
+        "dev" => dev(&args, &out),
+        "build" => build(&args, &out),
+        "fingerprint" => fingerprint_command(&args, &out),
+        "doctor" => doctor(&out),
+        other => out.fail(other, "unknown command; run `cheetah help`"),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// cheetah dev
+// ---------------------------------------------------------------------------
+
+fn dev(args: &Args, out: &Out) -> ExitCode {
+    if let Some(flag) = args.unknown_flags(&["--app", "--port", "--host", "--no-qr"]) {
+        return out.fail("dev", &format!("unknown option {flag}"));
+    }
+    let root = repo_root();
+    let app = args.value("--app").unwrap_or("nightshade");
+    let port: u16 = match args.value("--port").map(str::parse).transpose() {
+        Ok(port) => port.unwrap_or(8787),
+        Err(_) => return out.fail("dev", "--port needs a number"),
+    };
+    let host = match args.value("--host") {
+        Some(host) => host.to_string(),
+        None => match lan_ip() {
+            Some(ip) => ip.to_string(),
+            None => {
+                out.say("cheetah dev: no network address found; phones on Wi-Fi can't connect (USB still works)");
+                "127.0.0.1".to_string()
+            }
+        },
+    };
+    let server = format!("ws://{host}:{port}");
+    let link = dev_link(&server);
+
+    out.data(json!({
+        "command": "dev",
+        "event": "starting",
+        "app": app,
+        "server": server,
+        "link": link,
+        "native": native_fingerprints(&root),
+    }));
+    out.say(format!("Cheetah dev server for `{app}` at {server}"));
+    if !args.flag("--no-qr") && !out.json {
+        match qr(&link) {
+            Some(code) => println!("{code}"),
+            None => println!("(link too long for a QR code)"),
+        }
+        println!("Scan with the phone's camera (dev build installed): {link}");
+        println!("Needs the phone on the same Wi-Fi, and port {port} allowed through this machine's firewall.");
+    }
+    connect_usb_android(port, out);
+
+    // The watcher rebuilds and restarts the server on Rust changes; .view and
+    // literal edits apply without a rebuild.
+    let mut command = Command::new("cargo");
+    command.current_dir(&root).args([
+        "run",
+        "-q",
+        "-p",
+        "cheetah-devserver",
+        "--bin",
+        "cheetah-dev",
+        "--",
+    ]);
+    if root.join("apps").join(app).join("Cargo.toml").is_file() {
+        command.args(["-p", app, "--bin", app]);
+    } else {
+        command.args([
+            "-p",
+            "cheetah-devserver",
+            "--bin",
+            "cheetah-devserver",
+            "--app",
+            app,
+        ]);
+    }
+    command.args(["--lan", "--port", &port.to_string()]);
+    match command.status() {
+        Ok(status) if status.success() => ExitCode::SUCCESS,
+        Ok(status) => out.fail("dev", &format!("dev server exited with {status}")),
+        Err(error) => out.fail("dev", &format!("cannot run cargo: {error}")),
+    }
+}
+
+/// White-on-dark half-block QR code for a terminal.
+fn qr(text: &str) -> Option<String> {
+    use qrcode::render::unicode::Dense1x2;
+    let code = qrcode::QrCode::new(text.as_bytes()).ok()?;
+    Some(
+        code.render::<Dense1x2>()
+            .dark_color(Dense1x2::Light)
+            .light_color(Dense1x2::Dark)
+            .quiet_zone(true)
+            .build(),
+    )
+}
+
+/// A USB Android device with the dev build: forward the port and open the
+/// dev link on it, so no scanning is needed.
+fn connect_usb_android(port: u16, out: &Out) {
+    let devices = adb_devices();
+    if devices.is_empty() {
+        return;
+    }
+    let installed = output("adb", &["shell", "pm", "list", "packages", ANDROID_PACKAGE])
+        .is_some_and(|text| text.contains(ANDROID_PACKAGE));
+    if !installed {
+        out.say("Android device found, but the dev build isn't installed: cheetah build android --dev --install");
+        out.data(json!({"command": "dev", "event": "android", "connected": false, "reason": "dev build not installed"}));
+        return;
+    }
+    let forwarded = output(
+        "adb",
+        &["reverse", &format!("tcp:{port}"), &format!("tcp:{port}")],
+    )
+    .is_some();
+    let link = dev_link(&format!("ws://localhost:{port}"));
+    // Quoted for the device shell (`?` is a glob character there).
+    let opened = output(
+        "adb",
+        &[
+            "shell",
+            "am",
+            "start",
+            "-a",
+            "android.intent.action.VIEW",
+            "-d",
+            &format!("'{link}'"),
+        ],
+    )
+    .is_some();
+    let connected = forwarded && opened;
+    out.say(if connected {
+        "Android device on USB: opened the dev build, connecting to this server"
+    } else {
+        "Android device on USB: could not open the dev build (adb reverse or am start failed)"
+    });
+    out.data(
+        json!({"command": "dev", "event": "android", "connected": connected, "devices": devices}),
+    );
+}
+
+// ---------------------------------------------------------------------------
+// cheetah build
+// ---------------------------------------------------------------------------
+
+fn build(args: &Args, out: &Out) -> ExitCode {
+    if let Some(flag) = args.unknown_flags(&["--dev", "--app", "--install"]) {
+        return out.fail("build", &format!("unknown option {flag}"));
+    }
+    let root = repo_root();
+    let app = args.value("--app").unwrap_or("nightshade");
+    let dev = args.flag("--dev");
+    match args.positional.first().map(String::as_str) {
+        Some("android") => build_android(&root, app, dev, args.flag("--install"), out),
+        Some("ios") => build_ios(&root, app, dev, out),
+        _ => out.fail(
+            "build",
+            "name a platform: cheetah build ios|android [--dev]",
+        ),
+    }
+}
+
+fn build_android(root: &Path, app: &str, dev: bool, install: bool, out: &Out) -> ExitCode {
+    if !dev {
+        return out.fail(
+            "build",
+            "only dev builds are supported for Android so far: add --dev",
+        );
+    }
+    let native = fingerprint::native(root, "android").unwrap_or_else(|| "unknown".into());
+    out.say(format!("Building the Android dev build ({native})"));
+    let shell = if cfg!(windows) { "powershell" } else { "pwsh" };
+    let mut command = Command::new(shell);
+    command
+        .current_dir(root)
+        .env("CHEETAH_NATIVE_FINGERPRINT", &native)
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "build-android.ps1",
+            "-App",
+            app,
+        ]);
+    if install {
+        command.arg("-Install");
+    }
+    if out.json {
+        // Keep stdout for the JSON result.
+        command.stdout(Stdio::null());
+    }
+    let status = match command.status() {
+        Ok(status) => status,
+        Err(error) => return out.fail("build", &format!("cannot run {shell}: {error}")),
+    };
+    if !status.success() {
+        return out.fail("build", &format!("build-android.ps1 failed ({status})"));
+    }
+    let apk = root.join("android/app/build/outputs/apk/debug/app-debug.apk");
+    out.say(format!("Built {}", apk.display()));
+    out.data(json!({
+        "command": "build", "ok": true, "platform": "android", "dev": true,
+        "native": native, "apk": apk, "installed": install,
+    }));
+    ExitCode::SUCCESS
+}
+
+/// Queues the TestFlight workflow. Dev builds use their own bundle ID
+/// (`….dev`, "Cheetah Dev") so they never reach release testers.
+fn build_ios(root: &Path, app: &str, dev: bool, out: &Out) -> ExitCode {
+    let Some(repo) = github_repo(root) else {
+        return out.fail(
+            "build",
+            "no GitHub `origin` remote; iOS builds run on GitHub Actions",
+        );
+    };
+    let actions = format!("https://github.com/{repo}/actions/workflows/{TESTFLIGHT_WORKFLOW}");
+    let Some(token) = std::env::var("GITHUB_TOKEN")
+        .or_else(|_| std::env::var("GH_TOKEN"))
+        .ok()
+        .filter(|token| !token.is_empty())
+    else {
+        return out.fail(
+            "build",
+            &format!(
+                "set GITHUB_TOKEN (a token allowed to run workflows) to queue the build, \
+                 or run it from {actions} with dev_client = {dev}"
+            ),
+        );
+    };
+    let body = json!({
+        "ref": current_branch(root).unwrap_or_else(|| "main".into()),
+        "inputs": {"app": app, "dev_client": dev},
+    });
+    // Headers via stdin, so the token isn't on the command line.
+    let child = Command::new("curl")
+        .args([
+            "-sS",
+            "-o",
+            "-",
+            "-w",
+            "\n%{http_code}",
+            "-X",
+            "POST",
+            "-H",
+            "@-",
+        ])
+        .args([
+            "-H",
+            "Accept: application/vnd.github+json",
+            "-d",
+            &body.to_string(),
+        ])
+        .arg(format!(
+            "https://api.github.com/repos/{repo}/actions/workflows/{TESTFLIGHT_WORKFLOW}/dispatches"
+        ))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn();
+    let mut child = match child {
+        Ok(child) => child,
+        Err(error) => return out.fail("build", &format!("cannot run curl: {error}")),
+    };
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = writeln!(stdin, "Authorization: Bearer {token}");
+    }
+    let result = match child.wait_with_output() {
+        Ok(result) => result,
+        Err(error) => return out.fail("build", &format!("curl failed: {error}")),
+    };
+    let text = String::from_utf8_lossy(&result.stdout);
+    let status = text.lines().last().unwrap_or("").trim();
+    if status != "204" {
+        let detail = text.lines().next().unwrap_or("").trim();
+        return out.fail(
+            "build",
+            &format!("GitHub refused the dispatch (HTTP {status}): {detail}"),
+        );
+    }
+    let kind = if dev { "dev build" } else { "release build" };
+    out.say(format!(
+        "Queued the iOS {kind}: {actions}\nTestFlight notifies installed testers when it's ready (usually 15-30 min)."
+    ));
+    out.data(json!({
+        "command": "build", "ok": true, "platform": "ios", "dev": dev,
+        "queued": true, "runs": actions,
+        "native": fingerprint::native(root, "ios"),
+    }));
+    ExitCode::SUCCESS
+}
+
+/// `owner/name` from the `origin` remote.
+fn github_repo(root: &Path) -> Option<String> {
+    let url = output_in(root, "git", &["remote", "get-url", "origin"])?;
+    let path = url
+        .trim()
+        .strip_prefix("https://github.com/")
+        .or_else(|| url.trim().strip_prefix("git@github.com:"))?;
+    Some(
+        path.trim_end_matches('/')
+            .trim_end_matches(".git")
+            .to_string(),
+    )
+}
+
+fn current_branch(root: &Path) -> Option<String> {
+    output_in(root, "git", &["rev-parse", "--abbrev-ref", "HEAD"])
+        .map(|branch| branch.trim().to_string())
+        .filter(|branch| !branch.is_empty() && branch != "HEAD")
+}
+
+// ---------------------------------------------------------------------------
+// cheetah fingerprint / doctor
+// ---------------------------------------------------------------------------
+
+fn native_fingerprints(root: &Path) -> Value {
+    fingerprint::PLATFORMS
+        .iter()
+        .map(|platform| {
+            (
+                platform.to_string(),
+                json!(fingerprint::native(root, platform)),
+            )
+        })
+        .collect::<serde_json::Map<_, _>>()
+        .into()
+}
+
+fn fingerprint_command(args: &Args, out: &Out) -> ExitCode {
+    let root = repo_root();
+    let platforms: Vec<&str> = match args.positional.first().map(String::as_str) {
+        None => fingerprint::PLATFORMS.to_vec(),
+        Some(platform) if fingerprint::PLATFORMS.contains(&platform) => vec![platform],
+        Some(other) => return out.fail("fingerprint", &format!("unknown platform `{other}`")),
+    };
+    let mut values = serde_json::Map::new();
+    for platform in platforms {
+        let Some(value) = fingerprint::native(&root, platform) else {
+            return out.fail("fingerprint", "needs git and a git checkout");
+        };
+        out.say(&value);
+        values.insert(platform.into(), json!(value));
+    }
+    out.data(json!({"command": "fingerprint", "ok": true, "native": values}));
+    ExitCode::SUCCESS
+}
+
+fn doctor(out: &Out) -> ExitCode {
+    let root = repo_root();
+    let first_line = |text: String| text.lines().next().unwrap_or("").trim().to_string();
+    let sdk = std::env::var("ANDROID_HOME")
+        .or_else(|_| std::env::var("ANDROID_SDK_ROOT"))
+        .ok()
+        .filter(|path| Path::new(path).is_dir());
+    let devices = adb_devices();
+    let android_targets = output("rustup", &["target", "list", "--installed"])
+        .is_some_and(|t| t.contains("aarch64-linux-android") && t.contains("x86_64-linux-android"));
+    // (name, found, required for, detail)
+    let checks: Vec<(&str, bool, &str, String)> = vec![
+        (
+            "git",
+            output("git", &["--version"]).is_some(),
+            "everything",
+            output("git", &["--version"])
+                .map(first_line)
+                .unwrap_or_default(),
+        ),
+        (
+            "cargo",
+            output("cargo", &["--version"]).is_some(),
+            "everything",
+            output("cargo", &["--version"])
+                .map(first_line)
+                .unwrap_or_default(),
+        ),
+        (
+            "lan address",
+            lan_ip().is_some(),
+            "dev on Wi-Fi",
+            lan_ip().map(|ip| ip.to_string()).unwrap_or_default(),
+        ),
+        (
+            "android sdk",
+            sdk.is_some(),
+            "android builds",
+            sdk.unwrap_or_else(|| "set ANDROID_HOME".into()),
+        ),
+        (
+            "android targets",
+            android_targets,
+            "android builds",
+            if android_targets {
+                "aarch64/x86_64-linux-android".into()
+            } else {
+                "rustup target add aarch64-linux-android x86_64-linux-android".into()
+            },
+        ),
+        (
+            "adb",
+            output("adb", &["version"]).is_some(),
+            "android install",
+            output("adb", &["version"])
+                .map(first_line)
+                .unwrap_or_default(),
+        ),
+        (
+            "android device",
+            !devices.is_empty(),
+            "android install",
+            devices.join(", "),
+        ),
+        (
+            "github token",
+            std::env::var("GITHUB_TOKEN")
+                .or_else(|_| std::env::var("GH_TOKEN"))
+                .is_ok_and(|t| !t.is_empty()),
+            "ios builds",
+            "GITHUB_TOKEN or GH_TOKEN".into(),
+        ),
+        (
+            "github remote",
+            github_repo(&root).is_some(),
+            "ios builds",
+            github_repo(&root).unwrap_or_default(),
+        ),
+        (
+            "dx",
+            output("dx", &["--version"]).is_some(),
+            "rust hot patching (optional)",
+            output("dx", &["--version"])
+                .map(first_line)
+                .unwrap_or_else(|| "cargo install dioxus-cli --version 0.7.10 --locked".into()),
+        ),
+    ];
+    let required_missing = checks
+        .iter()
+        .any(|(_, found, needed, _)| !found && *needed == "everything");
+    for (name, found, needed, detail) in &checks {
+        let mark = if *found { "ok " } else { "-- " };
+        out.say(format!(
+            "{mark} {name:<15} {detail}{}",
+            if *found {
+                String::new()
+            } else {
+                format!("  (needed for {needed})")
+            }
+        ));
+    }
+    out.data(json!({
+        "command": "doctor",
+        "ok": !required_missing,
+        "checks": checks.iter().map(|(name, found, needed, detail)| json!({
+            "name": name, "ok": found, "needed_for": needed, "detail": detail,
+        })).collect::<Vec<_>>(),
+        "native": native_fingerprints(&root),
+    }));
+    if required_missing {
+        ExitCode::FAILURE
+    } else {
+        ExitCode::SUCCESS
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Process helpers
+// ---------------------------------------------------------------------------
+
+/// Stdout of a successful command, or `None`.
+fn output(program: &str, args: &[&str]) -> Option<String> {
+    run(Command::new(program).args(args))
+}
+
+fn output_in(dir: &Path, program: &str, args: &[&str]) -> Option<String> {
+    run(Command::new(program).current_dir(dir).args(args))
+}
+
+fn run(command: &mut Command) -> Option<String> {
+    let result = command
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    result
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&result.stdout).into_owned())
+}
+
+/// Serials of attached, authorized Android devices.
+fn adb_devices() -> Vec<String> {
+    output("adb", &["devices"])
+        .map(|text| {
+            text.lines()
+                .skip(1)
+                .filter_map(|line| line.strip_suffix("\tdevice"))
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(list: &[&str]) -> Args {
+        Args::parse(list.iter().map(|s| s.to_string()).collect())
+    }
+
+    #[test]
+    fn parses_flags_values_and_positionals() {
+        let parsed = args(&["ios", "--dev", "--app", "chat", "--json"]);
+        assert_eq!(parsed.positional, ["ios"]);
+        assert!(parsed.flag("--dev") && parsed.json);
+        assert_eq!(parsed.value("--app"), Some("chat"));
+        assert_eq!(parsed.unknown_flags(&["--dev", "--app"]), None);
+        assert_eq!(
+            args(&["--nope"]).unknown_flags(&["--dev"]).as_deref(),
+            Some("--nope")
+        );
+    }
+
+    #[test]
+    fn qr_codes_render_for_dev_links() {
+        let code = qr(&dev_link("ws://192.168.100.200:8787")).unwrap();
+        assert!(code.lines().count() > 10);
+    }
+}
