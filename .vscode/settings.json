@@ -1,0 +1,6 @@
+{
+  // Don't run `cargo check` on every save: it competes with the dev server
+  // rebuild (cheetah-dev / dev-hot.ps1) for CPU and the target-dir lock.
+  // rust-analyzer's own diagnostics still update as you type.
+  "rust-analyzer.checkOnSave": false
+}
