@@ -239,12 +239,16 @@ final class RustHost: NSObject {
             app = configured.flatMap { $0.isEmpty ? nil : $0 } ?? "chat"
         }
 
-        // Debug builds: `--dev-server ws://host:8787` renders the app run by
+        // Dev builds: `--dev-server ws://host:8787`, or the server from the
+        // last scanned `cheetah://dev` link, renders the app run by
         // tools/devserver instead of the linked runtime.
-        if let index = arguments.firstIndex(of: "--dev-server"),
-           index + 1 < arguments.count,
-           let dev = DevRuntimeLinks.make(host: self, url: arguments[index + 1])
-        {
+        let devServer: String?
+        if let index = arguments.firstIndex(of: "--dev-server"), index + 1 < arguments.count {
+            devServer = arguments[index + 1]
+        } else {
+            devServer = DevRuntimeLinks.savedServer
+        }
+        if let devServer, let dev = DevRuntimeLinks.make(host: self, url: devServer) {
             link = dev
         } else {
             link = NativeRuntimeLink(

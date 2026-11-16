@@ -40,6 +40,10 @@ targets:
         # App compiled into the runtime that opens without launch arguments.
         # TestFlight builds override this (no launch arguments there).
         CHEETAH_DEFAULT_APP: chat
+        CHEETAH_DISPLAY_NAME: Cheetah
+        # `cheetah fingerprint ios`; dev builds report it to the dev server,
+        # which says when native code changed and a new dev build is needed.
+        CHEETAH_NATIVE_FINGERPRINT: unknown
 
   CheetahUITests:
     type: bundle.ui-testing

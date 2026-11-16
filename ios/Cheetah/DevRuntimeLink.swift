@@ -1,20 +1,50 @@
 import Foundation
 
-/// Debug builds: connect RustHost to tools/devserver instead of the linked
-/// runtime. Launch with `--dev-server ws://<mac-ip>:8787` (run the server
-/// with `--lan` for a device on Wi-Fi; the simulator can use 127.0.0.1).
+/// Dev builds (Debug, or Release with CHEETAH_DEV_CLIENT for TestFlight):
+/// connect RustHost to tools/devserver instead of the linked runtime. The
+/// server comes from `--dev-server ws://<ip>:8787`, or from scanning the QR
+/// code `cheetah dev` prints (`cheetah://dev?url=...`), which is remembered.
 enum DevRuntimeLinks {
+    private static let savedKey = "CheetahDevServer"
+
     static func make(host: RustHost, url: String) -> RuntimeLink? {
-        #if DEBUG
+        #if DEBUG || CHEETAH_DEV_CLIENT
         guard let url = URL(string: url) else { return nil }
         return DevRuntimeLink(host: host, url: url)
         #else
         return nil
         #endif
     }
+
+    /// The dev server from the last `cheetah://dev` link, if any.
+    static var savedServer: String? {
+        #if DEBUG || CHEETAH_DEV_CLIENT
+        return UserDefaults.standard.string(forKey: savedKey)
+        #else
+        return nil
+        #endif
+    }
+
+    /// Remember the server in a `cheetah://dev?url=ws://...` link (without
+    /// `url`, forget it). True when `url` was a dev link.
+    static func handle(_ url: URL) -> Bool {
+        #if DEBUG || CHEETAH_DEV_CLIENT
+        guard url.scheme == "cheetah", url.host == "dev" else { return false }
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let server = items.first(where: { $0.name == "url" })?.value
+        if let server, !server.isEmpty {
+            UserDefaults.standard.set(server, forKey: savedKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: savedKey)
+        }
+        return true
+        #else
+        return false
+        #endif
+    }
 }
 
-#if DEBUG
+#if DEBUG || CHEETAH_DEV_CLIENT
 /// RuntimeLink over WebSocket (protocol in tools/devserver/src/main.rs).
 /// Reconnects automatically; every (re)connection starts a fresh app on the
 /// server, so the host clears its views and re-sends its size and insets.
@@ -107,6 +137,9 @@ private final class DevRuntimeLink: NSObject, RuntimeLink, URLSessionWebSocketDe
         open = true
         announcedWaiting = false
         print("CheetahDev: connected to \(url)")
+        // Lets the dev server say when native code changed since this build.
+        let native = Bundle.main.object(forInfoDictionaryKey: "CheetahNativeFingerprint") as? String
+        send(["t": "hello", "platform": "ios", "native": native ?? "unknown"], on: webSocketTask)
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.freed else { return }
             self.host?.onRuntimeConnected()

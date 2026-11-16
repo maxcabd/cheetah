@@ -9,6 +9,12 @@ name: TestFlight
 #   APP_STORE_CONNECT_KEY_ID         API key ID
 #   APP_STORE_CONNECT_ISSUER_ID      API key issuer ID
 #   APP_STORE_CONNECT_PRIVATE_KEY    Contents of the AuthKey_XXXX.p8 file
+# Dev builds (dev_client, or `cheetah build ios --dev`) connect to
+# `cheetah dev` and ship as a separate app, com.nightshade.cheetah.dev
+# ("Cheetah Dev"), so release testers never get them. Create that app in App
+# Store Connect once before the first dev build. They're only needed again
+# when native code changes (`cheetah fingerprint ios`).
+#
 # Optional repository variable:
 #   NIGHTSHADE_API_URL               HTTPS backend URL baked into the build;
 #                                    unset, Nightshade uses its sample places
@@ -21,6 +27,10 @@ on:
         type: choice
         options: [nightshade, nightshade-demo, chat]
         default: nightshade
+      dev_client:
+        description: "Dev build: connects to `cheetah dev` (separate Cheetah Dev app)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -30,7 +40,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BUNDLE_ID: com.nightshade.cheetah
+  BUNDLE_ID: ${{ inputs.dev_client && 'com.nightshade.cheetah.dev' || 'com.nightshade.cheetah' }}
+  DISPLAY_NAME: ${{ inputs.dev_client && 'Cheetah Dev' || 'Cheetah' }}
+  # Compiles the dev server connection into the Release build.
+  DEV_CONDITIONS: ${{ inputs.dev_client && 'CHEETAH_DEV_CLIENT' || '' }}
 
 jobs:
   upload:
@@ -71,6 +84,13 @@ jobs:
           chmod +x ios/build-rust.sh
           ./ios/build-rust.sh 2>&1 | tail -40
 
+      - name: Native fingerprint
+        shell: bash
+        run: |
+          native=$(cargo run -q -p cheetah-cli -- fingerprint ios)
+          echo "NATIVE_FINGERPRINT=$native" >> "$GITHUB_ENV"
+          echo "Native fingerprint: $native"
+
       - name: Generate Xcode project
         shell: bash
         run: |
@@ -107,6 +127,9 @@ jobs:
             CODE_SIGN_STYLE=Automatic \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             CHEETAH_DEFAULT_APP="${{ inputs.app }}" \
+            CHEETAH_DISPLAY_NAME="$DISPLAY_NAME" \
+            CHEETAH_NATIVE_FINGERPRINT="$NATIVE_FINGERPRINT" \
+            SWIFT_ACTIVE_COMPILATION_CONDITIONS="$DEV_CONDITIONS" \
             > "$RUNNER_TEMP/archive.log" 2>&1 && status=0 || status=$?
           grep -E "error:|\*\* ARCHIVE" "$RUNNER_TEMP/archive.log" || true
           if [ "$status" -ne 0 ]; then tail -80 "$RUNNER_TEMP/archive.log"; fi
@@ -149,6 +172,7 @@ jobs:
             echo "## Uploaded to TestFlight"
             echo "- Bundle: \`$BUNDLE_ID\` build **${{ github.run_number }}**"
             echo "- Opens: \`${{ inputs.app }}\`"
+            echo "- Dev build: ${{ inputs.dev_client }} (native \`$NATIVE_FINGERPRINT\`)"
             echo "- Backend: ${{ vars.NIGHTSHADE_API_URL || 'sample places (NIGHTSHADE_API_URL not set)' }}"
             echo "Processing on Apple's side takes a few minutes before the build appears in TestFlight."
           } >> "$GITHUB_STEP_SUMMARY"
