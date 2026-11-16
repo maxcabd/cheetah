@@ -1,5 +1,6 @@
 use crate::app::{App, Event, HostInfo, ViewContext};
 use crate::element::{column, glass, hscroll, input, map, native, row, sheet, text, Element};
+use crate::native_api::NativeCall;
 use crate::resource::Resource;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -178,6 +179,8 @@ pub struct NightshadeApp {
     selected: usize,
     focused: bool,
     expanded: bool,
+    center: Option<(f32, f32)>,
+    calls: Vec<NativeCall>,
     suggestion_cache: RefCell<Option<Element>>,
     card_cache: RefCell<HashMap<(&'static str, u32), Element>>,
 }
@@ -193,6 +196,8 @@ impl NightshadeApp {
             selected: 0,
             focused: false,
             expanded: false,
+            center: None,
+            calls: vec![NativeCall::new("location", "request", "{}")],
             suggestion_cache: RefCell::new(None),
             card_cache: RefCell::new(HashMap::new()),
         };
@@ -242,7 +247,8 @@ impl NightshadeApp {
 
     fn region(&self) -> (f32, f32, f32, f32) {
         if !self.has_results() {
-            return (INITIAL_LAT, INITIAL_LNG, 0.025, 0.025);
+            let (latitude, longitude) = self.center.unwrap_or((INITIAL_LAT, INITIAL_LNG));
+            return (latitude, longitude, 0.025, 0.025);
         }
 
         let places = self.visible_places();
@@ -761,6 +767,7 @@ impl NightshadeApp {
                 self.selected = 0;
                 self.focused = false;
                 self.expanded = false;
+                self.haptic("light");
             }
             Err(error) => {
                 self.search = Resource::Failed(error);
@@ -789,6 +796,29 @@ impl NightshadeApp {
         if let Some(index) = response.places.iter().position(|place| place.id == id) {
             self.selected = index;
             self.focused = true;
+            self.haptic("selection");
+        }
+    }
+
+    fn haptic(&mut self, style: &str) {
+        self.calls.push(NativeCall::new("haptics", style, "{}"));
+    }
+
+    fn handle_native_event(&mut self, payload: &str) {
+        let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) else {
+            return;
+        };
+        if value.get("module").and_then(|value| value.as_str()) != Some("location")
+            || value.get("method").and_then(|value| value.as_str()) != Some("result")
+            || value.get("ok").and_then(|value| value.as_bool()) != Some(true)
+        {
+            return;
+        }
+
+        let latitude = value.get("latitude").and_then(|value| value.as_f64());
+        let longitude = value.get("longitude").and_then(|value| value.as_f64());
+        if let (Some(latitude), Some(longitude)) = (latitude, longitude) {
+            self.center = Some((latitude as f32, longitude as f32));
         }
     }
 
@@ -879,6 +909,11 @@ impl App for NightshadeApp {
             return;
         }
 
+        if event.kind == "native" {
+            self.handle_native_event(&event.payload);
+            return;
+        }
+
         let Some(key) = event.key.as_deref() else {
             return;
         };
@@ -915,6 +950,7 @@ impl App for NightshadeApp {
                     {
                         self.selected = index;
                         self.focused = true;
+                        self.haptic("selection");
                     }
                 }
             }
@@ -937,6 +973,7 @@ impl App for NightshadeApp {
                     }
                 } else if key == "sheet:toggle" {
                     self.expanded = !self.expanded;
+                    self.haptic("selection");
                 } else if key == "search:send" {
                     let query = self.draft.clone();
                     self.run_search(&query);
@@ -953,12 +990,17 @@ impl App for NightshadeApp {
             _ => {}
         }
     }
+
+    fn take_native_calls(&mut self) -> Vec<NativeCall> {
+        std::mem::take(&mut self.calls)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::NightshadeApp;
-    use crate::app::{App, Event};
+    use crate::app::{App, Event, Runtime, Viewport};
+    use crate::diff::Op;
 
     fn click(app: &mut NightshadeApp, key: &str) {
         app.update(Event {
@@ -1039,5 +1081,36 @@ mod tests {
 
         assert!(!app.has_results());
         assert_eq!(app.search.error(), Some("Place search is unavailable"));
+    }
+
+    #[test]
+    fn native_location_recenters_and_calls_reach_the_wire() {
+        let mut app = NightshadeApp::new(false);
+        let startup = app.take_native_calls();
+        assert!(startup
+            .iter()
+            .any(|call| call.module == "location" && call.method == "request"));
+
+        app.update(Event {
+            id: 0,
+            key: None,
+            kind: "native".into(),
+            payload: r#"{"module":"location","method":"result","ok":true,"latitude":40.0,"longitude":-73.0}"#.into(),
+        });
+        assert_eq!(app.center, Some((40.0, -73.0)));
+
+        click(&mut app, "suggest:0");
+        let mut runtime = Runtime::new(app);
+        let ops = runtime.render(Viewport {
+            width: 393.0,
+            height: 852.0,
+        });
+        assert!(ops.iter().any(|op| {
+            matches!(
+                op,
+                Op::Invoke { module, method, .. }
+                    if module == "haptics" && method == "light"
+            )
+        }));
     }
 }
