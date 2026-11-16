@@ -7,6 +7,7 @@
 //! mirrors the FFI boundary:
 //!
 //! device -> server (JSON text):
+//!   {"t":"hello","platform":"ios","native":"ios-0123…"}   first, from dev builds
 //!   {"t":"resize","w":393,"h":852}
 //!   {"t":"event","id":12,"code":1,"payload":""}      numeric event code
 //!   {"t":"event","id":0,"kind":"host","payload":"{...}"}
@@ -518,6 +519,13 @@ fn handle(runtime: &DevRuntime, host: &WsHost, text: &str) {
             }
         }
         Some("lifecycle") => runtime.lifecycle(message["active"].as_bool().unwrap_or(true)),
+        Some("hello") => println!(
+            "devserver: {}",
+            native_status(
+                message["platform"].as_str().unwrap_or(""),
+                message["native"].as_str().unwrap_or("unknown"),
+            )
+        ),
         Some("measured") => {
             let seq = message["seq"].as_u64().unwrap_or(u64::MAX);
             let sizes = message["sizes"]
@@ -532,6 +540,26 @@ fn handle(runtime: &DevRuntime, host: &WsHost, text: &str) {
             host.answer(seq, sizes);
         }
         _ => {}
+    }
+}
+
+/// Whether the connected dev build has this checkout's native code. Rust and
+/// `.view` changes run here; only Swift/Kotlin changes need a new dev build.
+fn native_status(platform: &str, installed: &str) -> String {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let Some(local) = cheetah_cli::fingerprint::native(&root, platform) else {
+        return format!("{platform} dev build connected ({installed}); no git checkout to compare");
+    };
+    if installed == local {
+        format!("{platform} dev build is current ({local})")
+    } else if installed == "unknown" || installed.is_empty() {
+        format!(
+            "{platform} dev build doesn't report its native code version; if native code changed, rebuild it: cheetah build {platform} --dev"
+        )
+    } else {
+        format!(
+            "NATIVE CODE CHANGED since this {platform} dev build (installed {installed}, local {local}); new native APIs won't work until you rebuild: cheetah build {platform} --dev"
+        )
     }
 }
 
@@ -657,4 +685,18 @@ pub fn run(name: &str, options: Options, source: AppSource) {
             ));
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::native_status;
+
+    #[test]
+    fn says_when_the_dev_build_needs_rebuilding() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let local = cheetah_cli::fingerprint::native(&root, "ios").expect("git checkout");
+        assert!(native_status("ios", &local).contains("is current"));
+        assert!(native_status("ios", "ios-0000000000000000").contains("NATIVE CODE CHANGED"));
+        assert!(native_status("ios", "unknown").contains("cheetah build ios --dev"));
+    }
 }
