@@ -19,6 +19,8 @@ class NodeTag(val id: Int, val view: View, val kind: String) {
     var scrollGeneration: Int = 0
     var imageUrl: String? = null
     var source: String? = null
+    var testId: String? = null
+    var label: String? = null
     var native: String? = null
     var animate: Boolean = false
     var props: org.json.JSONObject? = null

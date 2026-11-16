@@ -579,7 +579,7 @@ private class SheetNativeModule(
     }
 
     private fun findSearchBar(view: View): View? {
-        if (view.contentDescription?.toString() == "cheetah-search-bar") {
+        if ((view.tag as? NodeTag)?.testId == "cheetah-search-bar") {
             return view
         }
         if (view is ViewGroup) {

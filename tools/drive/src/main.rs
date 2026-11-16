@@ -709,7 +709,7 @@ mod tests {
     const XML: &str = r#"
         <hierarchy>
           <node class="android.widget.TextView" text="Coffee"
-                content-desc="chip-coffee" resource-id="chip"
+                content-desc="Coffee filter" resource-id="chip-coffee"
                 clickable="true" bounds="[10,20][110,80]" />
           <node class="android.widget.TextView" text="Java Haven"
                 content-desc="" resource-id=""
@@ -729,9 +729,11 @@ mod tests {
     #[test]
     fn finds_by_text_desc_and_id() {
         let nodes = parse_tree(XML).unwrap();
-        assert_eq!(find(&nodes, "Coffee").unwrap().desc, "chip-coffee");
+        // testId arrives as resource-id; label arrives as content-desc.
         assert_eq!(find(&nodes, "chip-coffee").unwrap().text, "Coffee");
-        assert_eq!(find(&nodes, "chip").unwrap().text, "Coffee");
+        assert_eq!(find(&nodes, "Coffee filter").unwrap().id, "chip-coffee");
+        assert_eq!(find(&nodes, "Coffee").unwrap().id, "chip-coffee");
+        assert_eq!(find(&nodes, "filter").unwrap().text, "Coffee");
         assert!(find_optional(&nodes, "Missing").is_none());
     }
 

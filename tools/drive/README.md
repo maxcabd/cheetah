@@ -25,9 +25,11 @@ cargo run -p cheetah-drive -- android logs 300
 `testId`/accessibility id, visible text, or substring, in that order. A
 card or chip without a test id can still be driven by its label.
 
-The Rust Android host applies `testId` as the native view's content
-description, so the same identifiers used by iOS UI tests are visible to
-the driver.
+The Rust Android host publishes `testId` as the accessibility view-id
+(UIAutomator `resource-id`) and keeps `label` as the spoken content
+description, matching iOS `accessibilityIdentifier` vs `accessibilityLabel`.
+The same identifiers used by iOS UI tests are therefore visible to the
+driver without TalkBack reading them aloud.
 
 ## Scripts
 

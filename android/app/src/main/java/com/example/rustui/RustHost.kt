@@ -1049,10 +1049,22 @@ class RustHost(
             view.setPadding(horizontal, vertical, horizontal, vertical)
         }
 
-        if (props.has("testId")) {
-            view.contentDescription = props.getString("testId")
-        } else if (props.has("label")) {
-            view.contentDescription = props.getString("label")
+        // `label` is what TalkBack reads; `testId` is a test-only identity and
+        // must never be spoken. testId surfaces as the accessibility node's
+        // view-id (UIAutomator `resource-id`), mirroring iOS
+        // accessibilityLabel vs accessibilityIdentifier.
+        val label = props.optString("label").takeIf { it.isNotEmpty() }
+        if (label != null) {
+            view.contentDescription = label
+        } else if (tag.label != null) {
+            view.contentDescription = null
+        }
+        tag.label = label
+
+        val testId = props.optString("testId").takeIf { it.isNotEmpty() }
+        if (testId != tag.testId) {
+            tag.testId = testId
+            view.accessibilityDelegate = if (testId != null) TestIdAccessibility else null
         }
 
         if (props.has("placeholder") && view is EditText) {
