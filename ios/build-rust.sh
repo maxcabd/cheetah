@@ -5,9 +5,17 @@ cd "$(dirname "$0")/.."
 
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 
-cargo build -p runtime --target aarch64-apple-ios --release --features source-map
-cargo build -p runtime --target aarch64-apple-ios-sim --release --features source-map
-cargo build -p runtime --target x86_64-apple-ios --release --features source-map
+# Dev builds keep call-site metadata for the UI driver. Release/TestFlight
+# builds pass CHEETAH_RUST_FEATURES="" to leave it out.
+FEATURES="${CHEETAH_RUST_FEATURES-source-map}"
+FEATURE_ARGS=()
+if [ -n "$FEATURES" ]; then
+  FEATURE_ARGS=(--features "$FEATURES")
+fi
+
+cargo build -p runtime --target aarch64-apple-ios --release ${FEATURE_ARGS[@]+"${FEATURE_ARGS[@]}"}
+cargo build -p runtime --target aarch64-apple-ios-sim --release ${FEATURE_ARGS[@]+"${FEATURE_ARGS[@]}"}
+cargo build -p runtime --target x86_64-apple-ios --release ${FEATURE_ARGS[@]+"${FEATURE_ARGS[@]}"}
 
 mkdir -p target/sim-universal
 lipo -create \

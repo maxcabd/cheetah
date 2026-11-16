@@ -1,0 +1,169 @@
+name: TestFlight
+
+# Builds a signed iOS release and uploads it to TestFlight. Run it from the
+# Actions tab. Signing is automatic through the App Store Connect API key
+# (cloud-managed certificates), so no certificates or profiles are stored here.
+#
+# Required repository secrets:
+#   APPLE_TEAM_ID                    Developer team ID (10 characters)
+#   APP_STORE_CONNECT_KEY_ID         API key ID
+#   APP_STORE_CONNECT_ISSUER_ID      API key issuer ID
+#   APP_STORE_CONNECT_PRIVATE_KEY    Contents of the AuthKey_XXXX.p8 file
+# Optional repository variable:
+#   NIGHTSHADE_API_URL               HTTPS backend URL baked into the build;
+#                                    unset, Nightshade uses its sample places
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: "App that opens on launch"
+        type: choice
+        options: [nightshade, nightshade-demo, chat]
+        default: nightshade
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+env:
+  BUNDLE_ID: com.nightshade.cheetah
+
+jobs:
+  upload:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check signing secrets
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          missing=()
+          [ -n "$APPLE_TEAM_ID" ] || missing+=(APPLE_TEAM_ID)
+          [ -n "$KEY_ID" ] || missing+=(APP_STORE_CONNECT_KEY_ID)
+          [ -n "$ISSUER_ID" ] || missing+=(APP_STORE_CONNECT_ISSUER_ID)
+          [ -n "$PRIVATE_KEY" ] || missing+=(APP_STORE_CONNECT_PRIVATE_KEY)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error title=Missing secrets::Add these repository secrets: ${missing[*]}"
+            exit 1
+          fi
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
+
+      - name: Build Rust XCFramework (release, no source map)
+        shell: bash
+        env:
+          CHEETAH_RUST_FEATURES: ""
+          NIGHTSHADE_API_URL: ${{ vars.NIGHTSHADE_API_URL }}
+        run: |
+          set -o pipefail
+          chmod +x ios/build-rust.sh
+          ./ios/build-rust.sh 2>&1 | tail -40
+
+      - name: Generate Xcode project
+        shell: bash
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+
+      - name: Install App Store Connect API key
+        shell: bash
+        env:
+          PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+        run: |
+          printf '%s\n' "$PRIVATE_KEY" > "$RUNNER_TEMP/AuthKey.p8"
+          chmod 600 "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Archive
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          xcodebuild archive \
+            -project ios/Cheetah.xcodeproj \
+            -scheme Cheetah \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Cheetah.xcarchive" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER_ID" \
+            DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            CHEETAH_DEFAULT_APP="${{ inputs.app }}" \
+            > "$RUNNER_TEMP/archive.log" 2>&1 && status=0 || status=$?
+          grep -E "error:|\*\* ARCHIVE" "$RUNNER_TEMP/archive.log" || true
+          if [ "$status" -ne 0 ]; then tail -80 "$RUNNER_TEMP/archive.log"; fi
+          exit "$status"
+
+      - name: Upload to TestFlight
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>uploadSymbols</key><true/>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict>
+          </plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/Cheetah.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+            -authenticationKeyID "$KEY_ID" \
+            -authenticationKeyIssuerID "$ISSUER_ID" \
+            > "$RUNNER_TEMP/export.log" 2>&1 && status=0 || status=$?
+          grep -E "error:|Upload|\*\* EXPORT" "$RUNNER_TEMP/export.log" || true
+          if [ "$status" -ne 0 ]; then tail -80 "$RUNNER_TEMP/export.log"; exit "$status"; fi
+          {
+            echo "## Uploaded to TestFlight"
+            echo "- Bundle: \`$BUNDLE_ID\` build **${{ github.run_number }}**"
+            echo "- Opens: \`${{ inputs.app }}\`"
+            echo "- Backend: ${{ vars.NIGHTSHADE_API_URL || 'sample places (NIGHTSHADE_API_URL not set)' }}"
+            echo "Processing on Apple's side takes a few minutes before the build appears in TestFlight."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testflight-logs
+          path: |
+            ${{ runner.temp }}/archive.log
+            ${{ runner.temp }}/export.log
+          if-no-files-found: ignore
+
+      - name: Remove API key
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/AuthKey.p8"

@@ -232,7 +232,9 @@ final class RustHost: NSObject {
         } else if arguments.contains("--nightshade") {
             app = "nightshade"
         } else {
-            app = "chat"
+            // Build-time default (CHEETAH_DEFAULT_APP), e.g. for TestFlight.
+            let configured = Bundle.main.object(forInfoDictionaryKey: "CheetahDefaultApp") as? String
+            app = configured.flatMap { $0.isEmpty ? nil : $0 } ?? "chat"
         }
 
         handle = storePath.withCString { store in
