@@ -31,6 +31,10 @@ cheetah: develop and ship Cheetah apps
       Write apps/NAME/cheetah.toml (name, IDs, permissions, links, native
       modules) into the iOS and Android projects. --dev makes the iOS dev
       build; --check only reports what would change.
+  cheetah publish [--app NAME] [--runtime VERSION] [--out DIR]
+      Bundle the app's .view files for over-the-air updates
+      (runtime::updates). Host the file and point Updates at its URL; it
+      applies to app builds whose runtime (version+build) matches.
   cheetah fingerprint [ios|android] [--app NAME]
       Native code fingerprint. A dev build needs rebuilding only when this
       changes; Rust and .view edits never need one.
@@ -51,7 +55,7 @@ struct Args {
 
 impl Args {
     fn parse(raw: Vec<String>) -> Self {
-        const VALUED: &[&str] = &["--app", "--port", "--host"];
+        const VALUED: &[&str] = &["--app", "--port", "--host", "--runtime", "--out"];
         let mut args = Args {
             json: false,
             positional: Vec::new(),
@@ -143,6 +147,7 @@ fn main() -> ExitCode {
         "build" => build(&args, &out),
         "fingerprint" => fingerprint_command(&args, &out),
         "prebuild" => prebuild_command(&args, &out),
+        "publish" => publish_command(&args, &out),
         "doctor" => doctor(&out),
         other => out.fail(other, "unknown command; run `cheetah help`"),
     }
@@ -502,6 +507,35 @@ fn fingerprint_command(args: &Args, out: &Out) -> ExitCode {
     }
     out.data(json!({"command": "fingerprint", "ok": true, "native": values}));
     ExitCode::SUCCESS
+}
+
+fn publish_command(args: &Args, out: &Out) -> ExitCode {
+    if let Some(flag) = args.unknown_flags(&["--app", "--runtime", "--out"]) {
+        return out.fail("publish", &format!("unknown option {flag}"));
+    }
+    let root = repo_root();
+    let app = args.value("--app").unwrap_or(DEFAULT_APP);
+    let target = args.value("--out").map(std::path::PathBuf::from);
+    match cheetah_cli::publish::publish(&root, app, args.value("--runtime"), target.as_deref()) {
+        Ok(published) => {
+            out.say(format!(
+                "Bundled {} view files for runtime {} (version {}):
+  {}
+Upload it and point the app's Updates at its URL.",
+                published.files.len(),
+                published.runtime,
+                published.version,
+                published.path.display()
+            ));
+            out.data(json!({
+                "command": "publish", "ok": true, "app": app,
+                "runtime": published.runtime, "version": published.version,
+                "path": published.path, "files": published.files,
+            }));
+            ExitCode::SUCCESS
+        }
+        Err(error) => out.fail("publish", &error),
+    }
 }
 
 fn prebuild_command(args: &Args, out: &Out) -> ExitCode {

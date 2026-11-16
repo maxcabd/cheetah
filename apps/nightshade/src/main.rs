@@ -26,6 +26,9 @@ mod native_api {
 mod resource {
     pub use runtime::resource::*;
 }
+mod updates {
+    pub use runtime::updates::*;
+}
 #[cfg(test)]
 mod views {
     pub use runtime::views::*;

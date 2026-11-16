@@ -326,3 +326,20 @@ fn views_render_result_cards() {
     let screen = render(&app);
     assert!(find(&screen, "followup:1").is_some());
 }
+
+#[test]
+fn runtime_version_matches_cheetah_toml() {
+    // Over-the-air bundles are published for `version+build`.
+    let config = include_str!("../../cheetah.toml");
+    let field = |name: &str| {
+        config
+            .lines()
+            .find_map(|line| line.strip_prefix(name)?.trim_start().strip_prefix('='))
+            .map(|value| value.trim().trim_matches('"').to_string())
+            .unwrap()
+    };
+    assert_eq!(
+        super::RUNTIME_VERSION,
+        format!("{}+{}", field("version"), field("build"))
+    );
+}

@@ -9,6 +9,7 @@ use crate::element::Element;
 use crate::http::{HttpClient, HttpResponse};
 use crate::native_api::{NativeCall, NativeEvent};
 use crate::resource::Resource;
+use crate::updates::Updates;
 use serde::Deserialize;
 
 mod api;
@@ -21,6 +22,12 @@ mod theme;
 
 use self::api::*;
 use self::theme::*;
+
+/// Over-the-air views (`cheetah publish`): set NIGHTSHADE_VIEWS_URL at build
+/// time to the published bundle's URL.
+const VIEWS_URL: Option<&str> = option_env!("NIGHTSHADE_VIEWS_URL");
+/// This build's runtime: `version+build` from cheetah.toml (a test checks).
+const RUNTIME_VERSION: &str = "1.0.0+1";
 
 const SUGGESTIONS: [&str; 7] = [
     "Cafes within 12 min walk",
@@ -44,6 +51,7 @@ pub struct NightshadeApp {
     expanded: bool,
     center: Option<(f32, f32)>,
     calls: Vec<NativeCall>,
+    updates: Option<Updates>,
 }
 
 impl NightshadeApp {
@@ -70,7 +78,14 @@ impl NightshadeApp {
             expanded: false,
             center: None,
             calls: vec![NativeCall::new("location", "request", "{}")],
+            updates: None,
         };
+
+        if let Some(url) = VIEWS_URL.filter(|url| !url.is_empty() && !demo) {
+            let mut updates = Updates::new(url, RUNTIME_VERSION);
+            app.calls.extend(updates.start());
+            app.updates = Some(updates);
+        }
 
         if demo {
             app.search = Resource::Ready(SearchResponse {
@@ -112,6 +127,12 @@ impl App for NightshadeApp {
                 self.host = host;
             }
             return;
+        }
+
+        if let Some(updates) = &mut self.updates {
+            if updates.on_event(&event) {
+                return;
+            }
         }
 
         if event.kind == "native" {
@@ -198,6 +219,10 @@ impl App for NightshadeApp {
 
     fn take_native_calls(&mut self) -> Vec<NativeCall> {
         std::mem::take(&mut self.calls)
+    }
+
+    fn take_views(&mut self) -> Option<Vec<(String, String)>> {
+        self.updates.as_mut()?.take_views()
     }
 
     fn views(&self) -> Vec<(&'static str, &'static str)> {

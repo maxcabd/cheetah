@@ -3,6 +3,7 @@
 pub mod config;
 pub mod fingerprint;
 pub mod prebuild;
+pub mod publish;
 
 use std::net::{IpAddr, UdpSocket};
 use std::path::{Path, PathBuf};

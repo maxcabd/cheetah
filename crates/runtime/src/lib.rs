@@ -39,6 +39,7 @@ pub mod resource;
 pub mod secure_store;
 pub mod store;
 pub mod tree;
+pub mod updates;
 pub mod views;
 pub mod virtual_list;
 mod wire;

@@ -610,6 +610,7 @@ dependencies = [
 name = "nightshade"
 version = "0.1.0"
 dependencies = [
+ "cheetah-cli",
  "cheetah-devserver",
  "runtime",
  "serde",

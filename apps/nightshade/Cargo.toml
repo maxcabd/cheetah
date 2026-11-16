@@ -18,3 +18,6 @@ cheetah-devserver = { path = "../../tools/devserver" }
 runtime = { path = "../../crates/runtime", features = ["devserver", "source-map"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[dev-dependencies]
+cheetah-cli = { path = "../../tools/cli" }

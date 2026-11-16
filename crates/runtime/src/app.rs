@@ -127,6 +127,11 @@ pub trait App {
     fn take_native_calls(&mut self) -> Vec<NativeCall> {
         Vec::new()
     }
+    /// Replacement `.view` files, checked before every render; for
+    /// over-the-air updates (see `runtime::updates`).
+    fn take_views(&mut self) -> Option<Vec<(String, String)>> {
+        None
+    }
     /// The app's `.view` files as `(path, source)`, usually embedded with
     /// `include_str!`. Parsed once at startup; the dev server can replace
     /// them in a running app.
@@ -220,6 +225,18 @@ impl Runtime {
     }
 
     pub fn render(&mut self, viewport: Viewport) -> Vec<Op> {
+        // New `.view` templates from the app (over-the-air updates). Invalid
+        // ones are ignored: the views on screen stay.
+        if let Some(files) = self.app.take_views() {
+            let sources: Vec<(&str, &str)> = files
+                .iter()
+                .map(|(name, source)| (name.as_str(), source.as_str()))
+                .collect();
+            if let Ok(views) = crate::views::Views::parse(&sources) {
+                self.views = views;
+                self.app.hot_reloaded();
+            }
+        }
         let build_start = Instant::now();
         let root = {
             let context =

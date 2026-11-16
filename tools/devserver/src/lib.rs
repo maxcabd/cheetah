@@ -152,6 +152,10 @@ impl<A: App> App for Hot<A> {
     fn views(&self) -> Vec<(&'static str, &'static str)> {
         self.0.views()
     }
+
+    fn take_views(&mut self) -> Option<Vec<(String, String)>> {
+        self.0.take_views()
+    }
 }
 
 /// The connected session, re-rendered after each hot patch.
