@@ -1,0 +1,5 @@
+# Fixture for tests/view_edit.rs: the test adds an element to this file while
+# the dev server runs, then restores it.
+component Screen
+  column width=300 height=600 gap=8
+    text "view-before" size=14

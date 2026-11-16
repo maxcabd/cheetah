@@ -22,7 +22,7 @@
 use futures_util::{SinkExt, StreamExt};
 use runtime::app::{Action, App, Event, ViewContext};
 use runtime::dev::{
-    rough_measure, DevRuntime, Host, LiteralOverrides, RerenderHandle, TextRequest,
+    rough_measure, DevRuntime, Host, LiteralOverrides, RerenderHandle, TextRequest, Views,
 };
 use runtime::{Element, NativeCall, Runtime};
 use serde_json::{json, Value};
@@ -147,6 +147,10 @@ impl<A: App> App for Hot<A> {
     fn hot_reloaded(&mut self) {
         self.0.hot_reloaded();
     }
+
+    fn views(&self) -> Vec<(&'static str, &'static str)> {
+        self.0.views()
+    }
 }
 
 /// The connected session, re-rendered after each hot patch.
@@ -181,6 +185,8 @@ struct LiveState {
     /// Per file: literal edits relative to the baseline.
     edits: Option<HashMap<PathBuf, Vec<live::Located>>>,
     overrides: Option<LiteralOverrides>,
+    /// Latest `.view` templates parsed from disk, sent to every session.
+    views: Option<Views>,
 }
 
 impl LiveState {
@@ -189,6 +195,7 @@ impl LiveState {
             baseline: None,
             edits: None,
             overrides: None,
+            views: None,
         }
     }
 }
@@ -262,6 +269,47 @@ fn rebase_live_edits() {
     state.overrides = Some(LiteralOverrides::default());
 }
 
+fn view_files(dirs: &[PathBuf]) -> Vec<(String, String)> {
+    fn walk(dir: &Path, out: &mut Vec<PathBuf>) {
+        let Ok(entries) = std::fs::read_dir(dir) else {
+            return;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                walk(&path, out);
+            } else if path.extension().is_some_and(|ext| ext == "view") {
+                out.push(path);
+            }
+        }
+    }
+    let mut paths = Vec::new();
+    for dir in dirs {
+        walk(dir, &mut paths);
+    }
+    paths.sort();
+    paths
+        .into_iter()
+        .filter_map(|path| {
+            std::fs::read_to_string(&path)
+                .ok()
+                .map(|text| (source_key(&path), text))
+        })
+        .collect()
+}
+
+fn parse_views(files: &[(String, String)]) -> Result<Views, runtime::dev::ViewError> {
+    let refs: Vec<(&str, &str)> = files
+        .iter()
+        .map(|(name, text)| (name.as_str(), text.as_str()))
+        .collect();
+    Views::parse(&refs)
+}
+
+fn current_views() -> Option<Views> {
+    LIVE.lock().unwrap().views.clone()
+}
+
 fn current_overrides() -> Option<LiteralOverrides> {
     LIVE.lock()
         .unwrap()
@@ -272,18 +320,47 @@ fn current_overrides() -> Option<LiteralOverrides> {
 
 /// Watch `dirs` and apply literal-only edits to the running app.
 fn watch_live_edits(dirs: Vec<PathBuf>) {
+    let initial_views = view_files(&dirs);
     {
         let mut state = LIVE.lock().unwrap();
         state.baseline = Some(snapshot(&dirs));
         state.edits = Some(HashMap::new());
         state.overrides = Some(LiteralOverrides::default());
+        // What's on disk wins over what the binary embedded.
+        match parse_views(&initial_views) {
+            Ok(views) => state.views = Some(views),
+            Err(error) => println!("devserver: view error: {error}"),
+        }
     }
     std::thread::Builder::new()
         .name("cheetah-live".into())
         .spawn(move || {
             let mut seen: HashMap<PathBuf, String> = snapshot(&dirs);
+            let mut seen_views = initial_views;
             loop {
                 std::thread::sleep(Duration::from_millis(60));
+
+                // .view templates: re-parse and swap into the running app.
+                let views_now = view_files(&dirs);
+                if views_now != seen_views {
+                    let started = std::time::Instant::now();
+                    seen_views = views_now;
+                    match parse_views(&seen_views) {
+                        Ok(views) => {
+                            LIVE.lock().unwrap().views = Some(views.clone());
+                            if let Some(handle) = CURRENT.lock().unwrap().as_ref() {
+                                handle.set_views(views);
+                            }
+                            println!(
+                                "devserver: views updated in {:.1} ms, no rebuild",
+                                started.elapsed().as_secs_f64() * 1000.0
+                            );
+                        }
+                        // Keep the last good views on screen.
+                        Err(error) => println!("devserver: view error: {error}"),
+                    }
+                }
+
                 let now = snapshot(&dirs);
                 let changed: Vec<PathBuf> = now
                     .iter()
@@ -505,6 +582,9 @@ async fn serve(
     // Live edits made before this connection still differ from the binary.
     if let Some(overrides) = current_overrides() {
         runtime.set_literals(overrides);
+    }
+    if let Some(views) = current_views() {
+        runtime.set_views(views);
     }
 
     while let Some(message) = stream.next().await {

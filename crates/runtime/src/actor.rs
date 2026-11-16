@@ -38,6 +38,9 @@ pub(crate) enum Command {
     /// Live literal edits from the dev server: apply and re-render.
     #[cfg(feature = "devserver")]
     Literals(crate::live::LiteralOverrides),
+    /// New `.view` templates from the dev server: swap and re-render.
+    #[cfg(feature = "devserver")]
+    Views(crate::views::Views),
     Shutdown,
 }
 
@@ -228,6 +231,11 @@ pub(crate) fn spawn_with(
                     #[cfg(feature = "devserver")]
                     Command::Literals(literals) => {
                         let ops = runtime.set_literals(literals);
+                        emit(host.as_ref(), ops);
+                    }
+                    #[cfg(feature = "devserver")]
+                    Command::Views(views) => {
+                        let ops = runtime.set_views(views);
                         emit(host.as_ref(), ops);
                     }
                     Command::Shutdown => break,

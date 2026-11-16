@@ -75,11 +75,32 @@ pub enum Action {
 pub struct ViewContext<'a> {
     pub viewport: Viewport,
     measurer: Option<&'a dyn TextMeasurer>,
+    views: Option<&'a crate::views::Views>,
 }
 
 impl<'a> ViewContext<'a> {
     pub fn new(viewport: Viewport, measurer: Option<&'a dyn TextMeasurer>) -> Self {
-        Self { viewport, measurer }
+        Self {
+            viewport,
+            measurer,
+            views: None,
+        }
+    }
+
+    /// Attach parsed `.view` templates (the runtime does this for `view`).
+    pub fn with_views(mut self, views: &'a crate::views::Views) -> Self {
+        self.views = Some(views);
+        self
+    }
+
+    /// Render the `.view` component `name` with `model` (any `Serialize`
+    /// value; its fields are what the template's paths read).
+    pub fn view(&self, name: &str, model: &impl serde::Serialize) -> Element {
+        let model = serde_json::to_value(model).unwrap_or(serde_json::Value::Null);
+        match self.views {
+            Some(views) => views.render(name, &model),
+            None => crate::views::Views::default().render(name, &model),
+        }
     }
 
     pub fn measure_text(&self, text: &str, size: f32, bold: bool, max_width: f32) -> (f32, f32) {
@@ -101,6 +122,12 @@ pub trait App {
     }
     /// Queue imperative platform calls for the next rendered frame.
     fn take_native_calls(&mut self) -> Vec<NativeCall> {
+        Vec::new()
+    }
+    /// The app's `.view` files as `(path, source)`, usually embedded with
+    /// `include_str!`. Parsed once at startup; the dev server can replace
+    /// them in a running app.
+    fn views(&self) -> Vec<(&'static str, &'static str)> {
         Vec::new()
     }
     /// The app's code was hot-patched (dev server). Drop anything derived
@@ -130,10 +157,15 @@ pub struct Runtime {
     /// Literal values edited live by the dev server, applied after `view`.
     #[cfg(feature = "devserver")]
     literals: crate::live::LiteralOverrides,
+    views: crate::views::Views,
 }
 
 impl Runtime {
     pub fn new<A: App + 'static>(app: A) -> Self {
+        // A broken embedded view is a build mistake: fail loudly with its
+        // file and line (the app's tests parse its views too).
+        let views = crate::views::Views::parse(&app.views())
+            .unwrap_or_else(|error| panic!("invalid .view file: {error}"));
         Self {
             app: Box::new(app),
             previous: None,
@@ -144,6 +176,7 @@ impl Runtime {
             metrics: RuntimeMetrics::default(),
             #[cfg(feature = "devserver")]
             literals: Default::default(),
+            views,
         }
     }
 
@@ -169,6 +202,13 @@ impl Runtime {
         self.render(viewport)
     }
 
+    /// Replace the app's `.view` templates (dev server) and re-render.
+    #[cfg(feature = "devserver")]
+    pub fn set_views(&mut self, views: crate::views::Views) -> Vec<Op> {
+        self.views = views;
+        self.rerender()
+    }
+
     /// Replace the live literal overrides (dev server) and re-render.
     #[cfg(feature = "devserver")]
     pub fn set_literals(&mut self, literals: crate::live::LiteralOverrides) -> Vec<Op> {
@@ -179,7 +219,8 @@ impl Runtime {
     pub fn render(&mut self, viewport: Viewport) -> Vec<Op> {
         let build_start = Instant::now();
         let root = {
-            let context = ViewContext::new(viewport, self.text_measurer.as_deref());
+            let context =
+                ViewContext::new(viewport, self.text_measurer.as_deref()).with_views(&self.views);
             #[allow(unused_mut)]
             let mut root = self.app.view(&context);
             #[cfg(feature = "devserver")]

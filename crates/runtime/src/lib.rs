@@ -9,6 +9,7 @@ pub mod demo;
 #[cfg(feature = "devserver")]
 pub mod dev;
 pub mod diff;
+pub mod dynprops;
 pub mod element;
 #[cfg(target_os = "android")]
 mod ffi;
@@ -36,6 +37,7 @@ pub mod resource;
 pub mod secure_store;
 pub mod store;
 pub mod tree;
+pub mod views;
 mod wire;
 
 pub fn encode_ops(ops: &[Op]) -> Vec<u8> {

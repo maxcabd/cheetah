@@ -12,6 +12,7 @@ use tokio::sync::mpsc::UnboundedSender;
 pub use crate::bridge::Host;
 pub use crate::layout::TextRequest;
 pub use crate::live::{LiteralEdit, LiteralOverrides, LiteralValue};
+pub use crate::views::{ViewError, Views};
 
 /// Font-free text size estimate, for when the device can't answer in time.
 pub fn rough_measure(text: &str, font_size: f32, max_width: f32) -> (f32, f32) {
@@ -54,6 +55,11 @@ impl DevRuntime {
     /// Apply live literal edits (replacing any previous set) and re-render.
     pub fn set_literals(&self, literals: LiteralOverrides) {
         self.send(Command::Literals(literals));
+    }
+
+    /// Replace the app's `.view` templates and re-render.
+    pub fn set_views(&self, views: Views) {
+        self.send(Command::Views(views));
     }
 
     /// A handle that can trigger re-renders from other threads, e.g. a
@@ -105,6 +111,10 @@ impl RerenderHandle {
 
     pub fn set_literals(&self, literals: LiteralOverrides) {
         let _ = self.0.send(Command::Literals(literals));
+    }
+
+    pub fn set_views(&self, views: Views) {
+        let _ = self.0.send(Command::Views(views));
     }
 }
 
