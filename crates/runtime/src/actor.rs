@@ -35,6 +35,9 @@ pub(crate) enum Command {
     /// App code was hot-patched: re-render with the new code.
     #[cfg_attr(not(feature = "devserver"), allow(dead_code))]
     Rerender,
+    /// Live literal edits from the dev server: apply and re-render.
+    #[cfg(feature = "devserver")]
+    Literals(crate::live::LiteralOverrides),
     Shutdown,
 }
 
@@ -220,6 +223,11 @@ pub(crate) fn spawn_with(
                     }
                     Command::Rerender => {
                         let ops = runtime.rerender();
+                        emit(host.as_ref(), ops);
+                    }
+                    #[cfg(feature = "devserver")]
+                    Command::Literals(literals) => {
+                        let ops = runtime.set_literals(literals);
                         emit(host.as_ref(), ops);
                     }
                     Command::Shutdown => break,

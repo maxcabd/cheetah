@@ -10,6 +10,8 @@
 //! `nightshade`); remaining arguments are passed to it. Set
 //! NIGHTSHADE_API_URL in the environment to bake a backend URL into the build.
 
+use cheetah_devserver::live::{diff, Change};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, SystemTime};
@@ -47,6 +49,54 @@ fn snapshot(root: &Path) -> SystemTime {
     latest
 }
 
+fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            rust_files(&path, out);
+        } else if path.extension().is_some_and(|ext| ext == "rs") {
+            out.push(path);
+        }
+    }
+}
+
+/// Contents of every watched source file.
+fn contents(root: &Path) -> HashMap<PathBuf, String> {
+    let mut files = Vec::new();
+    for dir in WATCH {
+        rust_files(&root.join(dir), &mut files);
+    }
+    files
+        .into_iter()
+        .filter_map(|path| std::fs::read_to_string(&path).ok().map(|text| (path, text)))
+        .collect()
+}
+
+/// True when every difference from the built sources is a literal edit in
+/// the app crate, which the running server applies live (no rebuild).
+fn literal_only(
+    built: &HashMap<PathBuf, String>,
+    now: &HashMap<PathBuf, String>,
+    app_src: &Path,
+) -> bool {
+    let mut paths: Vec<&PathBuf> = built.keys().chain(now.keys()).collect();
+    paths.sort();
+    paths.dedup();
+    paths
+        .into_iter()
+        .all(|path| match (built.get(path), now.get(path)) {
+            (Some(a), Some(b)) if a == b => true,
+            (Some(a), Some(b)) => {
+                path.starts_with(app_src)
+                    && matches!(diff(a, b), Change::Literals(_) | Change::Unchanged)
+            }
+            _ => false, // added or removed file
+        })
+}
+
 struct Target {
     package: String,
     bin: String,
@@ -72,7 +122,10 @@ fn server_exe(root: &Path, bin: &str) -> PathBuf {
 }
 
 fn start(root: &Path, target: &Target, args: &[String]) -> Option<Child> {
-    match Command::new(server_exe(root, &target.bin)).args(args).spawn() {
+    match Command::new(server_exe(root, &target.bin))
+        .args(args)
+        .spawn()
+    {
         Ok(child) => Some(child),
         Err(error) => {
             eprintln!("cheetah-dev: could not start the server: {error}");
@@ -103,8 +156,10 @@ fn main() {
             _ => args.push(arg),
         }
     }
+    let app_src = root.join("apps").join(&target.package).join("src");
     let mut child = None;
     let mut seen = snapshot(&root);
+    let mut built = contents(&root);
     if build(&root, &target) {
         child = start(&root, &target, &args);
     } else {
@@ -126,10 +181,16 @@ fn main() {
         // Let a burst of saves settle before rebuilding.
         std::thread::sleep(Duration::from_millis(100));
         seen = snapshot(&root);
+        let now = contents(&root);
+        if child.is_some() && literal_only(&built, &now, &app_src) {
+            // The running server applies these itself; keep its state.
+            continue;
+        }
         println!("cheetah-dev: change detected, reloading");
         // Windows locks a running .exe, so stop before building.
         stop(&mut child);
         if build(&root, &target) {
+            built = now;
             child = start(&root, &target, &args);
         } else {
             println!("cheetah-dev: build failed; fix the error and save to retry");

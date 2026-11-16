@@ -21,10 +21,13 @@
 
 use futures_util::{SinkExt, StreamExt};
 use runtime::app::{Action, App, Event, ViewContext};
-use runtime::dev::{rough_measure, DevRuntime, Host, RerenderHandle, TextRequest};
+use runtime::dev::{
+    rough_measure, DevRuntime, Host, LiteralOverrides, RerenderHandle, TextRequest,
+};
 use runtime::{Element, NativeCall, Runtime};
 use serde_json::{json, Value};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
@@ -33,6 +36,8 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio_tungstenite::tungstenite::Message;
 
 pub use subsecond;
+
+pub mod live;
 
 const MEASURE_TIMEOUT: Duration = Duration::from_secs(5);
 const GATEWAY_URL: &str = "ws://127.0.0.1:9001";
@@ -55,6 +60,9 @@ impl AppSource {
 pub struct Options {
     pub port: u16,
     pub lan: bool,
+    /// Source folders whose literal-only edits are applied live (no
+    /// rebuild): the app crate's `src`. Empty disables live edits.
+    pub live: Vec<PathBuf>,
     /// Remaining arguments the server didn't consume (app-specific flags).
     pub rest: Vec<String>,
 }
@@ -66,6 +74,7 @@ impl Options {
         let mut options = Options {
             port: 8787,
             lan: false,
+            live: Vec::new(),
             rest: Vec::new(),
         };
         let mut args = std::env::args().skip(1);
@@ -146,13 +155,189 @@ static CURRENT: Mutex<Option<RerenderHandle>> = Mutex::new(None);
 fn install_hot_patching() {
     // Connects only when launched by `dx serve` (it sets the endpoint).
     dioxus_devtools::connect_subsecond();
-    subsecond::register_handler(Arc::new(|| match CURRENT.lock().unwrap().as_ref() {
-        Some(handle) => {
-            println!("devserver: code patched, re-rendering");
-            handle.rerender();
+    subsecond::register_handler(Arc::new(|| {
+        // The patched code now contains every saved literal: start over.
+        rebase_live_edits();
+        match CURRENT.lock().unwrap().as_ref() {
+            Some(handle) => {
+                println!("devserver: code patched, re-rendering");
+                handle.rerender();
+            }
+            None => println!("devserver: code patched (no device connected)"),
         }
-        None => println!("devserver: code patched (no device connected)"),
     }));
+}
+
+// ---------------------------------------------------------------------------
+// Live literal edits
+// ---------------------------------------------------------------------------
+
+/// Literal overrides currently in effect, re-sent to new sessions.
+static LIVE: Mutex<LiveState> = Mutex::new(LiveState::empty());
+
+struct LiveState {
+    /// Source of each file as compiled into the running binary.
+    baseline: Option<HashMap<PathBuf, String>>,
+    /// Per file: literal edits relative to the baseline.
+    edits: Option<HashMap<PathBuf, Vec<live::Located>>>,
+    overrides: Option<LiteralOverrides>,
+}
+
+impl LiveState {
+    const fn empty() -> Self {
+        Self {
+            baseline: None,
+            edits: None,
+            overrides: None,
+        }
+    }
+}
+
+fn workspace_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+}
+
+fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            rust_files(&path, out);
+        } else if path.extension().is_some_and(|ext| ext == "rs") {
+            out.push(path);
+        }
+    }
+}
+
+fn snapshot(dirs: &[PathBuf]) -> HashMap<PathBuf, String> {
+    let mut files = Vec::new();
+    for dir in dirs {
+        rust_files(dir, &mut files);
+    }
+    files
+        .into_iter()
+        .filter_map(|path| std::fs::read_to_string(&path).ok().map(|text| (path, text)))
+        .collect()
+}
+
+/// Workspace-relative path with `/`, as rustc records it for the binary.
+fn source_key(path: &Path) -> String {
+    let root = workspace_root();
+    let relative = path
+        .canonicalize()
+        .ok()
+        .and_then(|full| {
+            root.canonicalize()
+                .ok()
+                .and_then(|r| full.strip_prefix(r).ok().map(Path::to_path_buf))
+        })
+        .unwrap_or_else(|| path.to_path_buf());
+    relative.to_string_lossy().replace('\\', "/")
+}
+
+fn rebuild_overrides(edits: &HashMap<PathBuf, Vec<live::Located>>) -> LiteralOverrides {
+    let keyed: Vec<(String, &Vec<live::Located>)> = edits
+        .iter()
+        .map(|(path, located)| (source_key(path), located))
+        .collect();
+    live::overrides(
+        keyed
+            .iter()
+            .map(|(key, located)| (key.as_str(), located.as_slice())),
+    )
+}
+
+fn rebase_live_edits() {
+    let mut state = LIVE.lock().unwrap();
+    if let Some(baseline) = state.baseline.as_mut() {
+        for (path, text) in baseline.iter_mut() {
+            if let Ok(current) = std::fs::read_to_string(path) {
+                *text = current;
+            }
+        }
+    }
+    state.edits = Some(HashMap::new());
+    state.overrides = Some(LiteralOverrides::default());
+}
+
+fn current_overrides() -> Option<LiteralOverrides> {
+    LIVE.lock()
+        .unwrap()
+        .overrides
+        .clone()
+        .filter(|overrides| !overrides.is_empty())
+}
+
+/// Watch `dirs` and apply literal-only edits to the running app.
+fn watch_live_edits(dirs: Vec<PathBuf>) {
+    {
+        let mut state = LIVE.lock().unwrap();
+        state.baseline = Some(snapshot(&dirs));
+        state.edits = Some(HashMap::new());
+        state.overrides = Some(LiteralOverrides::default());
+    }
+    std::thread::Builder::new()
+        .name("cheetah-live".into())
+        .spawn(move || {
+            let mut seen: HashMap<PathBuf, String> = snapshot(&dirs);
+            loop {
+                std::thread::sleep(Duration::from_millis(60));
+                let now = snapshot(&dirs);
+                let changed: Vec<PathBuf> = now
+                    .iter()
+                    .filter(|(path, text)| seen.get(*path) != Some(*text))
+                    .map(|(path, _)| path.clone())
+                    .collect();
+                if changed.is_empty() {
+                    continue;
+                }
+                seen = now;
+
+                let mut state = LIVE.lock().unwrap();
+                let mut applied = 0usize;
+                for path in &changed {
+                    let current = seen.get(path).cloned().unwrap_or_default();
+                    let baseline = state.baseline.as_ref().and_then(|b| b.get(path)).cloned();
+                    let name = source_key(path);
+                    let Some(baseline) = baseline else {
+                        println!("devserver: new file {name}; needs a rebuild");
+                        continue;
+                    };
+                    let edits = state.edits.get_or_insert_with(HashMap::new);
+                    match live::diff(&baseline, &current) {
+                        live::Change::Unchanged => {
+                            edits.remove(path);
+                            applied += 1;
+                        }
+                        live::Change::Literals(located) => {
+                            let count: usize = located.iter().map(|l| l.edits.len()).sum();
+                            println!(
+                                "devserver: live edit in {name} ({count} value(s)), no rebuild"
+                            );
+                            edits.insert(path.clone(), located);
+                            applied += 1;
+                        }
+                        live::Change::Code(reason) => {
+                            println!(
+                                "devserver: code change in {name} ({reason}); waiting for rebuild"
+                            );
+                        }
+                    }
+                }
+                if applied == 0 {
+                    continue;
+                }
+                let overrides = rebuild_overrides(state.edits.as_ref().unwrap());
+                state.overrides = Some(overrides.clone());
+                drop(state);
+                if let Some(handle) = CURRENT.lock().unwrap().as_ref() {
+                    handle.set_literals(overrides);
+                }
+            }
+        })
+        .expect("live edit watcher");
 }
 
 // ---------------------------------------------------------------------------
@@ -216,9 +401,12 @@ impl Host for WsHost {
         }
 
         match receiver.recv_timeout(MEASURE_TIMEOUT) {
-            Ok(sizes) if sizes.len() == requests.len() * 2 => {
-                sizes.as_chunks::<2>().0.iter().map(|[w, h]| (*w, *h)).collect()
-            }
+            Ok(sizes) if sizes.len() == requests.len() * 2 => sizes
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|[w, h]| (*w, *h))
+                .collect(),
             _ => {
                 self.pending.lock().unwrap().remove(&seq);
                 if self.alive.load(Ordering::SeqCst) {
@@ -270,8 +458,17 @@ fn handle(runtime: &DevRuntime, host: &WsHost, text: &str) {
     }
 }
 
-async fn serve(stream: TcpStream, source: AppSource, store_path: String, current: Arc<Mutex<u64>>, id: u64) {
-    let peer = stream.peer_addr().map(|a| a.to_string()).unwrap_or_default();
+async fn serve(
+    stream: TcpStream,
+    source: AppSource,
+    store_path: String,
+    current: Arc<Mutex<u64>>,
+    id: u64,
+) {
+    let peer = stream
+        .peer_addr()
+        .map(|a| a.to_string())
+        .unwrap_or_default();
     let ws = match tokio_tungstenite::accept_async(stream).await {
         Ok(ws) => ws,
         Err(error) => {
@@ -305,6 +502,10 @@ async fn serve(stream: TcpStream, source: AppSource, store_path: String, current
         AppSource::Custom(make) => DevRuntime::spawn_with(dyn_host, GATEWAY_URL, move || make()),
     };
     *CURRENT.lock().unwrap() = runtime.rerender_handle();
+    // Live edits made before this connection still differ from the binary.
+    if let Some(overrides) = current_overrides() {
+        runtime.set_literals(overrides);
+    }
 
     while let Some(message) = stream.next().await {
         if *current.lock().unwrap() != id {
@@ -331,6 +532,9 @@ async fn serve(stream: TcpStream, source: AppSource, store_path: String, current
 /// Serve `source` to devices until the process is stopped.
 pub fn run(name: &str, options: Options, source: AppSource) {
     install_hot_patching();
+    if !options.live.is_empty() {
+        watch_live_edits(options.live.clone());
+    }
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -340,7 +544,10 @@ pub fn run(name: &str, options: Options, source: AppSource) {
         let listener = match TcpListener::bind((host, options.port)).await {
             Ok(listener) => listener,
             Err(error) => {
-                eprintln!("devserver: cannot listen on {host}:{}: {error}", options.port);
+                eprintln!(
+                    "devserver: cannot listen on {host}:{}: {error}",
+                    options.port
+                );
                 std::process::exit(1);
             }
         };

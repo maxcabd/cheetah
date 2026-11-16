@@ -11,6 +11,7 @@ use tokio::sync::mpsc::UnboundedSender;
 
 pub use crate::bridge::Host;
 pub use crate::layout::TextRequest;
+pub use crate::live::{LiteralEdit, LiteralOverrides, LiteralValue};
 
 /// Font-free text size estimate, for when the device can't answer in time.
 pub fn rough_measure(text: &str, font_size: f32, max_width: f32) -> (f32, f32) {
@@ -48,6 +49,11 @@ impl DevRuntime {
     /// Ask the app to re-render with its current (possibly patched) code.
     pub fn rerender(&self) {
         self.send(Command::Rerender);
+    }
+
+    /// Apply live literal edits (replacing any previous set) and re-render.
+    pub fn set_literals(&self, literals: LiteralOverrides) {
+        self.send(Command::Literals(literals));
     }
 
     /// A handle that can trigger re-renders from other threads, e.g. a
@@ -95,6 +101,10 @@ pub struct RerenderHandle(UnboundedSender<Command>);
 impl RerenderHandle {
     pub fn rerender(&self) {
         let _ = self.0.send(Command::Rerender);
+    }
+
+    pub fn set_literals(&self, literals: LiteralOverrides) {
+        let _ = self.0.send(Command::Literals(literals));
     }
 }
 

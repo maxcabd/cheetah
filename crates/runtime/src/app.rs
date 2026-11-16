@@ -127,6 +127,9 @@ pub struct Runtime {
     text_measurer: Option<Rc<dyn TextMeasurer>>,
     layout_dirty: bool,
     metrics: RuntimeMetrics,
+    /// Literal values edited live by the dev server, applied after `view`.
+    #[cfg(feature = "devserver")]
+    literals: crate::live::LiteralOverrides,
 }
 
 impl Runtime {
@@ -139,6 +142,8 @@ impl Runtime {
             text_measurer: None,
             layout_dirty: true,
             metrics: RuntimeMetrics::default(),
+            #[cfg(feature = "devserver")]
+            literals: Default::default(),
         }
     }
 
@@ -154,16 +159,34 @@ impl Runtime {
     /// Re-render at the current viewport after the app's code changed.
     pub fn rerender(&mut self) -> Vec<Op> {
         self.app.hot_reloaded();
+        self.refresh()
+    }
+
+    /// Render again at the current viewport, forcing layout.
+    pub fn refresh(&mut self) -> Vec<Op> {
         self.layout_dirty = true;
         let viewport = self.viewport;
         self.render(viewport)
+    }
+
+    /// Replace the live literal overrides (dev server) and re-render.
+    #[cfg(feature = "devserver")]
+    pub fn set_literals(&mut self, literals: crate::live::LiteralOverrides) -> Vec<Op> {
+        self.literals = literals;
+        self.refresh()
     }
 
     pub fn render(&mut self, viewport: Viewport) -> Vec<Op> {
         let build_start = Instant::now();
         let root = {
             let context = ViewContext::new(viewport, self.text_measurer.as_deref());
-            build(self.app.view(&context))
+            #[allow(unused_mut)]
+            let mut root = self.app.view(&context);
+            #[cfg(feature = "devserver")]
+            if !self.literals.is_empty() {
+                crate::live::apply(&mut root, &self.literals);
+            }
+            build(root)
         };
         let flat = flatten(&root);
         self.metrics.build_us = build_start.elapsed().as_micros() as u64;
@@ -589,7 +612,9 @@ mod tests {
         assert!(runtime.render(viewport).is_empty());
 
         let ops = runtime.rerender();
-        assert!(ops.iter().any(|op| matches!(op, Op::Text { text, .. } if text == "after patch")));
+        assert!(ops
+            .iter()
+            .any(|op| matches!(op, Op::Text { text, .. } if text == "after patch")));
         assert!(!ops.iter().any(|op| matches!(op, Op::Create { .. })));
     }
 

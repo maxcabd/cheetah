@@ -34,7 +34,11 @@ use cheetah_devserver::{run, AppSource, Hot, Options};
 use runtime::Runtime;
 
 fn main() {
-    let options = Options::from_args("usage: nightshade [--demo] [--port N] [--lan]");
+    let mut options = Options::from_args("usage: nightshade [--demo] [--port N] [--lan]");
+    // Literal-only edits to this crate's views apply live, without a rebuild.
+    options
+        .live
+        .push(concat!(env!("CARGO_MANIFEST_DIR"), "/src").into());
     let demo = options.rest.iter().any(|arg| arg == "--demo");
     let name = if demo { "nightshade-demo" } else { "nightshade" };
     run(
