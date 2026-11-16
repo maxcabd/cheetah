@@ -1,6 +1,7 @@
 package com.example.rustui
 
 import android.app.Activity
+import android.content.Intent
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -32,7 +33,7 @@ class MainActivity : Activity() {
             root,
             edgeToEdge,
             intent.getStringExtra("app") ?: "chat",
-            intent.getStringExtra("devServer"),
+            DevRuntimeLinks.serverFor(this, intent),
         )
         root.setOnApplyWindowInsetsListener { _, insets ->
             if (edgeToEdge) {
@@ -43,6 +44,15 @@ class MainActivity : Activity() {
         root.requestApplyInsets()
 
         root.post { host.start() }
+    }
+
+    /** A `cheetah://dev` link while running: restart on the new dev server. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (DevRuntimeLinks.isDevLink(intent)) {
+            setIntent(intent)
+            recreate()
+        }
     }
 
     override fun onRequestPermissionsResult(

@@ -33,6 +33,11 @@ android {
 
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
+        // Native code version (`cheetah fingerprint android`), set by
+        // `cheetah build android --dev`; the dev server compares it with the
+        // checkout to say when a new dev build is needed.
+        val nativeFingerprint = System.getenv("CHEETAH_NATIVE_FINGERPRINT") ?: "unknown"
+        buildConfigField("String", "NATIVE_FINGERPRINT", "\"$nativeFingerprint\"")
 
         ndk {
             abiFilters += listOf("x86_64", "arm64-v8a")

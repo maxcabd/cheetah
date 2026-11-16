@@ -1,5 +1,7 @@
 package com.example.rustui
 
+import android.content.Context
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -15,7 +17,33 @@ import java.util.concurrent.TimeUnit
 
 /** Debug builds: connect RustHost to tools/devserver instead of the bundled runtime. */
 object DevRuntimeLinks {
+    private const val PREFS = "cheetah-dev"
+    private const val KEY = "server"
+
     fun create(host: RustHost, url: String): RuntimeLink = DevRuntimeLink(host, url)
+
+    /** Whether [intent] is a `cheetah://dev` link. */
+    fun isDevLink(intent: Intent?): Boolean =
+        intent?.data?.let { it.scheme == "cheetah" && it.host == "dev" } == true
+
+    /**
+     * The dev server to render: an explicit `devServer` extra, else the one
+     * from a `cheetah://dev?url=ws://...` link (remembered for later
+     * launches; a link without `url` forgets it), else the last remembered.
+     */
+    fun serverFor(context: Context, intent: Intent?): String? {
+        intent?.getStringExtra("devServer")?.let { return it }
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (isDevLink(intent)) {
+            val url = intent?.data?.getQueryParameter("url")
+            if (url.isNullOrEmpty()) {
+                prefs.edit().remove(KEY).apply()
+            } else {
+                prefs.edit().putString(KEY, url).apply()
+            }
+        }
+        return prefs.getString(KEY, null)
+    }
 }
 
 /**
@@ -51,6 +79,15 @@ private class DevRuntimeLink(
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 socket = webSocket
                 announcedWaiting = false
+                // Lets the dev server say when native code changed since
+                // this build (a new dev build is needed).
+                webSocket.send(
+                    JSONObject()
+                        .put("t", "hello")
+                        .put("platform", "android")
+                        .put("native", BuildConfig.NATIVE_FINGERPRINT)
+                        .toString(),
+                )
                 Log.i(TAG, "connected to $url")
                 main.post { if (!freed) host.onRuntimeConnected() }
             }
