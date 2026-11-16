@@ -1,4 +1,33 @@
-# Empty search sheet: heading and suggestion chips.
+# Bottom sheet: grabber, body, search bar.
+
+component Sheet
+  sheet key="search-panel" absolute=true bottom=0 left=0 width=-1 height=sheet.height radius=54 clip=true bg=SHEET_BG
+    column width=-1 height=sheet.height
+      row key="sheet:toggle" pressable=true width=-1 height=24 justify="center" align_items="center"
+        row width=30 height=6 bg="#404040" radius=3
+      column width=-1 height=sheet.body_height clip=true
+        if sheet.body == "collapsed"
+          column width=-1 height=sheet.body_height
+        if sheet.body == "results"
+          use ResultsBody query=sheet.query followups=sheet.followups show_followups=sheet.show_followups
+        if sheet.body == "searching"
+          use SearchingBody query=sheet.query
+        if sheet.body == "empty"
+          use EmptyBody suggestions=sheet.suggestions
+      use SearchBar placeholder=sheet.placeholder draft=sheet.draft can_send=sheet.can_send results=sheet.results
+      column width=-1 height=SEARCH_BOTTOM_GAP
+
+component SearchBar
+  column width=-1 height=SEARCH_HEIGHT pad_h=24 justify="end" test_id="cheetah-search-bar"
+    row width=-1 height=SEARCH_HEIGHT gap=12 align_items="center"
+      row weight=1 height=SEARCH_HEIGHT bg=CHIP_BG border=1 border_color="#2d2d2d" radius=36 align_items="center"
+        input placeholder draft key="search" weight=1 height=64 size=16 font="satoshi-medium" color="#ffffff" placeholder_color="#737373" pad_h=32 align="start"
+        if can_send
+          use ActionButton icon="arrow-up" key="search:send" bg="#dc2626" size=40 radius=20
+      if results
+        use ActionButton icon="xmark" key="search:clear" bg=CHIP_BG size=48 radius=24 label="Clear"
+
+# No search yet: heading and suggestion chips.
 component EmptyBody
   column width=-1 weight=1 pad_h=24 gap=14
     text "Ready to discover?" size=20 font="brice-semibold" line_height=26 color=TEXT height=26
@@ -8,6 +37,19 @@ component EmptyBody
           for chip in suggestions
             use Chip label=chip.label key=chip.key width=chip.width
 
-# A pressable suggestion pill. Rust computes `width` from the label.
-component Chip
-  text label key=key pressable=true size=14 font="satoshi-bold" color="#ffffff" bg=CHIP_BG border=1 border_color="#ffffff14" pad_h=14 width=width height=42 lines=1 align="center" radius=18
+component ResultsBody
+  column width=-1 weight=1 pad_h=24 gap=8
+    text query size=20 font="brice-semibold" line_height=26 color=TEXT height=26
+    text "Alright, here's what I'd check out if I were you." size=16 font="satoshi-medium" line_height=20 color=MUTED height=20
+    row key="show-on-map" pressable=true width=154 height=40 pad_h=16 gap=10 radius=18 bg=CHIP_BG border=1 border_color="#ffffff14" align_items="center"
+      text "Show on map" size=14 font="satoshi-medium" color="#ffffff" width=96 height=18
+      use Icon name="chevron-right" size=12 color="#ffffff"
+    if show_followups
+      row width=-1 wrap=true gap=10
+        for chip in followups
+          use Chip label=chip.label key=chip.key width=chip.width
+
+component SearchingBody
+  column width=-1 weight=1 pad_h=24 gap=10
+    text query size=20 font="brice-semibold" color="#ffffff" height=26
+    text "Searching..." size=16 height=24

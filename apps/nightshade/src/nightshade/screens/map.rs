@@ -1,4 +1,5 @@
-//! The map screen: map with markers, result cards, and the search sheet.
+//! The map screen (`views/map.view`): region, markers, and the data its
+//! carousel and sheet render.
 
 use crate::nightshade::*;
 
@@ -9,24 +10,25 @@ impl NightshadeApp {
     /// Full-screen map, result cards over it, and the search sheet.
     pub(crate) fn map_screen(&self, context: &ViewContext) -> Element {
         let (latitude, longitude, latitude_delta, longitude_delta) = self.region();
-        let mut root = column().width(-1.0).height(-1.0).bg(BG).child(
-            map()
-                .key("map")
-                .width(-1.0)
-                .height(-1.0)
-                .bg("#101826")
-                .test_id("nightshade-map")
-                .map_region(latitude, longitude, latitude_delta, longitude_delta)
-                .map_markers(self.markers())
-                .map_dark(true)
-                .map_shows_user(true),
-        );
-
-        if self.has_results() {
-            root = root.child(self.carousel(context, self.visible_places()));
-        }
-
-        root.child(self.sheet(context))
+        let carousel = if self.has_results() {
+            self.carousel_model(context, self.visible_places())
+        } else {
+            serde_json::Value::Null
+        };
+        context.view(
+            "MapScreen",
+            &serde_json::json!({
+                "region": {
+                    "lat": latitude,
+                    "lng": longitude,
+                    "lat_delta": latitude_delta,
+                    "lng_delta": longitude_delta,
+                    "markers": self.markers(),
+                },
+                "carousel": carousel,
+                "sheet": self.sheet_model(context),
+            }),
+        )
     }
 
     pub(crate) fn visible_places(&self) -> &[Place] {

@@ -275,35 +275,54 @@ fn native_location_recenters_and_calls_reach_the_wire() {
     }));
 }
 
-#[test]
-fn views_parse_and_render_the_empty_sheet() {
+fn find<'a>(
+    element: &'a crate::element::Element,
+    key: &str,
+) -> Option<&'a crate::element::Element> {
+    if element.key.as_deref() == Some(key) {
+        return Some(element);
+    }
+    element.children.iter().find_map(|child| find(child, key))
+}
+
+fn render(app: &NightshadeApp) -> crate::element::Element {
     // A broken .view file must fail here, not when the app starts.
-    let app = NightshadeApp::new(false);
-    let views = crate::views::Views::parse(&App::views(&app)).expect("views parse");
+    let views = crate::views::Views::parse(&App::views(app)).expect("views parse");
     let context = crate::app::ViewContext::new(
-        crate::app::Viewport {
+        Viewport {
             width: 393.0,
             height: 852.0,
         },
         None,
     )
     .with_views(&views);
+    app.view(&context)
+}
 
-    let body = app.empty_body(&context);
+#[test]
+fn views_render_the_empty_sheet() {
+    let app = NightshadeApp::new(false);
+    let screen = render(&app);
+    assert!(find(&screen, "map").is_some());
+    assert!(find(&screen, "places").is_none());
+    let chip = find(&screen, "suggest:6").expect("last suggestion chip");
+    assert_eq!(chip.props.text.as_deref(), Some("Amazing pizza places"));
     assert_eq!(
-        body.children[0].props.text.as_deref(),
-        Some("Ready to discover?")
+        chip.props.width,
+        Some(NightshadeApp::chip_width("Amazing pizza places"))
     );
-    let chips = &body.children[1].children[0].children[0].children;
-    assert_eq!(chips.len(), 7);
-    assert_eq!(chips[0].key.as_deref(), Some("suggest:0"));
-    assert_eq!(
-        chips[0].props.text.as_deref(),
-        Some("Cafes within 12 min walk")
-    );
-    assert_eq!(
-        chips[0].props.width,
-        Some(NightshadeApp::chip_width("Cafes within 12 min walk"))
-    );
-    assert_eq!(chips[6].key.as_deref(), Some("suggest:6"));
+}
+
+#[test]
+fn views_render_result_cards() {
+    let mut app = NightshadeApp::new(true);
+    let screen = render(&app);
+    let places = find(&screen, "places").expect("carousel");
+    assert_eq!(places.children.len(), app.visible_places().len());
+    assert!(find(&screen, "search:clear").is_some());
+    assert!(find(&screen, "followup:0").is_none());
+
+    click(&mut app, "sheet:toggle");
+    let screen = render(&app);
+    assert!(find(&screen, "followup:1").is_some());
 }

@@ -1,0 +1,17 @@
+# Small shared pieces: icons, chips, buttons.
+
+component Icon
+  native "icon" native_props="{{\"name\":\"{name}\",\"color\":\"{color}\"}}" width=size height=size size=size color=color
+
+component GlassIcon
+  glass key=key pressable=true width=38 height=38 radius=19 glass_style="regular" glass_tint="#00000047" glass_interactive=true align_items="center" justify="center"
+    use Icon name=icon size=16 color="#ffffff"
+
+# Round icon button; `radius` is half of `size`.
+component ActionButton
+  row key=key pressable=true width=size height=size radius=radius bg=bg align_items="center" justify="center" label=label
+    use Icon name=icon size=16 color="#ffffff"
+
+# A pressable suggestion pill. Rust computes `width` from the label.
+component Chip
+  text label key=key pressable=true size=14 font="satoshi-bold" color="#ffffff" bg=CHIP_BG border=1 border_color="#ffffff14" pad_h=14 width=width height=42 lines=1 align="center" radius=18

@@ -5,13 +5,11 @@
 //! Split by area so an edit recompiles only that file's code.
 
 use crate::app::{App, Event, HostInfo, ViewContext};
-use crate::element::{column, glass, hscroll, input, map, native, row, sheet, text, Element};
+use crate::element::Element;
 use crate::http::{HttpClient, HttpResponse};
 use crate::native_api::{NativeCall, NativeEvent};
 use crate::resource::Resource;
 use serde::Deserialize;
-use std::cell::RefCell;
-use std::collections::HashMap;
 
 mod api;
 mod components;
@@ -46,8 +44,6 @@ pub struct NightshadeApp {
     expanded: bool,
     center: Option<(f32, f32)>,
     calls: Vec<NativeCall>,
-    suggestion_cache: RefCell<Option<Element>>,
-    card_cache: RefCell<HashMap<(String, u32), Element>>,
 }
 
 impl NightshadeApp {
@@ -74,8 +70,6 @@ impl NightshadeApp {
             expanded: false,
             center: None,
             calls: vec![NativeCall::new("location", "request", "{}")],
-            suggestion_cache: RefCell::new(None),
-            card_cache: RefCell::new(HashMap::new()),
         };
 
         if demo {
@@ -209,13 +203,10 @@ impl App for NightshadeApp {
     fn views(&self) -> Vec<(&'static str, &'static str)> {
         vec![
             ("views/theme.view", include_str!("views/theme.view")),
+            ("views/widgets.view", include_str!("views/widgets.view")),
+            ("views/card.view", include_str!("views/card.view")),
             ("views/sheet.view", include_str!("views/sheet.view")),
+            ("views/map.view", include_str!("views/map.view")),
         ]
-    }
-
-    fn hot_reloaded(&mut self) {
-        // Memoized elements were built by the old view code.
-        self.suggestion_cache.borrow_mut().take();
-        self.card_cache.borrow_mut().clear();
     }
 }
