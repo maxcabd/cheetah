@@ -28,6 +28,11 @@ class MainActivity : Activity() {
         }
         setContentView(root)
 
+        // A deep link launched the app: `linking.initialUrl` reports it.
+        if (!DevRuntimeLinks.isDevLink(intent)) {
+            LinkInbox.initialUri = intent.data
+        }
+
         host = RustHost(
             this,
             root,
@@ -52,6 +57,17 @@ class MainActivity : Activity() {
         if (DevRuntimeLinks.isDevLink(intent)) {
             setIntent(intent)
             recreate()
+        } else if (::host.isInitialized) {
+            intent.data?.let { host.onLink(it) }
+        }
+    }
+
+    @Deprecated("Deprecated in Android")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
+        if (::host.isInitialized) {
+            host.onActivityResult(requestCode, resultCode, data)
         }
     }
 

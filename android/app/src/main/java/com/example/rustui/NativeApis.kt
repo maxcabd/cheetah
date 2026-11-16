@@ -29,7 +29,13 @@ import org.json.JSONObject
  *
  *   {"module":"location","method":"result","ok":true,"latitude":...}
  */
-class NativeApis(private val context: Context) {
+class NativeApis(
+    private val context: Context,
+    /** (kind, payload) to Rust, for modules that emit on their own. */
+    hostEmit: (String, String) -> Unit = { _, _ -> },
+) {
+    /** Registered modules (built-in and the app's own): see Modules.kt. */
+    private val modules = ApiModules(ModuleContext(context, hostEmit))
     private val activity: Activity? = findActivity(context)
     private var locationEmit: ((String, String) -> Unit)? = null
     private var locationListener: LocationListener? = null
@@ -61,6 +67,7 @@ class NativeApis(private val context: Context) {
     }
 
     fun dispose() {
+        modules.dispose()
         http.dispose()
         locationListener?.let { listener ->
             val manager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
@@ -86,12 +93,19 @@ class NativeApis(private val context: Context) {
             "secureStore" -> secureStore.invoke(method, args, mainEmit(emit))
             "http" -> http.invoke(method, args, mainEmit(emit))
             "navigation" -> navigation(method, args)
-            else -> false
+            else -> modules.invoke(module, method, args)
         }
     }
 
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?): Boolean =
+        modules.onActivityResult(requestCode, resultCode, data)
+
+    fun onLink(uri: android.net.Uri): Boolean = modules.onLink(uri)
+
     fun onRequestPermissionsResult(requestCode: Int, grantResults: IntArray): Boolean {
-        if (requestCode != LOCATION_REQUEST) return false
+        if (requestCode != LOCATION_REQUEST) {
+            return modules.onRequestPermissionsResult(requestCode, grantResults)
+        }
         pendingLocation = false
         val emit = locationEmit ?: return true
         if (grantResults.any { it == PackageManager.PERMISSION_GRANTED }) {

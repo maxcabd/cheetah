@@ -136,7 +136,7 @@ private enum NativeModuleRegistry {
         case "photo":
             return PhotoPagerNativeModule()
         default:
-            return nil
+            return ModuleRegistry.views[name].map { $0.init(owner: owner) }
         }
     }
 }

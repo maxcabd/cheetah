@@ -114,7 +114,7 @@ class NativeModuleHostView(context: Context) : FrameLayout(context) {
             "icon" -> IconNativeModule(context)
             "gradient" -> GradientNativeModule(context)
             "photo" -> PhotoPagerNativeModule(context)
-            else -> null
+            else -> ModuleRegistry.views[name]?.create?.invoke(context, this)
         }
         if (name != "sheet") {
             module?.nativeView?.let { native ->

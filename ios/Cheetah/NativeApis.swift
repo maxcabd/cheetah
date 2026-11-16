@@ -25,10 +25,25 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
     private lazy var http = HttpApi(emit: { [weak self] values in
         self?.emitEvent("http", "response", values)
     })
+    /// Registered modules (built-in and the app's own): see Modules.swift.
+    private lazy var modules = ApiModules(
+        context: ModuleContext(emit: emit, presenter: presenter)
+    )
+    private var linkObserver: NSObjectProtocol?
 
     init(emit: @escaping Emit, presenter: @escaping () -> UIViewController?) {
         self.emit = emit
         self.presenter = presenter
+        super.init()
+        linkObserver = NotificationCenter.default.addObserver(
+            forName: LinkInbox.notification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            if let url = note.object as? URL {
+                _ = self?.modules.open(url: url)
+            }
+        }
     }
 
     func invoke(module: String, method: String, args: [String: Any]) -> Bool {
@@ -46,11 +61,16 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
         case "navigation":
             return navigation(method, args: args)
         default:
-            return false
+            return modules.invoke(module: module, method: method, args: args)
         }
     }
 
     func dispose() {
+        if let linkObserver {
+            NotificationCenter.default.removeObserver(linkObserver)
+        }
+        linkObserver = nil
+        modules.dispose()
         http.dispose()
         if let backGesture {
             backGesture.view?.removeGestureRecognizer(backGesture)

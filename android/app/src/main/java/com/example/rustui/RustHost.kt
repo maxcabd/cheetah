@@ -70,7 +70,7 @@ class RustHost(
     private val imageCache = LruCache<String, Bitmap>(24)
     private val typefaceCache = HashMap<String, Typeface>()
     private val imageLoader = Executors.newFixedThreadPool(2)
-    private val nativeApis = NativeApis(context)
+    private val nativeApis = NativeApis(context) { kind, value -> event(0, kind, value) }
     private var sheetDialog: BottomSheetDialog? = null
     private var perfCreateUs = 0L
     private var perfUpdateUs = 0L
@@ -130,6 +130,15 @@ class RustHost(
 
     fun onRequestPermissionsResult(requestCode: Int, grantResults: IntArray) {
         nativeApis.onRequestPermissionsResult(requestCode, grantResults)
+    }
+
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: android.content.Intent?) {
+        nativeApis.onActivityResult(requestCode, resultCode, data)
+    }
+
+    /** A deep link or auth redirect while running. */
+    fun onLink(uri: android.net.Uri) {
+        nativeApis.onLink(uri)
     }
 
     /**
