@@ -13,13 +13,17 @@ mod ffi;
 #[cfg(any(target_os = "android", target_os = "ios", test))]
 #[cfg_attr(test, allow(dead_code))]
 mod gateway;
+pub mod http;
 #[cfg(target_os = "ios")]
 mod ios;
+pub mod kv;
 pub mod layout;
 pub mod model;
 pub mod native_api;
+pub mod nav;
 pub mod nightshade;
 pub mod resource;
+pub mod secure_store;
 pub mod store;
 pub mod tree;
 mod wire;
@@ -35,5 +39,5 @@ pub use element::{
     spacer, text, Element, Kind, Props,
 };
 pub use layout::{Frame, TextRequest};
-pub use native_api::NativeCall;
+pub use native_api::{NativeCall, NativeEvent};
 pub use tree::{build, flatten, FlatTree, UiNode};

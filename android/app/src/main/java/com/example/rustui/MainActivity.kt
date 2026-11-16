@@ -55,6 +55,15 @@ class MainActivity : Activity() {
         }
     }
 
+    // Without android:enableOnBackInvokedCallback this is still delivered on
+    // API 33+, which keeps one code path down to minSdk 24.
+    @Deprecated("Deprecated in Android")
+    override fun onBackPressed() {
+        if (::host.isInitialized && host.onBackPressed()) return
+        @Suppress("DEPRECATION")
+        super.onBackPressed()
+    }
+
     override fun onStart() {
         super.onStart()
         if (::host.isInitialized) {

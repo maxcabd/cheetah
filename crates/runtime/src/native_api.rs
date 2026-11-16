@@ -38,3 +38,53 @@ impl NativeCall {
     }
 }
 
+/// A parsed `native` event payload sent back by a host module:
+/// `{"module": "...", "method": "...", ...fields}`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct NativeEvent {
+    pub module: String,
+    pub method: String,
+    /// The whole payload, including `module` and `method`.
+    pub data: serde_json::Value,
+}
+
+impl NativeEvent {
+    pub fn parse(payload: &str) -> Option<Self> {
+        let data: serde_json::Value = serde_json::from_str(payload).ok()?;
+        let module = data.get("module")?.as_str()?.to_owned();
+        let method = data.get("method")?.as_str()?.to_owned();
+        Some(Self {
+            module,
+            method,
+            data,
+        })
+    }
+
+    pub fn is(&self, module: &str, method: &str) -> bool {
+        self.module == module && self.method == method
+    }
+
+    /// Deserialize the payload into a typed result.
+    pub fn decode<T: serde::de::DeserializeOwned>(&self) -> Option<T> {
+        serde_json::from_value(self.data.clone()).ok()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_module_and_method() {
+        let event = NativeEvent::parse(r#"{"module":"location","method":"result","ok":true}"#)
+            .expect("event");
+        assert!(event.is("location", "result"));
+        assert_eq!(event.data["ok"], true);
+    }
+
+    #[test]
+    fn rejects_payloads_without_routing_fields() {
+        assert!(NativeEvent::parse(r#"{"ok":true}"#).is_none());
+        assert!(NativeEvent::parse("not json").is_none());
+    }
+}

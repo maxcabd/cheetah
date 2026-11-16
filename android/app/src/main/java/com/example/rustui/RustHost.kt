@@ -134,6 +134,16 @@ class RustHost(
         nativeApis.onRequestPermissionsResult(requestCode, grantResults)
     }
 
+    /**
+     * Route system Back to the Rust navigator while it has history. Returns
+     * false at the root so the activity performs its default action.
+     */
+    fun onBackPressed(): Boolean {
+        if (handle == 0L || !nativeApis.canGoBack) return false
+        event(0, "native", """{"module":"navigation","method":"back"}""")
+        return true
+    }
+
     private fun sendHostInfo() {
         if (handle == 0L) return
 

@@ -13,6 +13,7 @@ import android.location.LocationManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.HapticFeedbackConstants
@@ -34,7 +35,33 @@ class NativeApis(private val context: Context) {
     private var locationListener: LocationListener? = null
     private var pendingLocation = false
 
+    private val secureStore = SecureStoreApi(context)
+    private val http = HttpApi()
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /** Set by Rust through `navigation.setCanGoBack`. */
+    @Volatile
+    var canGoBack: Boolean = false
+        private set
+
+    /** Background modules emit on the main thread, like location does. */
+    private fun mainEmit(emit: (String, String) -> Unit): (String, String) -> Unit =
+        { kind, payload ->
+            if (Looper.myLooper() == Looper.getMainLooper()) {
+                emit(kind, payload)
+            } else {
+                mainHandler.post { emit(kind, payload) }
+            }
+        }
+
+    private fun navigation(method: String, args: JSONObject): Boolean {
+        if (method != "setCanGoBack") return false
+        canGoBack = args.optBoolean("enabled", false)
+        return true
+    }
+
     fun dispose() {
+        http.dispose()
         locationListener?.let { listener ->
             val manager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
             manager?.removeUpdates(listener)
@@ -56,6 +83,9 @@ class NativeApis(private val context: Context) {
             "haptics" -> haptics(method)
             "location" -> location(method, emit)
             "system" -> system(method, args, emit)
+            "secureStore" -> secureStore.invoke(method, args, mainEmit(emit))
+            "http" -> http.invoke(method, args, mainEmit(emit))
+            "navigation" -> navigation(method, args)
             else -> false
         }
     }

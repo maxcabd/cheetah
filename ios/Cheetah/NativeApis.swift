@@ -17,6 +17,14 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
     private let presenter: () -> UIViewController?
     private var locationManager: CLLocationManager?
     private var locationRequested = false
+    private var canGoBack = false
+    private var backGesture: UIScreenEdgePanGestureRecognizer?
+    private lazy var secureStore = SecureStoreApi(emit: { [weak self] values in
+        self?.emitEvent("secureStore", "result", values)
+    })
+    private lazy var http = HttpApi(emit: { [weak self] values in
+        self?.emitEvent("http", "response", values)
+    })
 
     init(emit: @escaping Emit, presenter: @escaping () -> UIViewController?) {
         self.emit = emit
@@ -31,15 +39,64 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
             return location(method)
         case "system":
             return system(method, args: args)
+        case "secureStore":
+            return secureStore.invoke(method, args: args)
+        case "http":
+            return http.invoke(method, args: args)
+        case "navigation":
+            return navigation(method, args: args)
         default:
             return false
         }
     }
 
     func dispose() {
+        http.dispose()
+        if let backGesture {
+            backGesture.view?.removeGestureRecognizer(backGesture)
+        }
+        backGesture = nil
         locationManager?.stopUpdatingLocation()
         locationManager?.delegate = nil
         locationManager = nil
+    }
+
+    // MARK: Navigation
+
+    /// Rust (`runtime::nav`) reports whether its stack has history. While it
+    /// does, a left-edge swipe sends `navigation.back` back to Rust.
+    private func navigation(_ method: String, args: [String: Any]) -> Bool {
+        guard method == "setCanGoBack" else {
+            return false
+        }
+        canGoBack = args["enabled"] as? Bool ?? false
+        installBackGesture()
+        backGesture?.isEnabled = canGoBack
+        return true
+    }
+
+    private func installBackGesture() {
+        guard backGesture == nil, let view = presenter()?.view else {
+            return
+        }
+        let gesture = UIScreenEdgePanGestureRecognizer(
+            target: self,
+            action: #selector(handleBackGesture(_:))
+        )
+        gesture.edges = .left
+        view.addGestureRecognizer(gesture)
+        backGesture = gesture
+    }
+
+    @objc private func handleBackGesture(_ gesture: UIScreenEdgePanGestureRecognizer) {
+        guard gesture.state == .ended, canGoBack, let view = gesture.view else {
+            return
+        }
+        let distance = gesture.translation(in: view).x
+        let velocity = gesture.velocity(in: view).x
+        if distance > view.bounds.width * 0.3 || velocity > 500 {
+            emitEvent("navigation", "back", [:])
+        }
     }
 
     private func haptics(_ method: String) -> Bool {
