@@ -2,6 +2,7 @@ use crate::diff::{diff, Op};
 use crate::element::Kind;
 use crate::element::{Element, Props};
 use crate::layout::{compute, Frame, TextMeasurer, TextRequest};
+use crate::native_api::NativeCall;
 use crate::tree::{build, flatten, FlatTree, UiNode};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -62,6 +63,7 @@ pub fn event_kind_from_code(code: u32) -> Option<&'static str> {
         13 => "flush",
         14 => "connection",
         15 => "select",
+        16 => "native",
         _ => return None,
     })
 }
@@ -96,6 +98,10 @@ pub trait App {
     }
     fn has_queued(&self) -> bool {
         false
+    }
+    /// Queue imperative platform calls for the next rendered frame.
+    fn take_native_calls(&mut self) -> Vec<NativeCall> {
+        Vec::new()
     }
 }
 
@@ -159,9 +165,11 @@ impl Runtime {
             self.metrics.diff_us = 0;
             self.metrics.prime_us = 0;
             self.metrics.layout_us = 0;
-            self.metrics.ops = 0;
             self.metrics.text_requests = 0;
-            return Vec::new();
+            let mut ops = Vec::new();
+            self.append_native_calls(&mut ops);
+            self.metrics.ops = ops.len();
+            return ops;
         }
 
         let diff_start = Instant::now();
@@ -217,9 +225,20 @@ impl Runtime {
             self.frames = frames;
         }
 
-        self.metrics.ops = ops.len();
         self.previous = Some(flat);
+        self.append_native_calls(&mut ops);
+        self.metrics.ops = ops.len();
         ops
+    }
+
+    fn append_native_calls(&mut self, ops: &mut Vec<Op>) {
+        for call in self.app.take_native_calls() {
+            ops.push(Op::Invoke {
+                module: call.module,
+                method: call.method,
+                args: call.args,
+            });
+        }
     }
 
     pub fn apply_event(&mut self, id: u32, kind: &str, payload: &str) {
@@ -346,8 +365,10 @@ fn has_fixed_size(props: &Props) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{App, Event, HostInfo, Runtime, Viewport};
+    use crate::diff::Op;
     use crate::element::{button, column, text, Element};
     use crate::layout::TextMeasurer;
+    use crate::native_api::NativeCall;
     use std::cell::Cell;
     use std::rc::Rc;
 
@@ -399,6 +420,24 @@ mod tests {
 
         fn update(&mut self, _: Event) {
             self.label = if self.label == "off" { "on" } else { "off" };
+        }
+    }
+
+    struct CallingApp {
+        calls: Vec<NativeCall>,
+    }
+
+    impl App for CallingApp {
+        fn view(&self, _: &crate::app::ViewContext) -> Element {
+            column().width(300.0).height(600.0).child(text("hello"))
+        }
+
+        fn update(&mut self, _: Event) {
+            self.calls.push(NativeCall::new("haptics", "light", "{}"));
+        }
+
+        fn take_native_calls(&mut self) -> Vec<NativeCall> {
+            std::mem::take(&mut self.calls)
         }
     }
 
@@ -507,5 +546,30 @@ mod tests {
 
         assert!(!ops.is_empty());
         assert_eq!(measurer.calls.get(), calls_after_first);
+    }
+
+    #[test]
+    fn native_calls_are_appended_to_unchanged_frames() {
+        let mut runtime = Runtime::new(CallingApp { calls: Vec::new() });
+        let viewport = Viewport {
+            width: 300.0,
+            height: 600.0,
+        };
+
+        let first = runtime.render(viewport);
+        assert!(!first.is_empty());
+
+        let ops = runtime.dispatch(Event {
+            id: 0,
+            key: None,
+            kind: "click".into(),
+            payload: String::new(),
+        });
+        assert_eq!(ops.len(), 1);
+        assert!(matches!(
+            &ops[0],
+            Op::Invoke { module, method, .. }
+                if module == "haptics" && method == "light"
+        ));
     }
 }

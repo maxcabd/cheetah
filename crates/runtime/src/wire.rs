@@ -17,6 +17,7 @@ const OP_LAYOUT: u8 = 4;
 const OP_REMOVE: u8 = 5;
 const OP_TEXT: u8 = 6;
 const OP_UPDATE_PROPS: u8 = 7;
+const OP_INVOKE: u8 = 8;
 
 const TYPE_STRING: u8 = 1;
 const TYPE_F32: u8 = 2;
@@ -145,6 +146,16 @@ pub(crate) fn encode(ops: &[Op]) -> Vec<u8> {
             Op::Remove { id } => {
                 out.push(OP_REMOVE);
                 put_u32(&mut out, *id);
+            }
+            Op::Invoke {
+                module,
+                method,
+                args,
+            } => {
+                out.push(OP_INVOKE);
+                put_string(&mut out, module);
+                put_string(&mut out, method);
+                put_string(&mut out, args);
             }
         }
     }
@@ -374,6 +385,18 @@ mod tests {
         assert_eq!(&bytes[0..4], MAGIC);
         assert_eq!(bytes[8], OP_UPDATE_PROPS);
         assert!(bytes.len() < 40);
+    }
+
+    #[test]
+    fn encodes_native_invoke() {
+        let ops = vec![Op::Invoke {
+            module: "haptics".into(),
+            method: "light".into(),
+            args: "{}".into(),
+        }];
+        let bytes = encode(&ops);
+        assert_eq!(&bytes[0..4], MAGIC);
+        assert_eq!(bytes[8], OP_INVOKE);
     }
 
     #[test]

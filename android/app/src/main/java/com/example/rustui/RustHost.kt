@@ -70,6 +70,7 @@ class RustHost(
     private val imageCache = LruCache<String, Bitmap>(24)
     private val typefaceCache = HashMap<String, Typeface>()
     private val imageLoader = Executors.newFixedThreadPool(2)
+    private val nativeApis = NativeApis(context)
     private var sheetDialog: BottomSheetDialog? = null
     private var perfCreateUs = 0L
     private var perfUpdateUs = 0L
@@ -127,6 +128,10 @@ class RustHost(
         keyboardInset = ime.bottom / density.toDouble()
         sendHostInfo()
         root.post { resizeIfNeeded() }
+    }
+
+    fun onRequestPermissionsResult(requestCode: Int, grantResults: IntArray) {
+        nativeApis.onRequestPermissionsResult(requestCode, grantResults)
     }
 
     private fun sendHostInfo() {
@@ -240,6 +245,7 @@ class RustHost(
 
     fun dispose() {
         isActive = false
+        nativeApis.dispose()
         for (map in mapHosts) {
             map.destroy()
         }
@@ -342,6 +348,19 @@ class RustHost(
                     val view = views[id.toInt()]
                     (view as? TextView)?.text = text
                     (view?.tag as? NodeTag)?.props?.put("text", text)
+                }
+                8 -> {
+                    val module = reader.string() ?: return
+                    val method = reader.string() ?: return
+                    val args = reader.string() ?: return
+                    val payload = try {
+                        JSONObject(args)
+                    } catch (_: Exception) {
+                        JSONObject()
+                    }
+                    nativeApis.invoke(module, method, payload) { kind, value ->
+                        event(0, kind, value)
+                    }
                 }
                 else -> return
             }
@@ -853,6 +872,7 @@ class RustHost(
         "flush" -> 13
         "connection" -> 14
         "select" -> 15
+        "native" -> 16
         else -> 0
     }
 

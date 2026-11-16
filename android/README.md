@@ -50,3 +50,5 @@ The activity pauses and resumes the Rust gateway with `onStop` / `onStart`, so t
 - Virtualized variable-height list slots, scroll callbacks, scroll-to-bottom, connection status, and offline outbox.
 - Host capability handshake for safe areas, keyboard insets, and floating chrome.
 - Lifecycle pause/resume and accessibility IDs for Rust-driven controls.
+- Imperative native APIs for haptics, location, sharing, clipboard, and system
+  info through the shared `NativeApis` bridge.

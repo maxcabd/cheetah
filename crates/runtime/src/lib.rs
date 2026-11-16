@@ -17,6 +17,7 @@ mod gateway;
 mod ios;
 pub mod layout;
 pub mod model;
+pub mod native_api;
 pub mod nightshade;
 pub mod resource;
 pub mod store;
@@ -34,4 +35,5 @@ pub use element::{
     spacer, text, Element, Kind, Props,
 };
 pub use layout::{Frame, TextRequest};
+pub use native_api::NativeCall;
 pub use tree::{build, flatten, FlatTree, UiNode};

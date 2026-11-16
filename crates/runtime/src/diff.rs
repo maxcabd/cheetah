@@ -38,6 +38,12 @@ pub enum Op {
     Remove {
         id: u32,
     },
+    /// Imperative platform call, appended after the view ops for a frame.
+    Invoke {
+        module: String,
+        method: String,
+        args: String,
+    },
 }
 
 fn only_text_diff(previous: &Props, next: &Props) -> bool {

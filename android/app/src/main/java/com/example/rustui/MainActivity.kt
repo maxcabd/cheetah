@@ -44,6 +44,17 @@ class MainActivity : Activity() {
         root.post { host.start() }
     }
 
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (::host.isInitialized) {
+            host.onRequestPermissionsResult(requestCode, grantResults)
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         if (::host.isInitialized) {

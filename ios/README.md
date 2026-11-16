@@ -66,6 +66,8 @@ The host also sends lifecycle commands through `cheetah_lifecycle` / `nativeLife
 - Overlay header/composer with scroll content insets, so messages scroll beneath the chrome.
 - Host capability handshake for safe areas, keyboard insets, glass availability, and display scale.
 - Lifecycle pause/resume for the gateway, with outbox replay on foreground.
+- Imperative native APIs for haptics, location, sharing, clipboard, and system
+  info through the shared `NativeApis` bridge.
 - Stable accessibility identifiers for Rust-driven controls.
 - Variable-height list slots, scroll callbacks, scroll-to-bottom, connection status, and offline outbox from the shared core.
 

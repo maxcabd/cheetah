@@ -203,6 +203,14 @@ final class RustHost: NSObject {
     private var scrollScheduled: Set<ObjectIdentifier> = []
     private var viewPool: [String: [UIView]] = [:]
     private var sheetController: UIViewController?
+    private lazy var nativeApis = NativeApis(
+        emit: { [weak self] kind, payload in
+            self?.event(id: 0, kind: kind, payload: payload)
+        },
+        presenter: { [weak self] in
+            self?.container.window?.rootViewController
+        }
+    )
 
     var containerSize: CGSize {
         container.bounds.size
@@ -324,6 +332,7 @@ final class RustHost: NSObject {
 
         sheetController?.dismiss(animated: false)
         sheetController = nil
+        nativeApis.dispose()
         for view in views.values {
             if let native = view as? NativeModuleHostView {
                 native.destroy()
@@ -440,6 +449,16 @@ final class RustHost: NSObject {
             case 6:
                 guard let id = reader.u32(), let text = reader.string() else { return }
                 applyText(id: id, text: text)
+            case 8:
+                guard
+                    let module = reader.string(),
+                    let method = reader.string(),
+                    let args = reader.string(),
+                    let data = args.data(using: .utf8)
+                else { return }
+                let object = try? JSONSerialization.jsonObject(with: data)
+                let payload = object as? [String: Any] ?? [:]
+                _ = nativeApis.invoke(module: module, method: method, args: payload)
             default:
                 return
             }
@@ -1306,6 +1325,7 @@ final class RustHost: NSObject {
         case "flush": return 13
         case "connection": return 14
         case "select": return 15
+        case "native": return 16
         default: return 0
         }
     }
