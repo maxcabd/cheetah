@@ -1,6 +1,8 @@
 //! Shared pieces of the `cheetah` CLI, also used by the dev server and CI.
 
+pub mod config;
 pub mod fingerprint;
+pub mod prebuild;
 
 use std::net::{IpAddr, UdpSocket};
 use std::path::{Path, PathBuf};

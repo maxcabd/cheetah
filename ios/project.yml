@@ -22,12 +22,14 @@ targets:
           - Assets
       - path: Cheetah/Assets
         buildPhase: resources
+      # The app's own native modules (`cheetah prebuild`).
+      # cheetah:sources:begin
+      # cheetah:sources:end
     dependencies:
       - framework: Libs/Runtime.xcframework
         embed: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.example.cheetah
         PRODUCT_NAME: Cheetah
         INFOPLIST_FILE: Cheetah/Info.plist
         SWIFT_OBJC_BRIDGING_HEADER: Cheetah/Cheetah-Bridging-Header.h
@@ -35,12 +37,16 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # App identity from apps/<app>/cheetah.toml (`cheetah prebuild`);
+        # CHEETAH_DEFAULT_APP is the app that opens without launch arguments.
+        # cheetah:settings:begin
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.cheetah
         MARKETING_VERSION: "1.0"
         CURRENT_PROJECT_VERSION: "1"
-        # App compiled into the runtime that opens without launch arguments.
-        # TestFlight builds override this (no launch arguments there).
         CHEETAH_DEFAULT_APP: chat
-        CHEETAH_DISPLAY_NAME: Cheetah
+        CHEETAH_DISPLAY_NAME: "Cheetah"
+        CODE_SIGN_ENTITLEMENTS: Cheetah/Generated/Cheetah.entitlements
+        # cheetah:settings:end
         # `cheetah fingerprint ios`; dev builds report it to the dev server,
         # which says when native code changed and a new dev build is needed.
         CHEETAH_NATIVE_FINGERPRINT: unknown

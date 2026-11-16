@@ -5,6 +5,14 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// App identity from apps/<app>/cheetah.toml, written by `cheetah prebuild`.
+val cheetahApp = Properties().apply {
+    val file = project.file("cheetah.properties")
+    if (file.exists()) {
+        file.inputStream().use { load(it) }
+    }
+}
+
 // Supply MAPS_API_KEY in android/local.properties for a native Google map.
 // Without it the map leaf renders a development placeholder.
 val mapsApiKey: String = run {
@@ -25,11 +33,13 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.rustui"
+        applicationId = cheetahApp.getProperty("applicationId", "com.example.rustui")
         minSdk = 24
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = cheetahApp.getProperty("versionCode", "1").toInt()
+        versionName = cheetahApp.getProperty("versionName", "0.1")
+        resValue("string", "cheetah_app_name", cheetahApp.getProperty("appName", "Cheetah"))
+        buildConfigField("String", "APP_SCHEME", "\"${cheetahApp.getProperty("scheme", "")}\"")
 
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
         buildConfigField("String", "MAPS_API_KEY", "\"$mapsApiKey\"")
@@ -63,6 +73,11 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+
+    // The app's own native modules (apps/<app>/native/android).
+    cheetahApp.getProperty("nativeSource", "").takeIf { it.isNotEmpty() }?.let { source ->
+        sourceSets["main"].java.srcDir(source)
     }
 }
 

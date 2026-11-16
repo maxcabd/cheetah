@@ -41,9 +41,10 @@ concurrency:
 
 env:
   BUNDLE_ID: ${{ inputs.dev_client && 'com.nightshade.cheetah.dev' || 'com.nightshade.cheetah' }}
-  DISPLAY_NAME: ${{ inputs.dev_client && 'Cheetah Dev' || 'Cheetah' }}
-  # Compiles the dev server connection into the Release build.
-  DEV_CONDITIONS: ${{ inputs.dev_client && 'CHEETAH_DEV_CLIENT' || '' }}
+  # Name, IDs, permissions and links come from apps/nightshade/cheetah.toml
+  # (`cheetah prebuild`); --dev adds the .dev ID, " Dev" name, and compiles
+  # the dev server connection into the Release build.
+  PREBUILD_FLAGS: ${{ inputs.dev_client && '--dev' || '' }}
 
 jobs:
   upload:
@@ -84,10 +85,14 @@ jobs:
           chmod +x ios/build-rust.sh
           ./ios/build-rust.sh 2>&1 | tail -40
 
+      - name: Prebuild (app config into the Xcode project)
+        shell: bash
+        run: cargo run -q -p cheetah-cli -- prebuild --app nightshade $PREBUILD_FLAGS
+
       - name: Native fingerprint
         shell: bash
         run: |
-          native=$(cargo run -q -p cheetah-cli -- fingerprint ios)
+          native=$(cargo run -q -p cheetah-cli -- fingerprint ios --app nightshade)
           echo "NATIVE_FINGERPRINT=$native" >> "$GITHUB_ENV"
           echo "Native fingerprint: $native"
 
@@ -123,13 +128,10 @@ jobs:
             -authenticationKeyID "$KEY_ID" \
             -authenticationKeyIssuerID "$ISSUER_ID" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
             CODE_SIGN_STYLE=Automatic \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             CHEETAH_DEFAULT_APP="${{ inputs.app }}" \
-            CHEETAH_DISPLAY_NAME="$DISPLAY_NAME" \
             CHEETAH_NATIVE_FINGERPRINT="$NATIVE_FINGERPRINT" \
-            SWIFT_ACTIVE_COMPILATION_CONDITIONS="$DEV_CONDITIONS" \
             > "$RUNNER_TEMP/archive.log" 2>&1 && status=0 || status=$?
           grep -E "error:|\*\* ARCHIVE" "$RUNNER_TEMP/archive.log" || true
           if [ "$status" -ne 0 ]; then tail -80 "$RUNNER_TEMP/archive.log"; fi

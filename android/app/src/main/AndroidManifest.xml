@@ -2,12 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Permissions from cheetah.toml (`cheetah prebuild`). -->
+    <!-- cheetah:permissions:begin -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- cheetah:permissions:end -->
 
     <application
         android:allowBackup="false"
-        android:label="Cheetah"
+        android:label="@string/cheetah_app_name"
         android:usesCleartextTraffic="true"
         android:supportsRtl="true"
         android:theme="@style/Theme.RustUi">
@@ -25,6 +28,9 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Deep links and app links from cheetah.toml (`cheetah prebuild`). -->
+            <!-- cheetah:links:begin -->
+            <!-- cheetah:links:end -->
         </activity>
     </application>
 

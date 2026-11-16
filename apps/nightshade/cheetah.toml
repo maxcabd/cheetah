@@ -1,0 +1,11 @@
+# Nightshade's app config: `cheetah prebuild --app nightshade` writes it into
+# the iOS and Android projects.
+name = "Nightshade"
+version = "1.0.0"
+build = 1
+scheme = "nightshade"
+ios_bundle_id = "com.nightshade.cheetah"
+android_package = "com.example.rustui"
+
+[permissions]
+location = "Show nearby restaurants on the map."

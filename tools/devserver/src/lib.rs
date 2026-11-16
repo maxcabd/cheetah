@@ -545,9 +545,14 @@ fn handle(runtime: &DevRuntime, host: &WsHost, text: &str) {
 
 /// Whether the connected dev build has this checkout's native code. Rust and
 /// `.view` changes run here; only Swift/Kotlin changes need a new dev build.
+/// The app this server runs; its cheetah.toml and native modules are part
+/// of the dev build's native fingerprint.
+static APP_NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
 fn native_status(platform: &str, installed: &str) -> String {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let Some(local) = cheetah_cli::fingerprint::native(&root, platform) else {
+    let app = APP_NAME.get().map(String::as_str);
+    let Some(local) = cheetah_cli::fingerprint::native(&root, platform, app) else {
         return format!("{platform} dev build connected ({installed}); no git checkout to compare");
     };
     if installed == local {
@@ -639,6 +644,7 @@ async fn serve(
 
 /// Serve `source` to devices until the process is stopped.
 pub fn run(name: &str, options: Options, source: AppSource) {
+    let _ = APP_NAME.set(name.to_string());
     install_hot_patching();
     if !options.live.is_empty() {
         watch_live_edits(options.live.clone());
@@ -694,7 +700,7 @@ mod tests {
     #[test]
     fn says_when_the_dev_build_needs_rebuilding() {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let local = cheetah_cli::fingerprint::native(&root, "ios").expect("git checkout");
+        let local = cheetah_cli::fingerprint::native(&root, "ios", None).expect("git checkout");
         assert!(native_status("ios", &local).contains("is current"));
         assert!(native_status("ios", "ios-0000000000000000").contains("NATIVE CODE CHANGED"));
         assert!(native_status("ios", "unknown").contains("cheetah build ios --dev"));

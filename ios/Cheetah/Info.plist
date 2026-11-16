@@ -30,6 +30,9 @@
                 <string>cheetah</string>
             </array>
         </dict>
+        <!-- The app's deep link scheme (`cheetah prebuild`). -->
+        <!-- cheetah:schemes:begin -->
+        <!-- cheetah:schemes:end -->
     </array>
     <key>CheetahNativeFingerprint</key>
     <string>$(CHEETAH_NATIVE_FINGERPRINT)</string>
@@ -46,8 +49,11 @@
     </dict>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Connect to the local Cheetah gateway.</string>
+    <!-- Permission strings from cheetah.toml (`cheetah prebuild`). -->
+    <!-- cheetah:permissions:begin -->
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Show nearby restaurants on the map.</string>
+    <!-- cheetah:permissions:end -->
     <key>UIAppFonts</key>
     <array>
         <string>Satoshi-Regular.otf</string>

@@ -2,13 +2,15 @@
 //!
 //!   cheetah dev [--app nightshade] [--port 8787] [--host IP] [--no-qr]
 //!   cheetah build ios|android [--dev] [--app nightshade] [--install]
-//!   cheetah fingerprint [ios|android]
+//!   cheetah fingerprint [ios|android] [--app nightshade]
+//!   cheetah prebuild [--app nightshade] [--dev] [--check]
 //!   cheetah doctor
 //!
 //! Every command takes `--json` for machine-readable output (one JSON object
 //! per line), which is what agents should use.
 
-use cheetah_cli::{dev_link, fingerprint, lan_ip, repo_root};
+use cheetah_cli::config::AppConfig;
+use cheetah_cli::{dev_link, fingerprint, lan_ip, prebuild, repo_root};
 use serde_json::{json, Value};
 use std::io::Write;
 use std::path::Path;
@@ -25,7 +27,11 @@ cheetah: develop and ship Cheetah apps
       --dev builds the dev client (connects to `cheetah dev`). Android builds
       locally (--install puts it on the USB device); iOS queues the TestFlight
       workflow on GitHub (needs GITHUB_TOKEN).
-  cheetah fingerprint [ios|android]
+  cheetah prebuild [--app NAME] [--dev] [--check]
+      Write apps/NAME/cheetah.toml (name, IDs, permissions, links, native
+      modules) into the iOS and Android projects. --dev makes the iOS dev
+      build; --check only reports what would change.
+  cheetah fingerprint [ios|android] [--app NAME]
       Native code fingerprint. A dev build needs rebuilding only when this
       changes; Rust and .view edits never need one.
   cheetah doctor
@@ -33,7 +39,8 @@ cheetah: develop and ship Cheetah apps
 
   --json   machine-readable output (one JSON object per line)";
 
-const ANDROID_PACKAGE: &str = "com.example.rustui";
+const DEFAULT_APP: &str = "nightshade";
+const DEFAULT_ANDROID_PACKAGE: &str = "com.example.rustui";
 const TESTFLIGHT_WORKFLOW: &str = "testflight.yml";
 
 struct Args {
@@ -135,6 +142,7 @@ fn main() -> ExitCode {
         "dev" => dev(&args, &out),
         "build" => build(&args, &out),
         "fingerprint" => fingerprint_command(&args, &out),
+        "prebuild" => prebuild_command(&args, &out),
         "doctor" => doctor(&out),
         other => out.fail(other, "unknown command; run `cheetah help`"),
     }
@@ -173,7 +181,7 @@ fn dev(args: &Args, out: &Out) -> ExitCode {
         "app": app,
         "server": server,
         "link": link,
-        "native": native_fingerprints(&root),
+        "native": native_fingerprints(&root, app),
     }));
     out.say(format!("Cheetah dev server for `{app}` at {server}"));
     if !args.flag("--no-qr") && !out.json {
@@ -184,7 +192,10 @@ fn dev(args: &Args, out: &Out) -> ExitCode {
         println!("Scan with the phone's camera (dev build installed): {link}");
         println!("Needs the phone on the same Wi-Fi, and port {port} allowed through this machine's firewall.");
     }
-    connect_usb_android(port, out);
+    let package = AppConfig::load(&root, app)
+        .map(|config| config.android_package)
+        .unwrap_or_else(|_| DEFAULT_ANDROID_PACKAGE.to_string());
+    connect_usb_android(port, &package, out);
 
     // The watcher rebuilds and restarts the server on Rust changes; .view and
     // literal edits apply without a rebuild.
@@ -233,13 +244,13 @@ fn qr(text: &str) -> Option<String> {
 
 /// A USB Android device with the dev build: forward the port and open the
 /// dev link on it, so no scanning is needed.
-fn connect_usb_android(port: u16, out: &Out) {
+fn connect_usb_android(port: u16, package: &str, out: &Out) {
     let devices = adb_devices();
     if devices.is_empty() {
         return;
     }
-    let installed = output("adb", &["shell", "pm", "list", "packages", ANDROID_PACKAGE])
-        .is_some_and(|text| text.contains(ANDROID_PACKAGE));
+    let installed = output("adb", &["shell", "pm", "list", "packages", package])
+        .is_some_and(|text| text.contains(package));
     if !installed {
         out.say("Android device found, but the dev build isn't installed: cheetah build android --dev --install");
         out.data(json!({"command": "dev", "event": "android", "connected": false, "reason": "dev build not installed"}));
@@ -304,7 +315,12 @@ fn build_android(root: &Path, app: &str, dev: bool, install: bool, out: &Out) ->
             "only dev builds are supported for Android so far: add --dev",
         );
     }
-    let native = fingerprint::native(root, "android").unwrap_or_else(|| "unknown".into());
+    // The Android dev build is the debug build of the app's identity.
+    if let Err(error) = run_prebuild(root, app, false, out) {
+        return out.fail("build", &error);
+    }
+    let native =
+        fingerprint::native(root, "android", Some(app)).unwrap_or_else(|| "unknown".into());
     out.say(format!("Building the Android dev build ({native})"));
     let shell = if cfg!(windows) { "powershell" } else { "pwsh" };
     let mut command = Command::new(shell);
@@ -423,7 +439,7 @@ fn build_ios(root: &Path, app: &str, dev: bool, out: &Out) -> ExitCode {
     out.data(json!({
         "command": "build", "ok": true, "platform": "ios", "dev": dev,
         "queued": true, "runs": actions,
-        "native": fingerprint::native(root, "ios"),
+        "native": fingerprint::native(root, "ios", Some(app)),
     }));
     ExitCode::SUCCESS
 }
@@ -452,13 +468,13 @@ fn current_branch(root: &Path) -> Option<String> {
 // cheetah fingerprint / doctor
 // ---------------------------------------------------------------------------
 
-fn native_fingerprints(root: &Path) -> Value {
+fn native_fingerprints(root: &Path, app: &str) -> Value {
     fingerprint::PLATFORMS
         .iter()
         .map(|platform| {
             (
                 platform.to_string(),
-                json!(fingerprint::native(root, platform)),
+                json!(fingerprint::native(root, platform, Some(app))),
             )
         })
         .collect::<serde_json::Map<_, _>>()
@@ -466,7 +482,11 @@ fn native_fingerprints(root: &Path) -> Value {
 }
 
 fn fingerprint_command(args: &Args, out: &Out) -> ExitCode {
+    if let Some(flag) = args.unknown_flags(&["--app"]) {
+        return out.fail("fingerprint", &format!("unknown option {flag}"));
+    }
     let root = repo_root();
+    let app = args.value("--app").unwrap_or(DEFAULT_APP);
     let platforms: Vec<&str> = match args.positional.first().map(String::as_str) {
         None => fingerprint::PLATFORMS.to_vec(),
         Some(platform) if fingerprint::PLATFORMS.contains(&platform) => vec![platform],
@@ -474,7 +494,7 @@ fn fingerprint_command(args: &Args, out: &Out) -> ExitCode {
     };
     let mut values = serde_json::Map::new();
     for platform in platforms {
-        let Some(value) = fingerprint::native(&root, platform) else {
+        let Some(value) = fingerprint::native(&root, platform, Some(app)) else {
             return out.fail("fingerprint", "needs git and a git checkout");
         };
         out.say(&value);
@@ -482,6 +502,75 @@ fn fingerprint_command(args: &Args, out: &Out) -> ExitCode {
     }
     out.data(json!({"command": "fingerprint", "ok": true, "native": values}));
     ExitCode::SUCCESS
+}
+
+fn prebuild_command(args: &Args, out: &Out) -> ExitCode {
+    if let Some(flag) = args.unknown_flags(&["--app", "--dev", "--check"]) {
+        return out.fail("prebuild", &format!("unknown option {flag}"));
+    }
+    let root = repo_root();
+    let app = args.value("--app").unwrap_or(DEFAULT_APP);
+    let dev = args.flag("--dev");
+    if args.flag("--check") {
+        let config = match AppConfig::load(&root, app) {
+            Ok(config) => config,
+            Err(error) => return out.fail("prebuild", &error),
+        };
+        let outputs = match prebuild::plan(&root, app, &config, dev) {
+            Ok(outputs) => outputs,
+            Err(error) => return out.fail("prebuild", &error),
+        };
+        let stale: Vec<String> = outputs
+            .iter()
+            .filter(|output| {
+                let current = std::fs::read_to_string(&output.path).unwrap_or_default();
+                current.replace("\r\n", "\n") != output.contents
+            })
+            .map(|output| relative(&root, &output.path))
+            .collect();
+        for path in &stale {
+            out.say(format!("would change {path}"));
+        }
+        if stale.is_empty() {
+            out.say(format!("native projects match apps/{app}/cheetah.toml"));
+        }
+        out.data(
+            json!({"command": "prebuild", "ok": true, "app": app, "check": true, "stale": stale}),
+        );
+        return ExitCode::SUCCESS;
+    }
+    match run_prebuild(&root, app, dev, out) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => out.fail("prebuild", &error),
+    }
+}
+
+/// Write the app's config into the native projects; reports changed files.
+fn run_prebuild(root: &Path, app: &str, dev: bool, out: &Out) -> Result<(), String> {
+    let config = AppConfig::load(root, app)?;
+    let changed = prebuild::write(&prebuild::plan(root, app, &config, dev)?)?;
+    let changed: Vec<String> = changed.iter().map(|path| relative(root, path)).collect();
+    if changed.is_empty() {
+        out.say(format!(
+            "prebuild: native projects already match apps/{app}/cheetah.toml"
+        ));
+    } else {
+        out.say(format!(
+            "prebuild: wrote apps/{app}/cheetah.toml into {}",
+            changed.join(", ")
+        ));
+    }
+    out.data(
+        json!({"command": "prebuild", "ok": true, "app": app, "dev": dev, "changed": changed}),
+    );
+    Ok(())
+}
+
+fn relative(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .to_string_lossy()
+        .replace('\\', "/")
 }
 
 fn doctor(out: &Out) -> ExitCode {
@@ -591,7 +680,7 @@ fn doctor(out: &Out) -> ExitCode {
         "checks": checks.iter().map(|(name, found, needed, detail)| json!({
             "name": name, "ok": found, "needed_for": needed, "detail": detail,
         })).collect::<Vec<_>>(),
-        "native": native_fingerprints(&root),
+        "native": native_fingerprints(&root, DEFAULT_APP),
     }));
     if required_missing {
         ExitCode::FAILURE
