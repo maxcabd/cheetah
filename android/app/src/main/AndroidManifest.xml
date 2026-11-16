@@ -32,6 +32,11 @@
             <!-- cheetah:links:begin -->
             <!-- cheetah:links:end -->
         </activity>
+
+        <!-- Shows notifications scheduled through `notifications.schedule`. -->
+        <receiver
+            android:name=".NotificationReceiver"
+            android:exported="false" />
     </application>
 
 </manifest>

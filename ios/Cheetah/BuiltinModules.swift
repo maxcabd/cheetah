@@ -2,10 +2,14 @@ import Foundation
 
 /// Modules that ship with Cheetah. App modules come from GeneratedModules.
 enum BuiltinModules {
-    static let apis: [CheetahApiModule.Type] = []
+    static let apis: [CheetahApiModule.Type] = [
+        NotificationsModule.self,
+        LinkingModule.self,
+        AuthModule.self,
+    ]
     static let views: [CheetahViewModule.Type] = []
     /// Modules created up front so they see every incoming URL.
-    static let urlHandlers: [String] = []
+    static let urlHandlers: [String] = ["linking"]
 }
 
 /// URLs the app was opened with (deep links, auth redirects). SceneDelegate

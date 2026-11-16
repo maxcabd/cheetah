@@ -102,7 +102,14 @@ class ApiModules(private val context: ModuleContext) {
     /** Offer a link to the always-on modules and every loaded one. */
     fun onLink(uri: android.net.Uri): Boolean {
         BuiltinModules.linkHandlers.forEach { instance(it) }
-        return instances.values.any { it.onLink(uri) }
+        // Flows waiting for a redirect (auth) first; otherwise it's an
+        // ordinary link for `linking`.
+        val claimed = instances.filterKeys { it !in BuiltinModules.linkHandlers }
+            .values
+            .map { it.onLink(uri) }
+            .any { it }
+        if (claimed) return true
+        return BuiltinModules.linkHandlers.mapNotNull { instances[it] }.map { it.onLink(uri) }.any { it }
     }
 
     fun dispose() {

@@ -32,6 +32,7 @@ class MainActivity : Activity() {
         if (!DevRuntimeLinks.isDevLink(intent)) {
             LinkInbox.initialUri = intent.data
         }
+        NotificationBus.handleOpen(intent)
 
         host = RustHost(
             this,
@@ -57,6 +58,8 @@ class MainActivity : Activity() {
         if (DevRuntimeLinks.isDevLink(intent)) {
             setIntent(intent)
             recreate()
+        } else if (NotificationBus.handleOpen(intent)) {
+            return
         } else if (::host.isInitialized) {
             intent.data?.let { host.onLink(it) }
         }

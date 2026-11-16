@@ -117,7 +117,20 @@ final class ApiModules {
         for name in BuiltinModules.urlHandlers {
             _ = instance(name)
         }
-        return instances.values.contains { $0.open(url: url) }
+        // Flows waiting for a redirect first; otherwise it's an ordinary
+        // link for `linking`.
+        var claimed = false
+        for (name, module) in instances where !BuiltinModules.urlHandlers.contains(name) {
+            claimed = module.open(url: url) || claimed
+        }
+        if claimed {
+            return true
+        }
+        var handled = false
+        for name in BuiltinModules.urlHandlers {
+            handled = (instances[name]?.open(url: url) ?? false) || handled
+        }
+        return handled
     }
 
     func dispose() {

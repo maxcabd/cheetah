@@ -27,6 +27,7 @@ pub mod live;
 pub mod model;
 pub mod native_api;
 pub mod nav;
+pub mod platform;
 // The Nightshade app lives in its own crate (apps/nightshade) so the dev
 // server can hot-patch it; device builds compile the same file in here.
 // Dev-server builds leave it out: apps/nightshade compiles it itself, and
