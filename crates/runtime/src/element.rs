@@ -171,6 +171,27 @@ pub struct Props {
     pub native: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub native_props: Option<String>,
+    /// Horizontal offset from the laid-out position, in points.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translate_x: Option<f32>,
+    /// Vertical offset from the laid-out position, in points.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translate_y: Option<f32>,
+    /// Uniform scale around the center (1 = normal).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub scale: Option<f32>,
+    /// Rotation around the center, in degrees.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rotate: Option<f32>,
+    /// With `animate`: how long changes take (default 200 ms).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transition_ms: Option<f32>,
+    /// With `animate`: spring timing instead of ease-out.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spring: Option<bool>,
+    /// Gestures to report as `gesture` events: comma-separated `pan`, `swipe`, `long_press`, `pinch`, `double_tap`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gestures: Option<String>,
 }
 
 impl Props {
@@ -250,6 +271,13 @@ impl Props {
         changed_field!(pressable);
         changed_field!(native);
         changed_field!(native_props);
+        changed_field!(translate_x);
+        changed_field!(translate_y);
+        changed_field!(scale);
+        changed_field!(rotate);
+        changed_field!(transition_ms);
+        changed_field!(spring);
+        changed_field!(gestures);
 
         changed.then_some(delta)
     }
@@ -517,6 +545,48 @@ impl Props {
 
     pub fn native_props(mut self, value: impl Into<String>) -> Self {
         self.native_props = Some(value.into());
+        self
+    }
+
+    /// Horizontal offset from the laid-out position, in points.
+    pub fn translate_x(mut self, value: f32) -> Self {
+        self.translate_x = Some(value);
+        self
+    }
+
+    /// Vertical offset from the laid-out position, in points.
+    pub fn translate_y(mut self, value: f32) -> Self {
+        self.translate_y = Some(value);
+        self
+    }
+
+    /// Uniform scale around the center (1 = normal).
+    pub fn scale(mut self, value: f32) -> Self {
+        self.scale = Some(value);
+        self
+    }
+
+    /// Rotation around the center, in degrees.
+    pub fn rotate(mut self, value: f32) -> Self {
+        self.rotate = Some(value);
+        self
+    }
+
+    /// With `animate`: how long changes take (default 200 ms).
+    pub fn transition_ms(mut self, value: f32) -> Self {
+        self.transition_ms = Some(value);
+        self
+    }
+
+    /// With `animate`: spring timing instead of ease-out.
+    pub fn spring(mut self, value: bool) -> Self {
+        self.spring = Some(value);
+        self
+    }
+
+    /// Gestures to report as `gesture` events: comma-separated `pan`, `swipe`, `long_press`, `pinch`, `double_tap`.
+    pub fn gestures(mut self, value: impl Into<String>) -> Self {
+        self.gestures = Some(value.into());
         self
     }
 }
@@ -846,6 +916,48 @@ impl Element {
 
     pub fn native_props(mut self, value: impl Into<String>) -> Self {
         self.props.native_props = Some(value.into());
+        self
+    }
+
+    /// Horizontal offset from the laid-out position, in points.
+    pub fn translate_x(mut self, value: f32) -> Self {
+        self.props.translate_x = Some(value);
+        self
+    }
+
+    /// Vertical offset from the laid-out position, in points.
+    pub fn translate_y(mut self, value: f32) -> Self {
+        self.props.translate_y = Some(value);
+        self
+    }
+
+    /// Uniform scale around the center (1 = normal).
+    pub fn scale(mut self, value: f32) -> Self {
+        self.props.scale = Some(value);
+        self
+    }
+
+    /// Rotation around the center, in degrees.
+    pub fn rotate(mut self, value: f32) -> Self {
+        self.props.rotate = Some(value);
+        self
+    }
+
+    /// With `animate`: how long changes take (default 200 ms).
+    pub fn transition_ms(mut self, value: f32) -> Self {
+        self.props.transition_ms = Some(value);
+        self
+    }
+
+    /// With `animate`: spring timing instead of ease-out.
+    pub fn spring(mut self, value: bool) -> Self {
+        self.props.spring = Some(value);
+        self
+    }
+
+    /// Gestures to report as `gesture` events: comma-separated `pan`, `swipe`, `long_press`, `pinch`, `double_tap`.
+    pub fn gestures(mut self, value: impl Into<String>) -> Self {
+        self.props.gestures = Some(value.into());
         self
     }
 }

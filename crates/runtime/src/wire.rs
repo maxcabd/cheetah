@@ -83,6 +83,13 @@ const PROP_NAMES: &[&str] = &[
     "pressable",
     "native",
     "nativeProps",
+    "translateX",
+    "translateY",
+    "scale",
+    "rotate",
+    "transitionMs",
+    "spring",
+    "gestures",
 ];
 
 pub(crate) fn encode(ops: &[Op]) -> Vec<u8> {
@@ -281,6 +288,13 @@ fn put_props(out: &mut Vec<u8>, props: &Props) {
     bool_prop!("pressable", props.pressable);
     string_prop!("native", props.native);
     string_prop!("nativeProps", props.native_props);
+    f32_prop!("translateX", props.translate_x);
+    f32_prop!("translateY", props.translate_y);
+    f32_prop!("scale", props.scale);
+    f32_prop!("rotate", props.rotate);
+    f32_prop!("transitionMs", props.transition_ms);
+    bool_prop!("spring", props.spring);
+    string_prop!("gestures", props.gestures);
 }
 
 fn prop_count(props: &Props) -> usize {
@@ -350,6 +364,13 @@ fn prop_count(props: &Props) -> usize {
     count!(props.pressable);
     count!(props.native);
     count!(props.native_props);
+    count!(props.translate_x);
+    count!(props.translate_y);
+    count!(props.scale);
+    count!(props.rotate);
+    count!(props.transition_ms);
+    count!(props.spring);
+    count!(props.gestures);
     count
 }
 

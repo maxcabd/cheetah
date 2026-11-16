@@ -26,6 +26,16 @@ class NodeTag(val id: Int, val view: View, val kind: String) {
     var props: org.json.JSONObject? = null
     var pressFeedbackInstalled: Boolean = false
 
+    // Motion: resting transform (points), animation timing, gestures.
+    var translateX: Float = 0f
+    var translateY: Float = 0f
+    var scale: Float = 1f
+    var rotate: Float = 0f
+    var alpha: Float = 1f
+    var transitionMs: Long = 200L
+    var spring: Boolean = false
+    var gestures: GestureHandler? = null
+
     val isSheet: Boolean
         get() = kind == "sheet" || native == "sheet"
 }

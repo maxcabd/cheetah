@@ -734,16 +734,66 @@ class RustHost(
         val oldY = view.top
         view.post {
             if (view.left != oldX || view.top != oldY) {
-                view.translationX = (oldX - view.left).toFloat()
-                view.translationY = (oldY - view.top).toFloat()
+                view.translationX = (oldX - view.left).toFloat() + dp(tag.translateX)
+                view.translationY = (oldY - view.top).toFloat() + dp(tag.translateY)
                 view.animate()
-                    .translationX(0f)
-                    .translationY(0f)
-                    .setDuration(200L)
+                    .translationX(dp(tag.translateX).toFloat())
+                    .translationY(dp(tag.translateY).toFloat())
+                    .setDuration(tag.transitionMs)
+                    .setInterpolator(interpolator(tag))
                     .start()
             }
         }
     }
+
+    /**
+     * Opacity and transform (`translate_x`, `translate_y`, `scale`, `rotate`).
+     * With `animate`, changes ease (or spring) over `transition_ms`.
+     */
+    private fun applyMotion(view: View, tag: NodeTag, props: JSONObject) {
+        val alpha = props.optDouble("opacity", 1.0).toFloat()
+        val translateX = props.optDouble("translateX", 0.0).toFloat()
+        val translateY = props.optDouble("translateY", 0.0).toFloat()
+        val scale = props.optDouble("scale", 1.0).toFloat()
+        val rotate = props.optDouble("rotate", 0.0).toFloat()
+        val changed = alpha != tag.alpha || translateX != tag.translateX ||
+            translateY != tag.translateY || scale != tag.scale || rotate != tag.rotate
+        tag.alpha = alpha
+        tag.translateX = translateX
+        tag.translateY = translateY
+        tag.scale = scale
+        tag.rotate = rotate
+        tag.gestures?.restScale = scale
+        tag.gestures?.restAlpha = alpha
+        if (!changed && view.alpha == alpha) return
+        if (tag.animate && view.isAttachedToWindow && view.width > 0) {
+            view.animate()
+                .alpha(alpha)
+                .translationX(dp(translateX).toFloat())
+                .translationY(dp(translateY).toFloat())
+                .scaleX(scale)
+                .scaleY(scale)
+                .rotation(rotate)
+                .setDuration(tag.transitionMs)
+                .setInterpolator(interpolator(tag))
+                .start()
+        } else {
+            view.animate().cancel()
+            view.alpha = alpha
+            view.translationX = dp(translateX).toFloat()
+            view.translationY = dp(translateY).toFloat()
+            view.scaleX = scale
+            view.scaleY = scale
+            view.rotation = rotate
+        }
+    }
+
+    private fun interpolator(tag: NodeTag): android.animation.TimeInterpolator =
+        if (tag.spring) {
+            android.view.animation.OvershootInterpolator(1.1f)
+        } else {
+            android.view.animation.DecelerateInterpolator(1.6f)
+        }
 
     private fun presentSheetIfNeeded(view: View) {
         if (sheetDialog != null) return
@@ -908,6 +958,7 @@ class RustHost(
         "connection" -> 14
         "select" -> 15
         "native" -> 16
+        "gesture" -> 17
         else -> 0
     }
 
@@ -928,29 +979,30 @@ class RustHost(
             view.setActive(isActive)
         }
 
-        if (props.optBoolean("pressable", false)) {
-            view.isClickable = true
-            if (!tag.pressFeedbackInstalled) {
-                tag.pressFeedbackInstalled = true
-                view.setOnTouchListener { target, event ->
-                    when (event.actionMasked) {
-                        android.view.MotionEvent.ACTION_DOWN -> target.animate()
-                            .scaleX(0.97f)
-                            .scaleY(0.97f)
-                            .alpha(0.9f)
-                            .setDuration(90L)
-                            .start()
-                        android.view.MotionEvent.ACTION_UP,
-                        android.view.MotionEvent.ACTION_CANCEL -> target.animate()
-                            .scaleX(1f)
-                            .scaleY(1f)
-                            .alpha(1f)
-                            .setDuration(140L)
-                            .start()
-                    }
-                    false
-                }
+        // Timing for animated changes (`transition_ms`, `spring`).
+        tag.transitionMs = props.optDouble("transitionMs", 200.0).toLong().coerceAtLeast(0L)
+        tag.spring = props.optBoolean("spring", false)
+
+        // One touch listener does press feedback and `.gestures(...)`.
+        val pressable = props.optBoolean("pressable", false)
+        val kinds = props.optString("gestures", "")
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .toSet()
+        if (pressable || kinds.isNotEmpty() || tag.gestures != null) {
+            val handler = tag.gestures ?: GestureHandler(view, density) { payload ->
+                event(tag.id, "gesture", payload)
+            }.also { created ->
+                tag.gestures = created
+                view.setOnTouchListener { _, motion -> created.onTouch(motion) }
             }
+            handler.kinds = kinds
+            handler.pressable = pressable
+        }
+
+        if (pressable) {
+            view.isClickable = true
             view.setOnClickListener {
                 val input = context.getSystemService(Context.INPUT_METHOD_SERVICE)
                     as? android.view.inputmethod.InputMethodManager
@@ -1081,9 +1133,7 @@ class RustHost(
             }
         }
 
-        if (props.has("opacity")) {
-            view.alpha = props.getDouble("opacity").toFloat()
-        }
+        applyMotion(view, tag, props)
 
         if (props.has("clip") && props.getBoolean("clip")) {
             view.clipToOutline = true
@@ -1298,7 +1348,7 @@ private class WireReader(bytes: ByteArray) {
         return String(bytes, Charsets.UTF_8)
     }
 
-    private val propNames = arrayOf("text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps")
+    private val propNames = arrayOf("text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures")
 
     fun props(): JSONObject? {
         val count = u32()?.toInt() ?: return null

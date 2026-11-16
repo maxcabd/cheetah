@@ -127,6 +127,10 @@ private final class NodeTag {
     var native: String?
     var props: [String: Any]?
     var animate = false
+    // Motion: animation timing and gestures.
+    var transitionMs: Double = 200
+    var spring = false
+    var gestures: GestureRelay?
     var lastPage: Int = -1
     var paged = false
 
@@ -177,7 +181,7 @@ private struct WireReader {
         return String(decoding: data[offset..<(offset + Int(length))], as: UTF8.self)
     }
 
-    static let propNames: [String] = ["text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps"]
+    static let propNames: [String] = ["text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures"]
 
     mutating func take(_ count: Int) -> Data? {
         guard offset + count <= data.count else { return nil }
@@ -755,21 +759,15 @@ final class RustHost: NSObject {
             width: number(op["width"]),
             height: number(op["height"])
         )
+        let current = placement(of: view)
         if let node = tags[id], node.animate, view.superview != nil,
-           view.frame.width > 0, view.frame.height > 0, view.frame != target
+           current.width > 0, current.height > 0, current != target
         {
-            let previous = view.frame
-            view.frame = target
-            view.frame = previous
-            UIView.animate(
-                withDuration: 0.2,
-                delay: 0,
-                options: [.curveEaseOut, .allowUserInteraction]
-            ) {
-                view.frame = target
+            animate(node) {
+                self.place(view, target)
             }
         } else {
-            view.frame = target
+            place(view, target)
         }
 
         if let node = tags[id], node.scrollView != nil {
@@ -783,6 +781,72 @@ final class RustHost: NSObject {
             if let props = node.mapProps {
                 applyMap(map, props: props)
             }
+        }
+    }
+
+    /// Set a laid-out frame through bounds and center: unlike `frame`, they
+    /// stay valid while a transform (scale, rotate) is applied.
+    private func place(_ view: UIView, _ rect: CGRect) {
+        view.bounds.size = rect.size
+        view.center = CGPoint(x: rect.midX, y: rect.midY)
+    }
+
+    private func placement(of view: UIView) -> CGRect {
+        let size = view.bounds.size
+        return CGRect(
+            x: view.center.x - size.width / 2,
+            y: view.center.y - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    /// Run `changes` with the node's timing: ease-out, or a spring.
+    private func animate(_ node: NodeTag, _ changes: @escaping () -> Void) {
+        let duration = max(node.transitionMs, 0) / 1000
+        if node.spring {
+            UIView.animate(
+                withDuration: duration,
+                delay: 0,
+                usingSpringWithDamping: 0.75,
+                initialSpringVelocity: 0,
+                options: [.allowUserInteraction, .beginFromCurrentState],
+                animations: changes
+            )
+        } else {
+            UIView.animate(
+                withDuration: duration,
+                delay: 0,
+                options: [.curveEaseOut, .allowUserInteraction, .beginFromCurrentState],
+                animations: changes
+            )
+        }
+    }
+
+    /// Opacity and transform (`translate_x`, `translate_y`, `scale`,
+    /// `rotate`). With `animate`, changes ease (or spring) over
+    /// `transition_ms`.
+    private func applyMotion(_ view: UIView, node: NodeTag, props: [String: Any]) {
+        let alpha = props["opacity"] != nil ? CGFloat(number(props["opacity"])) : 1.0
+        let scale = props["scale"] != nil ? number(props["scale"]) : 1.0
+        let radians = number(props["rotate"]) * .pi / 180
+        let transform = CGAffineTransform(
+            translationX: number(props["translateX"]),
+            y: number(props["translateY"])
+        )
+        .rotated(by: radians)
+        .scaledBy(x: scale, y: scale)
+        guard view.alpha != alpha || view.transform != transform else {
+            return
+        }
+        if node.animate, view.window != nil {
+            animate(node) {
+                view.alpha = alpha
+                view.transform = transform
+            }
+        } else {
+            view.alpha = alpha
+            view.transform = transform
         }
     }
 
@@ -1014,6 +1078,21 @@ final class RustHost: NSObject {
             node.tapRecognizer = tap
         }
 
+        let gestureKinds = Set(
+            (props["gestures"] as? String ?? "")
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+        )
+        if !gestureKinds.isEmpty || node.gestures != nil {
+            let relay = node.gestures ?? GestureRelay(view: view) { [weak self, weak node] payload in
+                guard let self, let node else { return }
+                self.event(id: node.id, kind: "gesture", payload: payload)
+            }
+            node.gestures = relay
+            relay.update(kinds: gestureKinds, tap: node.tapRecognizer)
+        }
+
         if let imageView = view as? UIImageView, let source = props["src"] as? String {
             if node.imageSource != source {
                 node.imageSource = source
@@ -1081,7 +1160,9 @@ final class RustHost: NSObject {
         } else {
             view.layer.borderWidth = 0
         }
-        view.alpha = props["opacity"] != nil ? CGFloat(number(props["opacity"])) : 1.0
+        node.transitionMs = props["transitionMs"] != nil ? number(props["transitionMs"]) : 200
+        node.spring = bool(props["spring"])
+        applyMotion(view, node: node, props: props)
         if bool(props["shadow"]) {
             view.layer.shadowColor = UIColor.black.cgColor
             view.layer.shadowOpacity = 0.3
@@ -1363,6 +1444,7 @@ final class RustHost: NSObject {
         case "ack": return 11
         case "fail": return 12
         case "flush": return 13
+        case "gesture": return 17
         case "connection": return 14
         case "select": return 15
         case "native": return 16

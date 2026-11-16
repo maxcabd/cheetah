@@ -11,6 +11,7 @@ pub mod dev;
 pub mod diff;
 pub mod dynprops;
 pub mod element;
+pub mod gesture;
 #[cfg(target_os = "android")]
 mod ffi;
 #[cfg(any(target_os = "android", target_os = "ios", test, feature = "devserver"))]
@@ -38,6 +39,7 @@ pub mod secure_store;
 pub mod store;
 pub mod tree;
 pub mod views;
+pub mod virtual_list;
 mod wire;
 
 pub fn encode_ops(ops: &[Op]) -> Vec<u8> {
