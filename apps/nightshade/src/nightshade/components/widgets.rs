@@ -1,9 +1,9 @@
 //! Small shared view pieces: icons, chips, buttons.
 
-use super::*;
+use crate::nightshade::*;
 
 impl NightshadeApp {
-    pub(super) fn icon(name: &str, size: f32, color: &str) -> Element {
+    pub(crate) fn icon(name: &str, size: f32, color: &str) -> Element {
         native("icon")
             .native_props(format!(r#"{{"name":"{name}","color":"{color}"}}"#))
             .width(size)
@@ -12,7 +12,7 @@ impl NightshadeApp {
             .color(color)
     }
 
-    pub(super) fn glass_icon(icon_name: &str, key: &str) -> Element {
+    pub(crate) fn glass_icon(icon_name: &str, key: &str) -> Element {
         glass()
             .key(key)
             .pressable(true)
@@ -27,7 +27,7 @@ impl NightshadeApp {
             .child(Self::icon(icon_name, 16.0, "#ffffff"))
     }
 
-    pub(super) fn action_button(
+    pub(crate) fn action_button(
         icon_name: &str,
         key: &str,
         background: &str,
@@ -45,7 +45,7 @@ impl NightshadeApp {
             .child(Self::icon(icon_name, 16.0, "#ffffff"))
     }
 
-    pub(super) fn chip(label: &str, key: &str) -> Element {
+    pub(crate) fn chip(label: &str, key: &str) -> Element {
         text(label)
             .key(key)
             .pressable(true)

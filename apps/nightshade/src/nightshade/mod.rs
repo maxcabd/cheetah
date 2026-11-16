@@ -13,34 +13,16 @@ use serde::Deserialize;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-mod card;
-mod data;
-mod map;
-mod search;
-mod sheet;
+mod api;
+mod components;
+mod screens;
+mod state;
 #[cfg(test)]
 mod tests;
-mod widgets;
+mod theme;
 
-use self::data::*;
-
-const BG: &str = "#0b0b0f";
-const SHEET_BG: &str = "#171717";
-const CARD_BG: &str = "#1f1f1f";
-const CHIP_BG: &str = "#242424";
-const TEXT: &str = "#f5f5f5";
-const MUTED: &str = "#a3a3a3";
-const GREEN: &str = "#4ade80";
-const RED: &str = "#f87171";
-const SEARCH_HEIGHT: f32 = 72.0;
-const RESULT_SHEET_HEIGHT: f32 = 205.0;
-const CAROUSEL_BOTTOM: f32 = 225.0;
-const CARD_HEIGHT: f32 = 320.0;
-const CARD_HEADER: f32 = 180.0;
-const SEARCH_BOTTOM_GAP: f32 = 112.0;
-
-const INITIAL_LAT: f32 = 37.7749;
-const INITIAL_LNG: f32 = -122.4194;
+use self::api::*;
+use self::theme::*;
 
 const SUGGESTIONS: [&str; 7] = [
     "Cafes within 12 min walk",
@@ -127,25 +109,7 @@ impl Default for NightshadeApp {
 
 impl App for NightshadeApp {
     fn view(&self, context: &ViewContext) -> Element {
-        let (latitude, longitude, latitude_delta, longitude_delta) = self.region();
-        let mut root = column().width(-1.0).height(-1.0).bg(BG).child(
-            map()
-                .key("map")
-                .width(-1.0)
-                .height(-1.0)
-                .bg("#101826")
-                .test_id("nightshade-map")
-                .map_region(latitude, longitude, latitude_delta, longitude_delta)
-                .map_markers(self.markers())
-                .map_dark(true)
-                .map_shows_user(true),
-        );
-
-        if self.has_results() {
-            root = root.child(self.carousel(context, self.visible_places()));
-        }
-
-        root.child(self.sheet(context))
+        self.map_screen(context)
     }
 
     fn update(&mut self, event: Event) {

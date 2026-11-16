@@ -1,15 +1,41 @@
-//! Map region and markers.
+//! The map screen: map with markers, result cards, and the search sheet.
 
-use super::*;
+use crate::nightshade::*;
+
+const INITIAL_LAT: f32 = 37.7749;
+const INITIAL_LNG: f32 = -122.4194;
 
 impl NightshadeApp {
-    pub(super) fn visible_places(&self) -> &[Place] {
+    /// Full-screen map, result cards over it, and the search sheet.
+    pub(crate) fn map_screen(&self, context: &ViewContext) -> Element {
+        let (latitude, longitude, latitude_delta, longitude_delta) = self.region();
+        let mut root = column().width(-1.0).height(-1.0).bg(BG).child(
+            map()
+                .key("map")
+                .width(-1.0)
+                .height(-1.0)
+                .bg("#101826")
+                .test_id("nightshade-map")
+                .map_region(latitude, longitude, latitude_delta, longitude_delta)
+                .map_markers(self.markers())
+                .map_dark(true)
+                .map_shows_user(true),
+        );
+
+        if self.has_results() {
+            root = root.child(self.carousel(context, self.visible_places()));
+        }
+
+        root.child(self.sheet(context))
+    }
+
+    pub(crate) fn visible_places(&self) -> &[Place] {
         self.response()
             .map(|response| response.places.as_slice())
             .unwrap_or(&self.sample_places)
     }
 
-    pub(super) fn region(&self) -> (f32, f32, f32, f32) {
+    pub(crate) fn region(&self) -> (f32, f32, f32, f32) {
         if !self.has_results() {
             let (latitude, longitude) = self.center.unwrap_or((INITIAL_LAT, INITIAL_LNG));
             return (latitude, longitude, 0.025, 0.025);
@@ -46,7 +72,7 @@ impl NightshadeApp {
         (latitude, longitude, latitude_delta, longitude_delta)
     }
 
-    pub(super) fn markers(&self) -> String {
+    pub(crate) fn markers(&self) -> String {
         let results = self.has_results();
         let items = self
             .visible_places()

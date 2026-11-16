@@ -1,9 +1,9 @@
 //! Bottom sheet: search bar, suggestions, results list.
 
-use super::*;
+use crate::nightshade::*;
 
 impl NightshadeApp {
-    pub(super) fn sheet_height(&self, context: &ViewContext) -> f32 {
+    pub(crate) fn sheet_height(&self, context: &ViewContext) -> f32 {
         if self.expanded {
             let fraction = if self.host.keyboard_inset > 0.0 {
                 0.92
@@ -18,7 +18,7 @@ impl NightshadeApp {
         }
     }
 
-    pub(super) fn search_bar(&self, _context: &ViewContext) -> Element {
+    pub(crate) fn search_bar(&self, _context: &ViewContext) -> Element {
         let results = self.has_results();
         let placeholder = if results {
             "Ask a follow up"
@@ -76,7 +76,7 @@ impl NightshadeApp {
             .child(bar)
     }
 
-    pub(super) fn empty_body(&self) -> Element {
+    pub(crate) fn empty_body(&self) -> Element {
         if let Some(cached) = self.suggestion_cache.borrow().as_ref() {
             return cached.clone();
         }
@@ -114,7 +114,7 @@ impl NightshadeApp {
         grid
     }
 
-    pub(super) fn results_body(&self) -> Element {
+    pub(crate) fn results_body(&self) -> Element {
         let mut body = column()
             .width(-1.0)
             .weight(1.0)
@@ -172,7 +172,7 @@ impl NightshadeApp {
         body
     }
 
-    pub(super) fn searching_body(&self) -> Element {
+    pub(crate) fn searching_body(&self) -> Element {
         column()
             .width(-1.0)
             .weight(1.0)
@@ -188,7 +188,7 @@ impl NightshadeApp {
             .child(text("Searching...").size(16.0).height(24.0))
     }
 
-    pub(super) fn sheet(&self, context: &ViewContext) -> Element {
+    pub(crate) fn sheet(&self, context: &ViewContext) -> Element {
         let height = self.sheet_height(context);
         let body_height = (height - 24.0 - SEARCH_HEIGHT - SEARCH_BOTTOM_GAP).max(0.0);
         let body = if self.has_results() && !self.expanded {

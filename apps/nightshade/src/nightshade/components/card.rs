@@ -1,9 +1,9 @@
 //! Place card and the paged card carousel.
 
-use super::*;
+use crate::nightshade::*;
 
 impl NightshadeApp {
-    pub(super) fn card(&self, width: f32, place: &Place, _selected: bool) -> Element {
+    pub(crate) fn card(&self, width: f32, place: &Place, _selected: bool) -> Element {
         let cache_key = (place.id.clone(), width.to_bits());
         if let Some(cached) = self.card_cache.borrow().get(&cache_key) {
             return cached.clone();
@@ -215,7 +215,7 @@ impl NightshadeApp {
         card
     }
 
-    pub(super) fn carousel(&self, context: &ViewContext, places: &[Place]) -> Element {
+    pub(crate) fn carousel(&self, context: &ViewContext, places: &[Place]) -> Element {
         let width = context.viewport.width.max(320.0);
         let card_width = width * 0.90;
         let content_width = width * places.len() as f32;

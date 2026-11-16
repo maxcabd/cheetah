@@ -1,9 +1,9 @@
 //! Running searches and handling native results.
 
-use super::*;
+use crate::nightshade::*;
 
 impl NightshadeApp {
-    pub(super) fn run_search(&mut self, query: &str) {
+    pub(crate) fn run_search(&mut self, query: &str) {
         let query = query.trim();
         if query.is_empty() {
             return;
@@ -30,7 +30,7 @@ impl NightshadeApp {
         self.finish_search(result);
     }
 
-    pub(super) fn finish_search(&mut self, result: Result<SearchResponse, String>) {
+    pub(crate) fn finish_search(&mut self, result: Result<SearchResponse, String>) {
         match result {
             Ok(response) => {
                 self.search = Resource::Ready(response);
@@ -48,7 +48,7 @@ impl NightshadeApp {
         }
     }
 
-    pub(super) fn clear_search(&mut self) {
+    pub(crate) fn clear_search(&mut self) {
         if let Backend::Remote { pending, .. } = &mut self.backend {
             if let Some(id) = pending.take() {
                 self.calls.push(crate::http::cancel(id));
@@ -62,7 +62,7 @@ impl NightshadeApp {
         self.expanded = false;
     }
 
-    pub(super) fn select_place(&mut self, id: &str) {
+    pub(crate) fn select_place(&mut self, id: &str) {
         let Some(response) = self.response() else {
             return;
         };
@@ -73,11 +73,11 @@ impl NightshadeApp {
         }
     }
 
-    pub(super) fn haptic(&mut self, style: &str) {
+    pub(crate) fn haptic(&mut self, style: &str) {
         self.calls.push(NativeCall::new("haptics", style, "{}"));
     }
 
-    pub(super) fn handle_native_event(&mut self, payload: &str) {
+    pub(crate) fn handle_native_event(&mut self, payload: &str) {
         let Some(event) = NativeEvent::parse(payload) else {
             return;
         };
