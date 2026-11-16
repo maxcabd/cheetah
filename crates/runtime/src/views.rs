@@ -279,22 +279,46 @@ fn path_of(word: &str) -> Path {
     word.split('.').map(str::to_string).collect()
 }
 
+/// Split `"a {path} b"` into text and paths; `{{` and `}}` are literal braces.
 fn template(text: &str) -> Vec<Part> {
     let mut parts = Vec::new();
-    let mut rest = text;
-    while let Some(open) = rest.find('{') {
-        if let Some(close) = rest[open..].find('}') {
-            if open > 0 {
-                parts.push(Part::Text(rest[..open].to_string()));
+    let mut literal = String::new();
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        match c {
+            '{' if chars.peek() == Some(&'{') => {
+                chars.next();
+                literal.push('{');
             }
-            parts.push(Part::Path(path_of(rest[open + 1..open + close].trim())));
-            rest = &rest[open + close + 1..];
-        } else {
-            break;
+            '}' if chars.peek() == Some(&'}') => {
+                chars.next();
+                literal.push('}');
+            }
+            '{' => {
+                let mut path = String::new();
+                let mut closed = false;
+                for next in chars.by_ref() {
+                    if next == '}' {
+                        closed = true;
+                        break;
+                    }
+                    path.push(next);
+                }
+                if !closed {
+                    literal.push('{');
+                    literal.push_str(&path);
+                    break;
+                }
+                if !literal.is_empty() {
+                    parts.push(Part::Text(std::mem::take(&mut literal)));
+                }
+                parts.push(Part::Path(path_of(path.trim())));
+            }
+            other => literal.push(other),
         }
     }
-    if !rest.is_empty() {
-        parts.push(Part::Text(rest.to_string()));
+    if !literal.is_empty() {
+        parts.push(Part::Text(literal));
     }
     parts
 }
@@ -311,7 +335,7 @@ impl<'a> Parser<'a> {
     fn expr(&self, token: &Token, line: usize) -> Result<Expr, ViewError> {
         Ok(match token {
             Token::Num(n) => Expr::Value(DynValue::Num(*n)),
-            Token::Str(s) if s.contains('{') => Expr::Template(template(s)),
+            Token::Str(s) if s.contains('{') || s.contains('}') => Expr::Template(template(s)),
             Token::Str(s) => Expr::Value(DynValue::Str(s.clone())),
             Token::Word(w) if w == "true" => Expr::Value(DynValue::Bool(true)),
             Token::Word(w) if w == "false" => Expr::Value(DynValue::Bool(false)),
@@ -906,6 +930,21 @@ component Inner
             err("component A\n  column\n      text \"x\"\n    text \"y\"\n")
                 .message
                 .contains("indent")
+        );
+    }
+
+    #[test]
+    fn doubled_braces_are_literal() {
+        let views = parse(
+            r##"
+component Icon
+  native "icon" native_props="{{\"name\":\"{name}\"}}"
+"##,
+        );
+        let root = views.render("Icon", &json!({"name": "car"}));
+        assert_eq!(
+            root.props.native_props.as_deref(),
+            Some(r#"{"name":"car"}"#)
         );
     }
 
