@@ -8,3 +8,9 @@ opt-level = "z"
 lto = true
 codegen-units = 1
 strip = true
+
+# The app crates are what the dev loop recompiles on every save (and what
+# dx hot-patches). Line tables keep panics readable but skip full debug
+# info, which is a large share of that compile time.
+[profile.dev.package.nightshade]
+debug = "line-tables-only"

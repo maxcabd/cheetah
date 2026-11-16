@@ -6,7 +6,7 @@ description = "Nightshade app; this binary is its hot-reloading dev server"
 
 # Device builds compile src/nightshade.rs into the runtime library
 # (crates/runtime/src/lib.rs). This crate is only the dev entry point:
-#   dx serve --hotpatch -p nightshade        instant patches, state kept
+#   dev-hot.ps1 (dx serve --hot-patch -p nightshade)   hot patches, state kept
 #   cargo run -p cheetah-devserver --bin cheetah-dev   rebuild + restart
 
 [[bin]]

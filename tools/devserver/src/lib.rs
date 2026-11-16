@@ -1,6 +1,6 @@
 //! cheetah-devserver: run a Cheetah app on this machine and render it on a
 //! device over WebSocket, so app changes only need a desktop rebuild, or no
-//! rebuild at all when running under `dx serve --hotpatch` (see [`Hot`]).
+//! rebuild at all when running under `dx serve --hot-patch` (see [`Hot`]).
 //!
 //! The device host connects in dev mode (Android: `--es devServer
 //! ws://localhost:8787` with `adb reverse tcp:8787 tcp:8787`). The protocol
@@ -97,11 +97,11 @@ fn fail(message: &str) -> ! {
 }
 
 // ---------------------------------------------------------------------------
-// Hot patching (dx serve --hotpatch)
+// Hot patching (dx serve --hot-patch)
 // ---------------------------------------------------------------------------
 
 /// Wraps an app so its `view` and `update` run through Subsecond: under
-/// `dx serve --hotpatch`, edits to the app crate are patched into this
+/// `dx serve --hot-patch`, edits to the app crate are patched into this
 /// running process and take effect on the next call, keeping app state.
 ///
 /// Subsecond only patches the crate that owns `main`, so the app's code must
@@ -146,11 +146,12 @@ static CURRENT: Mutex<Option<RerenderHandle>> = Mutex::new(None);
 fn install_hot_patching() {
     // Connects only when launched by `dx serve` (it sets the endpoint).
     dioxus_devtools::connect_subsecond();
-    subsecond::register_handler(Arc::new(|| {
-        if let Some(handle) = CURRENT.lock().unwrap().as_ref() {
+    subsecond::register_handler(Arc::new(|| match CURRENT.lock().unwrap().as_ref() {
+        Some(handle) => {
             println!("devserver: code patched, re-rendering");
             handle.rerender();
         }
+        None => println!("devserver: code patched (no device connected)"),
     }));
 }
 

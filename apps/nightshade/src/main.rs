@@ -1,5 +1,5 @@
 //! Nightshade dev server: runs the app on this machine for a device in dev
-//! mode. Under `dx serve --hotpatch -p nightshade`, edits to nightshade.rs are
+//! mode. Under `dev-hot.ps1 (dx serve --hot-patch -p nightshade)`, edits to nightshade.rs are
 //! patched into the running app (state kept) and the device updates at once.
 //!
 //!   nightshade [--demo] [--port 8787] [--lan]

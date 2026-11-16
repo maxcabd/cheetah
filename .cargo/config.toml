@@ -17,4 +17,4 @@ rustflags = [
 # Windows host builds (tests, dev server): Rust's bundled lld links several
 # times faster than link.exe, which matters for the dev reload loop.
 [target.x86_64-pc-windows-msvc]
-linker = "rust-lld.exe"
+linker = "lld-link.exe"

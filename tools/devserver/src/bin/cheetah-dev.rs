@@ -1,6 +1,6 @@
 //! cheetah-dev: rebuild and restart a dev server whenever code changes.
 //! Connected devices reconnect and re-render on their own. This is the
-//! fallback when `dx serve --hotpatch` isn't available or a change can't be
+//! fallback when `dx serve --hot-patch` isn't available or a change can't be
 //! patched (e.g. struct fields changed).
 //!
 //!   cargo run -p cheetah-devserver --bin cheetah-dev                 # apps/nightshade
