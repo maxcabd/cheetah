@@ -1,0 +1,20 @@
+[package]
+name = "nightshade"
+version = "0.1.0"
+edition = "2021"
+description = "Nightshade app; this binary is its hot-reloading dev server"
+
+# Device builds compile src/nightshade.rs into the runtime library
+# (crates/runtime/src/lib.rs). This crate is only the dev entry point:
+#   dx serve --hotpatch -p nightshade        instant patches, state kept
+#   cargo run -p cheetah-devserver --bin cheetah-dev   rebuild + restart
+
+[[bin]]
+name = "nightshade"
+path = "src/main.rs"
+
+[dependencies]
+cheetah-devserver = { path = "../../tools/devserver" }
+runtime = { path = "../../crates/runtime", features = ["devserver", "source-map"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

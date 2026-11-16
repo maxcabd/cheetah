@@ -1,16 +1,20 @@
-//! cheetah-dev: rebuild and restart cheetah-devserver whenever app code
-//! changes. Connected devices reconnect and re-render on their own.
+//! cheetah-dev: rebuild and restart a dev server whenever code changes.
+//! Connected devices reconnect and re-render on their own. This is the
+//! fallback when `dx serve --hotpatch` isn't available or a change can't be
+//! patched (e.g. struct fields changed).
 //!
-//!   cargo run -p cheetah-devserver --bin cheetah-dev -- --app nightshade
+//!   cargo run -p cheetah-devserver --bin cheetah-dev                 # apps/nightshade
+//!   cargo run -p cheetah-devserver --bin cheetah-dev -- -p cheetah-devserver --bin cheetah-devserver --app chat
 //!
-//! Arguments are passed to cheetah-devserver. Set NIGHTSHADE_API_URL in the
-//! environment to bake a backend URL into the build, as for device builds.
+//! `-p`/`--bin` pick the server to build (default: package and binary
+//! `nightshade`); remaining arguments are passed to it. Set
+//! NIGHTSHADE_API_URL in the environment to bake a backend URL into the build.
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::time::{Duration, SystemTime};
 
-const WATCH: &[&str] = &["crates/runtime/src", "tools/devserver/src"];
+const WATCH: &[&str] = &["crates/runtime/src", "tools/devserver/src", "apps"];
 const POLL: Duration = Duration::from_millis(400);
 
 fn root() -> PathBuf {
@@ -43,27 +47,32 @@ fn snapshot(root: &Path) -> SystemTime {
     latest
 }
 
-fn build(root: &Path) -> bool {
-    println!("cheetah-dev: building...");
+struct Target {
+    package: String,
+    bin: String,
+}
+
+fn build(root: &Path, target: &Target) -> bool {
+    println!("cheetah-dev: building {}...", target.bin);
     Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
-        .args(["build", "-p", "cheetah-devserver", "--bin", "cheetah-devserver"])
+        .args(["build", "-p", &target.package, "--bin", &target.bin])
         .current_dir(root)
         .status()
         .map(|status| status.success())
         .unwrap_or(false)
 }
 
-fn server_exe(root: &Path) -> PathBuf {
+fn server_exe(root: &Path, bin: &str) -> PathBuf {
     let target = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| root.join("target"));
     target
         .join("debug")
-        .join(format!("cheetah-devserver{}", std::env::consts::EXE_SUFFIX))
+        .join(format!("{bin}{}", std::env::consts::EXE_SUFFIX))
 }
 
-fn start(root: &Path, args: &[String]) -> Option<Child> {
-    match Command::new(server_exe(root)).args(args).spawn() {
+fn start(root: &Path, target: &Target, args: &[String]) -> Option<Child> {
+    match Command::new(server_exe(root, &target.bin)).args(args).spawn() {
         Ok(child) => Some(child),
         Err(error) => {
             eprintln!("cheetah-dev: could not start the server: {error}");
@@ -81,11 +90,23 @@ fn stop(child: &mut Option<Child>) {
 
 fn main() {
     let root = root();
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut target = Target {
+        package: "nightshade".into(),
+        bin: "nightshade".into(),
+    };
+    let mut args = Vec::new();
+    let mut input = std::env::args().skip(1);
+    while let Some(arg) = input.next() {
+        match arg.as_str() {
+            "-p" | "--package" => target.package = input.next().unwrap_or(target.package),
+            "--bin" => target.bin = input.next().unwrap_or(target.bin),
+            _ => args.push(arg),
+        }
+    }
     let mut child = None;
     let mut seen = snapshot(&root);
-    if build(&root) {
-        child = start(&root, &args);
+    if build(&root, &target) {
+        child = start(&root, &target, &args);
     } else {
         println!("cheetah-dev: build failed; fix the error and save to retry");
     }
@@ -108,8 +129,8 @@ fn main() {
         println!("cheetah-dev: change detected, reloading");
         // Windows locks a running .exe, so stop before building.
         stop(&mut child);
-        if build(&root) {
-            child = start(&root, &args);
+        if build(&root, &target) {
+            child = start(&root, &target, &args);
         } else {
             println!("cheetah-dev: build failed; fix the error and save to retry");
         }

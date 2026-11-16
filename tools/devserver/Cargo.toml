@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "Run Cheetah apps on the desktop and render them on a device over WebSocket"
 
+[lib]
+name = "cheetah_devserver"
+path = "src/lib.rs"
+
 [[bin]]
 name = "cheetah-devserver"
 path = "src/main.rs"
@@ -13,8 +17,10 @@ name = "cheetah-dev"
 path = "src/bin/cheetah-dev.rs"
 
 [dependencies]
+dioxus-devtools = "0.7.10"
 futures-util = { version = "0.3.34", features = ["sink"] }
 runtime = { path = "../../crates/runtime", features = ["devserver", "source-map"] }
 serde_json = "1"
+subsecond = "0.7.10"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "sync", "time"] }
 tokio-tungstenite = "0.30.0"

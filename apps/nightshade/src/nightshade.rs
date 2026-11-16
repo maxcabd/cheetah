@@ -1220,6 +1220,12 @@ impl App for NightshadeApp {
     fn take_native_calls(&mut self) -> Vec<NativeCall> {
         std::mem::take(&mut self.calls)
     }
+
+    fn hot_reloaded(&mut self) {
+        // Memoized elements were built by the old view code.
+        self.suggestion_cache.borrow_mut().take();
+        self.card_cache.borrow_mut().clear();
+    }
 }
 
 #[cfg(test)]

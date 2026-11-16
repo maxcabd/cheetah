@@ -31,6 +31,9 @@ pub(crate) enum Command {
     Retry,
     Connection(bool),
     Lifecycle(bool),
+    /// App code was hot-patched: re-render with the new code.
+    #[cfg_attr(not(feature = "devserver"), allow(dead_code))]
+    Rerender,
     Shutdown,
 }
 
@@ -45,6 +48,22 @@ pub(crate) fn spawn(
     gateway_url: String,
     app: String,
 ) -> ActorHandle {
+    spawn_with(host, gateway_url, move || {
+        if app == "nightshade" || app == "nightshade-demo" {
+            Runtime::new(NightshadeApp::new(app == "nightshade-demo"))
+        } else {
+            Runtime::new(ChatApp::new(&store_path))
+        }
+    })
+}
+
+/// Start the UI actor with a caller-built runtime. `make` runs on the actor
+/// thread, so the app itself need not be `Send`.
+pub(crate) fn spawn_with(
+    host: Arc<dyn Host>,
+    gateway_url: String,
+    make: impl FnOnce() -> Runtime + Send + 'static,
+) -> ActorHandle {
     let (sender, mut receiver) = unbounded_channel();
     let actor_sender = sender.clone();
 
@@ -53,11 +72,7 @@ pub(crate) fn spawn(
         .spawn(move || {
             host.attach();
 
-            let mut runtime = if app == "nightshade" || app == "nightshade-demo" {
-                Runtime::new(NightshadeApp::new(app == "nightshade-demo"))
-            } else {
-                Runtime::new(ChatApp::new(&store_path))
-            };
+            let mut runtime = make();
             runtime.set_text_measurer(Rc::new(CachedTextMeasurer::new(Arc::clone(&host))));
 
             let tokio_runtime = tokio::runtime::Builder::new_multi_thread()
@@ -198,6 +213,10 @@ pub(crate) fn spawn(
                             payload: if active { "connecting" } else { "offline" }.into(),
                         };
                         let ops = runtime.dispatch(event);
+                        emit(host.as_ref(), ops);
+                    }
+                    Command::Rerender => {
+                        let ops = runtime.rerender();
                         emit(host.as_ref(), ops);
                     }
                     Command::Shutdown => break,

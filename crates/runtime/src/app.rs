@@ -103,6 +103,9 @@ pub trait App {
     fn take_native_calls(&mut self) -> Vec<NativeCall> {
         Vec::new()
     }
+    /// The app's code was hot-patched (dev server). Drop anything derived
+    /// from the old code, e.g. memoized elements, before the re-render.
+    fn hot_reloaded(&mut self) {}
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -146,6 +149,14 @@ impl Runtime {
     pub fn set_text_measurer(&mut self, measurer: Rc<dyn TextMeasurer>) {
         self.text_measurer = Some(measurer);
         self.layout_dirty = true;
+    }
+
+    /// Re-render at the current viewport after the app's code changed.
+    pub fn rerender(&mut self) -> Vec<Op> {
+        self.app.hot_reloaded();
+        self.layout_dirty = true;
+        let viewport = self.viewport;
+        self.render(viewport)
     }
 
     pub fn render(&mut self, viewport: Viewport) -> Vec<Op> {
@@ -546,6 +557,40 @@ mod tests {
 
         assert!(!ops.is_empty());
         assert_eq!(measurer.calls.get(), calls_after_first);
+    }
+
+    /// Stands in for a hot patch: the "new code" renders different text.
+    struct PatchedApp {
+        label: &'static str,
+    }
+
+    impl App for PatchedApp {
+        fn view(&self, _: &crate::app::ViewContext) -> Element {
+            column().width(300.0).height(600.0).child(text(self.label))
+        }
+
+        fn update(&mut self, _: Event) {}
+
+        fn hot_reloaded(&mut self) {
+            self.label = "after patch";
+        }
+    }
+
+    #[test]
+    fn rerender_after_hot_reload_sends_only_the_change() {
+        let mut runtime = Runtime::new(PatchedApp {
+            label: "before patch",
+        });
+        let viewport = Viewport {
+            width: 300.0,
+            height: 600.0,
+        };
+        assert!(!runtime.render(viewport).is_empty());
+        assert!(runtime.render(viewport).is_empty());
+
+        let ops = runtime.rerender();
+        assert!(ops.iter().any(|op| matches!(op, Op::Text { text, .. } if text == "after patch")));
+        assert!(!ops.iter().any(|op| matches!(op, Op::Create { .. })));
     }
 
     #[test]

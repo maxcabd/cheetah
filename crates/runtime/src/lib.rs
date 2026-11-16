@@ -23,6 +23,9 @@ pub mod layout;
 pub mod model;
 pub mod native_api;
 pub mod nav;
+// The Nightshade app lives in its own crate (apps/nightshade) so the dev
+// server can hot-patch it; device builds compile the same file in here.
+#[path = "../../../apps/nightshade/src/nightshade.rs"]
 pub mod nightshade;
 pub mod resource;
 pub mod secure_store;
