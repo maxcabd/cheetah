@@ -15,7 +15,7 @@ use std::process::{Child, Command};
 use std::time::{Duration, SystemTime};
 
 const WATCH: &[&str] = &["crates/runtime/src", "tools/devserver/src", "apps"];
-const POLL: Duration = Duration::from_millis(400);
+const POLL: Duration = Duration::from_millis(150);
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -124,7 +124,7 @@ fn main() {
             continue;
         }
         // Let a burst of saves settle before rebuilding.
-        std::thread::sleep(Duration::from_millis(250));
+        std::thread::sleep(Duration::from_millis(100));
         seen = snapshot(&root);
         println!("cheetah-dev: change detected, reloading");
         // Windows locks a running .exe, so stop before building.

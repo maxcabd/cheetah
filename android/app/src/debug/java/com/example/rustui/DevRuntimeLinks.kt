@@ -94,7 +94,8 @@ private class DevRuntimeLink(
 
     private fun retry() {
         socket = null
-        if (!freed) main.postDelayed({ connect() }, 700)
+        // Short: the server is usually back within moments of a rebuild.
+        if (!freed) main.postDelayed({ connect() }, 200)
     }
 
     private fun send(json: JSONObject) {

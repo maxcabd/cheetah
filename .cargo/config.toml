@@ -13,3 +13,8 @@ rustflags = [
     "-C", "link-arg=--sysroot=C:/Users/User/AppData/Local/Android/Sdk/ndk/26.1.10909125/toolchains/llvm/prebuilt/windows-x86_64/sysroot",
     "-C", "link-arg=-Wl,-z,max-page-size=16384",
 ]
+
+# Windows host builds (tests, dev server): Rust's bundled lld links several
+# times faster than link.exe, which matters for the dev reload loop.
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"

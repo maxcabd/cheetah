@@ -92,7 +92,8 @@ private final class DevRuntimeLink: NSObject, RuntimeLink, URLSessionWebSocketDe
         open = false
         task = nil
         guard !freed else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in
+        // Short: the server is usually back within moments of a rebuild.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
             self?.connect()
         }
     }

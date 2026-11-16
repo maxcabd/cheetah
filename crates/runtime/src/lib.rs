@@ -25,6 +25,9 @@ pub mod native_api;
 pub mod nav;
 // The Nightshade app lives in its own crate (apps/nightshade) so the dev
 // server can hot-patch it; device builds compile the same file in here.
+// Dev-server builds leave it out: apps/nightshade compiles it itself, and
+// including it here would rebuild the whole runtime on every app edit.
+#[cfg(not(feature = "devserver"))]
 #[path = "../../../apps/nightshade/src/nightshade.rs"]
 pub mod nightshade;
 pub mod resource;

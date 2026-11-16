@@ -9,9 +9,10 @@ use cheetah_devserver::{run, AppSource, Options};
 
 fn main() {
     let options = Options::from_args(
-        "usage: cheetah-devserver [--app nightshade|nightshade-demo|chat] [--port N] [--lan]",
+        "usage: cheetah-devserver [--app chat] [--port N] [--lan]
+         Nightshade runs from its own crate: dx serve --hotpatch -p nightshade",
     );
-    let mut app = "nightshade".to_string();
+    let mut app = "chat".to_string();
     let mut rest = options.rest.iter();
     while let Some(arg) = rest.next() {
         match arg.as_str() {

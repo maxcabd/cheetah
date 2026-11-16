@@ -2,6 +2,7 @@ use crate::app::{Action, Event, Runtime, Viewport};
 use crate::bridge::{CachedTextMeasurer, Host};
 use crate::demo::ChatApp;
 use crate::gateway::{self, Gateway};
+#[cfg(not(feature = "devserver"))]
 use crate::nightshade::NightshadeApp;
 use crate::Op;
 use std::collections::VecDeque;
@@ -49,11 +50,13 @@ pub(crate) fn spawn(
     app: String,
 ) -> ActorHandle {
     spawn_with(host, gateway_url, move || {
+        // Dev-server builds run Nightshade from apps/nightshade instead.
+        #[cfg(not(feature = "devserver"))]
         if app == "nightshade" || app == "nightshade-demo" {
-            Runtime::new(NightshadeApp::new(app == "nightshade-demo"))
-        } else {
-            Runtime::new(ChatApp::new(&store_path))
+            return Runtime::new(NightshadeApp::new(app == "nightshade-demo"));
         }
+        let _ = &app;
+        Runtime::new(ChatApp::new(&store_path))
     })
 }
 
