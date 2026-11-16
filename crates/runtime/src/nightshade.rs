@@ -1,7 +1,9 @@
 use crate::app::{App, Event, HostInfo, ViewContext};
 use crate::element::{column, glass, hscroll, input, map, native, row, sheet, text, Element};
-use crate::native_api::NativeCall;
+use crate::http::{HttpClient, HttpResponse};
+use crate::native_api::{NativeCall, NativeEvent};
 use crate::resource::Resource;
+use serde::Deserialize;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
@@ -33,95 +35,117 @@ const SUGGESTIONS: [&str; 7] = [
     "Amazing pizza places",
 ];
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// Backend base URL baked in at build time, e.g.
+/// `NIGHTSHADE_API_URL=http://10.0.2.2:8000` for the Android emulator.
+/// Unset, Nightshade searches its local sample places.
+const API_URL: Option<&str> = option_env!("NIGHTSHADE_API_URL");
+const SEARCH_TIMEOUT_MS: u32 = 60_000;
+
+#[derive(Clone, Debug, PartialEq)]
 struct Place {
-    id: &'static str,
-    name: &'static str,
-    address: &'static str,
+    id: String,
+    name: String,
+    address: String,
     lat: f32,
     lng: f32,
     distance_m: f32,
     price_tier: u8,
-    open: bool,
-    closes: &'static str,
-    opens: &'static str,
-    rating: &'static str,
-    reviews: &'static str,
-    cuisine: &'static str,
-    icon: &'static str,
-    icon_color: &'static str,
+    /// `None` when the backend does not know the hours.
+    open: Option<bool>,
+    closes: String,
+    opens: String,
+    /// Empty when there is no rating to show.
+    rating: String,
+    reviews: String,
+    cuisine: String,
+    icon: String,
+    icon_color: String,
 }
 
-const PLACES: [Place; 4] = [
+#[allow(clippy::too_many_arguments)]
+fn sample(
+    id: &str,
+    name: &str,
+    address: &str,
+    (lat, lng): (f32, f32),
+    distance_m: f32,
+    price_tier: u8,
+    open: bool,
+    (opens, closes): (&str, &str),
+    cuisine: &str,
+    (icon, icon_color): (&str, &str),
+) -> Place {
     Place {
-        id: "java",
-        name: "Java Haven",
-        address: "Cedarwood Drive",
-        lat: 37.7793,
-        lng: -122.4192,
-        distance_m: 280.0,
-        price_tier: 2,
-        open: true,
-        closes: "6:00 PM",
-        opens: "7:00 AM",
-        rating: "4.3",
-        reviews: "50+",
-        cuisine: "Coffee",
-        icon: "coffee",
-        icon_color: "#7B3F00",
-    },
-    Place {
-        id: "pizza",
-        name: "Pizza Paradise",
-        address: "Market Street",
-        lat: 37.7849,
-        lng: -122.4094,
-        distance_m: 1_200.0,
-        price_tier: 2,
-        open: true,
-        closes: "11:00 PM",
-        opens: "11:00 AM",
-        rating: "4.3",
-        reviews: "50+",
-        cuisine: "Pizza",
-        icon: "pizza-slice",
-        icon_color: "#FFA500",
-    },
-    Place {
-        id: "sushi",
-        name: "Sushi Zen",
-        address: "Hayes Valley",
-        lat: 37.7694,
-        lng: -122.4862,
-        distance_m: 700.0,
-        price_tier: 3,
-        open: true,
-        closes: "9:30 PM",
-        opens: "11:30 AM",
-        rating: "4.3",
-        reviews: "50+",
-        cuisine: "Sushi",
-        icon: "fish",
-        icon_color: "#008080",
-    },
-    Place {
-        id: "burger",
-        name: "Burger Joint",
-        address: "Mission Street",
-        lat: 37.7599,
-        lng: -122.4148,
-        distance_m: 520.0,
-        price_tier: 1,
-        open: false,
-        closes: "10:00 PM",
-        opens: "10:30 AM",
-        rating: "4.3",
-        reviews: "50+",
-        cuisine: "Fast Food",
-        icon: "hamburger",
-        icon_color: "#FF4500",
-    },
-];
+        id: id.into(),
+        name: name.into(),
+        address: address.into(),
+        lat,
+        lng,
+        distance_m,
+        price_tier,
+        open: Some(open),
+        closes: closes.into(),
+        opens: opens.into(),
+        rating: "4.3".into(),
+        reviews: "50+".into(),
+        cuisine: cuisine.into(),
+        icon: icon.into(),
+        icon_color: icon_color.into(),
+    }
+}
+
+fn local_places() -> Vec<Place> {
+    vec![
+        sample(
+            "java",
+            "Java Haven",
+            "Cedarwood Drive",
+            (37.7793, -122.4192),
+            280.0,
+            2,
+            true,
+            ("7:00 AM", "6:00 PM"),
+            "Coffee",
+            ("coffee", "#7B3F00"),
+        ),
+        sample(
+            "pizza",
+            "Pizza Paradise",
+            "Market Street",
+            (37.7849, -122.4094),
+            1_200.0,
+            2,
+            true,
+            ("11:00 AM", "11:00 PM"),
+            "Pizza",
+            ("pizza-slice", "#FFA500"),
+        ),
+        sample(
+            "sushi",
+            "Sushi Zen",
+            "Hayes Valley",
+            (37.7694, -122.4862),
+            700.0,
+            3,
+            true,
+            ("11:30 AM", "9:30 PM"),
+            "Sushi",
+            ("fish", "#008080"),
+        ),
+        sample(
+            "burger",
+            "Burger Joint",
+            "Mission Street",
+            (37.7599, -122.4148),
+            520.0,
+            1,
+            false,
+            ("10:30 AM", "10:00 PM"),
+            "Fast Food",
+            ("hamburger", "#FF4500"),
+        ),
+    ]
+}
 
 #[derive(Clone, Debug, PartialEq)]
 struct SearchResponse {
@@ -142,21 +166,25 @@ impl PlaceSource for LocalPlaceSource {
             return Err("Place search is unavailable".into());
         }
 
+        let places = local_places();
         let places = if lowered.contains("sushi") {
-            vec![PLACES[2]]
+            vec![places[2].clone()]
         } else if lowered.contains("pizza") {
-            vec![PLACES[1]]
+            vec![places[1].clone()]
         } else if lowered.contains("coffee")
             || lowered.contains("cafe")
             || lowered.contains("brunch")
         {
-            vec![PLACES[0]]
+            vec![places[0].clone()]
         } else if lowered.contains("burger") || lowered.contains("fast") {
-            vec![PLACES[3]]
+            vec![places[3].clone()]
         } else if lowered.contains("open") || lowered.contains("late") {
-            PLACES.iter().copied().filter(|place| place.open).collect()
+            places
+                .into_iter()
+                .filter(|place| place.open == Some(true))
+                .collect()
         } else {
-            PLACES.to_vec()
+            places
         };
 
         Ok(SearchResponse {
@@ -170,29 +198,148 @@ impl PlaceSource for LocalPlaceSource {
     }
 }
 
+/// Where searches go. Remote searches are asynchronous: the request is
+/// queued as an `http.request` native call and the result arrives as an
+/// `http.response` event.
+enum Backend {
+    Local(Box<dyn PlaceSource>),
+    Remote {
+        client: HttpClient,
+        pending: Option<u64>,
+    },
+}
+
+impl Backend {
+    fn remote(base_url: &str) -> Self {
+        let mut client = HttpClient::new(base_url);
+        client.set_timeout_ms(SEARCH_TIMEOUT_MS);
+        Backend::Remote {
+            client,
+            pending: None,
+        }
+    }
+}
+
+/// `POST /v1/search` response (nightshadex backend). Only the fields the
+/// map and cards use; everything is lenient because most are nullable.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct ApiSearchResponse {
+    cards: Vec<ApiCard>,
+    followups: Vec<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct ApiCard {
+    place_id: String,
+    name: String,
+    address: Option<String>,
+    lat: f32,
+    lng: f32,
+    distance_m: Option<f32>,
+    price_tier: Option<u8>,
+    open_now: Option<bool>,
+    closes_at_local: Option<String>,
+}
+
+impl ApiCard {
+    fn into_place(self) -> Place {
+        Place {
+            id: self.place_id,
+            name: self.name,
+            address: self.address.unwrap_or_default(),
+            lat: self.lat,
+            lng: self.lng,
+            distance_m: self.distance_m.unwrap_or(0.0),
+            price_tier: self.price_tier.unwrap_or(0),
+            open: self.open_now,
+            closes: self
+                .closes_at_local
+                .as_deref()
+                .and_then(clock_time)
+                .unwrap_or_default(),
+            opens: String::new(),
+            rating: String::new(),
+            reviews: String::new(),
+            cuisine: String::new(),
+            icon: "utensils".into(),
+            icon_color: "#ffffff".into(),
+        }
+    }
+}
+
+/// `"2026-11-15T22:30:00"` or `"22:30"` -> `"10:30 PM"`.
+fn clock_time(value: &str) -> Option<String> {
+    let time = value.split('T').nth(1).unwrap_or(value);
+    let mut parts = time.split(':');
+    let hour: u32 = parts.next()?.trim().parse().ok()?;
+    let minute: u32 = parts.next()?.get(..2)?.parse().ok()?;
+    if hour > 23 || minute > 59 {
+        return None;
+    }
+    let suffix = if hour < 12 { "AM" } else { "PM" };
+    let hour = match hour % 12 {
+        0 => 12,
+        hour => hour,
+    };
+    Some(format!("{hour}:{minute:02} {suffix}"))
+}
+
+fn parse_search(response: &HttpResponse) -> Result<SearchResponse, String> {
+    if !response.ok {
+        return Err(match response.error.as_deref() {
+            Some("timeout") => "Search timed out".into(),
+            _ => "Can't reach Nightshade".into(),
+        });
+    }
+    if !response.is_success() {
+        return Err(format!("Search failed ({})", response.status));
+    }
+    let body: ApiSearchResponse = response
+        .json()
+        .map_err(|_| "Unexpected search response".to_string())?;
+    Ok(SearchResponse {
+        places: body.cards.into_iter().map(ApiCard::into_place).collect(),
+        followups: body.followups,
+    })
+}
+
 pub struct NightshadeApp {
     host: HostInfo,
     draft: String,
     query: String,
     search: Resource<SearchResponse>,
-    source: Box<dyn PlaceSource>,
+    backend: Backend,
+    sample_places: Vec<Place>,
     selected: usize,
     focused: bool,
     expanded: bool,
     center: Option<(f32, f32)>,
     calls: Vec<NativeCall>,
     suggestion_cache: RefCell<Option<Element>>,
-    card_cache: RefCell<HashMap<(&'static str, u32), Element>>,
+    card_cache: RefCell<HashMap<(String, u32), Element>>,
 }
 
 impl NightshadeApp {
+    /// Searches `NIGHTSHADE_API_URL` when it was set at build time; the demo
+    /// always uses local sample data.
     pub fn new(demo: bool) -> Self {
+        let backend = match API_URL {
+            Some(url) if !demo && !url.is_empty() => Backend::remote(url),
+            _ => Backend::Local(Box::new(LocalPlaceSource)),
+        };
+        Self::with_backend(demo, backend)
+    }
+
+    fn with_backend(demo: bool, backend: Backend) -> Self {
         let mut app = Self {
             host: HostInfo::default(),
             draft: String::new(),
             query: String::new(),
             search: Resource::Idle,
-            source: Box::new(LocalPlaceSource),
+            backend,
+            sample_places: local_places(),
             selected: 0,
             focused: false,
             expanded: false,
@@ -204,7 +351,7 @@ impl NightshadeApp {
 
         if demo {
             app.search = Resource::Ready(SearchResponse {
-                places: PLACES.to_vec(),
+                places: local_places(),
                 followups: vec![
                     "Cafes within 12 min walk".into(),
                     "Best dessert spots near me".into(),
@@ -242,7 +389,7 @@ impl NightshadeApp {
     fn visible_places(&self) -> &[Place] {
         self.response()
             .map(|response| response.places.as_slice())
-            .unwrap_or(&PLACES)
+            .unwrap_or(&self.sample_places)
     }
 
     fn region(&self) -> (f32, f32, f32, f32) {
@@ -257,7 +404,7 @@ impl NightshadeApp {
         };
 
         if self.focused || places.len() == 1 {
-            let place = places.get(self.selected).copied().unwrap_or(*first);
+            let place = places.get(self.selected).unwrap_or(first);
             let delta = 0.018;
             return (place.lat - delta * 0.40, place.lng, delta, delta);
         }
@@ -289,20 +436,19 @@ impl NightshadeApp {
             .iter()
             .enumerate()
             .map(|(index, place)| {
-                format!(
-                    r#"{{"id":"{}","name":"{}","lat":{},"lng":{},"kind":"{}","icon":"{}","iconColor":"{}","selected":{}}}"#,
-                    place.id,
-                    place.name,
-                    place.lat,
-                    place.lng,
-                    if results { "result" } else { "static" },
-                    if results { "utensils" } else { place.icon },
-                    if results { "#ffffff" } else { place.icon_color },
-                    results && index == self.selected,
-                )
+                serde_json::json!({
+                    "id": place.id,
+                    "name": place.name,
+                    "lat": place.lat,
+                    "lng": place.lng,
+                    "kind": if results { "result" } else { "static" },
+                    "icon": if results { "utensils" } else { place.icon.as_str() },
+                    "iconColor": if results { "#ffffff" } else { place.icon_color.as_str() },
+                    "selected": results && index == self.selected,
+                })
             })
             .collect::<Vec<_>>();
-        format!("[{}]", items.join(","))
+        serde_json::Value::Array(items).to_string()
     }
 
     fn icon(name: &str, size: f32, color: &str) -> Element {
@@ -359,8 +505,8 @@ impl NightshadeApp {
             .radius(18.0)
     }
 
-    fn card(&self, width: f32, place: Place, _selected: bool) -> Element {
-        let cache_key = (place.id, width.to_bits());
+    fn card(&self, width: f32, place: &Place, _selected: bool) -> Element {
+        let cache_key = (place.id.clone(), width.to_bits());
         if let Some(cached) = self.card_cache.borrow().get(&cache_key) {
             return cached.clone();
         }
@@ -371,7 +517,16 @@ impl NightshadeApp {
             format!("{:.1}km", place.distance_m / 1000.0)
         };
         let price = "$".repeat(place.price_tier.min(4) as usize);
-        let status = if place.open {
+        let status = if place.open.is_none() {
+            row().width(width - 40.0).height(18.0).child(
+                text("Hours unavailable")
+                    .size(14.0)
+                    .font("satoshi-medium")
+                    .color("#ffffffb3")
+                    .width(160.0)
+                    .height(18.0),
+            )
+        } else if place.open == Some(true) {
             row()
                 .width(width - 40.0)
                 .height(18.0)
@@ -394,12 +549,16 @@ impl NightshadeApp {
                         .height(18.0),
                 )
                 .child(
-                    text(format!("Closes at {}", place.closes))
-                        .size(14.0)
-                        .font("satoshi-medium")
-                        .color("#ffffff")
-                        .width(130.0)
-                        .height(18.0),
+                    text(if place.closes.is_empty() {
+                        String::new()
+                    } else {
+                        format!("Closes at {}", place.closes)
+                    })
+                    .size(14.0)
+                    .font("satoshi-medium")
+                    .color("#ffffff")
+                    .width(130.0)
+                    .height(18.0),
                 )
         } else {
             row()
@@ -424,12 +583,16 @@ impl NightshadeApp {
                         .height(18.0),
                 )
                 .child(
-                    text(format!("Opens at {}", place.opens))
-                        .size(14.0)
-                        .font("satoshi-medium")
-                        .color("#ffffffb3")
-                        .width(130.0)
-                        .height(18.0),
+                    text(if place.opens.is_empty() {
+                        String::new()
+                    } else {
+                        format!("Opens at {}", place.opens)
+                    })
+                    .size(14.0)
+                    .font("satoshi-medium")
+                    .color("#ffffffb3")
+                    .width(130.0)
+                    .height(18.0),
                 )
         };
 
@@ -489,7 +652,7 @@ impl NightshadeApp {
                     .pad_bottom(20.0)
                     .gap(6.0)
                     .child(
-                        text(place.name)
+                        text(place.name.clone())
                             .size(18.0)
                             .font("brice-bold")
                             .color("#ffffff")
@@ -503,7 +666,7 @@ impl NightshadeApp {
                             .gap(6.0)
                             .align_items("center")
                             .child(
-                                text(place.address)
+                                text(place.address.clone())
                                     .size(14.0)
                                     .font("satoshi-medium")
                                     .color("#fffffff2")
@@ -570,7 +733,7 @@ impl NightshadeApp {
             .scroll_x(self.selected as f32 * width)
             .content_width(content_width);
 
-        for (index, place) in places.iter().copied().enumerate() {
+        for (index, place) in places.iter().enumerate() {
             strip = strip.child(
                 column()
                     .width(width)
@@ -760,10 +923,30 @@ impl NightshadeApp {
         }
 
         self.search = Resource::Loading;
-        match self.source.search(query) {
+        self.query = query.into();
+        self.draft.clear();
+        let result = match &mut self.backend {
+            Backend::Local(source) => source.search(query),
+            Backend::Remote { client, pending } => {
+                // A newer search supersedes any in-flight one.
+                if let Some(previous) = pending.take() {
+                    self.calls.push(crate::http::cancel(previous));
+                }
+                let request = client
+                    .post("/v1/search")
+                    .json(&serde_json::json!({ "text": query }));
+                *pending = Some(request.id);
+                self.calls.push(request.into_call());
+                return;
+            }
+        };
+        self.finish_search(result);
+    }
+
+    fn finish_search(&mut self, result: Result<SearchResponse, String>) {
+        match result {
             Ok(response) => {
                 self.search = Resource::Ready(response);
-                self.query = query.into();
                 self.selected = 0;
                 self.focused = false;
                 self.expanded = false;
@@ -771,16 +954,19 @@ impl NightshadeApp {
             }
             Err(error) => {
                 self.search = Resource::Failed(error);
-                self.query = query.into();
                 self.selected = 0;
                 self.focused = false;
                 self.expanded = false;
             }
         }
-        self.draft.clear();
     }
 
     fn clear_search(&mut self) {
+        if let Backend::Remote { pending, .. } = &mut self.backend {
+            if let Some(id) = pending.take() {
+                self.calls.push(crate::http::cancel(id));
+            }
+        }
         self.query.clear();
         self.draft.clear();
         self.search = Resource::Idle;
@@ -805,18 +991,28 @@ impl NightshadeApp {
     }
 
     fn handle_native_event(&mut self, payload: &str) {
-        let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) else {
+        let Some(event) = NativeEvent::parse(payload) else {
             return;
         };
-        if value.get("module").and_then(|value| value.as_str()) != Some("location")
-            || value.get("method").and_then(|value| value.as_str()) != Some("result")
-            || value.get("ok").and_then(|value| value.as_bool()) != Some(true)
-        {
+
+        if let Some(response) = HttpResponse::from_event(&event) {
+            let Backend::Remote { pending, .. } = &mut self.backend else {
+                return;
+            };
+            // Ignore cancelled or superseded requests.
+            if *pending != Some(response.id) {
+                return;
+            }
+            *pending = None;
+            self.finish_search(parse_search(&response));
             return;
         }
 
-        let latitude = value.get("latitude").and_then(|value| value.as_f64());
-        let longitude = value.get("longitude").and_then(|value| value.as_f64());
+        if !event.is("location", "result") || event.data["ok"] != true {
+            return;
+        }
+        let latitude = event.data["latitude"].as_f64();
+        let longitude = event.data["longitude"].as_f64();
         if let (Some(latitude), Some(longitude)) = (latitude, longitude) {
             self.center = Some((latitude as f32, longitude as f32));
         }
@@ -998,9 +1194,10 @@ impl App for NightshadeApp {
 
 #[cfg(test)]
 mod tests {
-    use super::NightshadeApp;
+    use super::{clock_time, Backend, NightshadeApp};
     use crate::app::{App, Event, Runtime, Viewport};
     use crate::diff::Op;
+    use crate::resource::Resource;
 
     fn click(app: &mut NightshadeApp, key: &str) {
         app.update(Event {
@@ -1081,6 +1278,148 @@ mod tests {
 
         assert!(!app.has_results());
         assert_eq!(app.search.error(), Some("Place search is unavailable"));
+    }
+
+    fn remote_app() -> NightshadeApp {
+        let mut app = NightshadeApp::with_backend(false, Backend::remote("http://api.test"));
+        app.take_native_calls();
+        app
+    }
+
+    fn submit(app: &mut NightshadeApp, query: &str) {
+        app.draft = query.into();
+        click(app, "search:send");
+    }
+
+    fn http_response(app: &mut NightshadeApp, payload: serde_json::Value) {
+        let mut payload = payload;
+        payload["module"] = "http".into();
+        payload["method"] = "response".into();
+        app.update(Event {
+            id: 0,
+            key: None,
+            kind: "native".into(),
+            payload: payload.to_string(),
+        });
+    }
+
+    fn request_id(app: &mut NightshadeApp) -> u64 {
+        let calls = app.take_native_calls();
+        let call = calls
+            .iter()
+            .find(|call| call.module == "http" && call.method == "request")
+            .expect("http request");
+        let args: serde_json::Value = serde_json::from_str(&call.args).unwrap();
+        assert_eq!(args["url"], "http://api.test/v1/search");
+        assert_eq!(args["method"], "POST");
+        assert_eq!(args["timeoutMs"], 60_000);
+        args["id"].as_u64().unwrap()
+    }
+
+    #[test]
+    fn remote_search_posts_text_and_maps_cards() {
+        let mut app = remote_app();
+        submit(&mut app, "halal pizza");
+        assert!(app.search.is_loading());
+        assert_eq!(app.query, "halal pizza");
+
+        let calls = app.take_native_calls();
+        let call = calls.iter().find(|call| call.module == "http").unwrap();
+        let args: serde_json::Value = serde_json::from_str(&call.args).unwrap();
+        assert_eq!(args["body"], r#"{"text":"halal pizza"}"#);
+        let id = args["id"].as_u64().unwrap();
+
+        let body = serde_json::json!({
+            "title": "Results",
+            "cards": [{
+                "place_id": "p1", "name": "Luigi's \"Best\" Pizza", "address": null,
+                "lat": 45.4, "lng": -75.7, "distance_m": 950, "price_tier": 2,
+                "open_now": true, "closes_at_local": "2026-11-15T22:30:00",
+                "quality_score": 0.8, "hours": {"mon": []}
+            }, {
+                "place_id": "p2", "name": "Mystery Hours", "lat": 45.41, "lng": -75.71,
+                "distance_m": 0, "open_now": null
+            }],
+            "pins": [], "followups": ["open now"], "mode": "llm_new", "warnings": []
+        });
+        http_response(
+            &mut app,
+            serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}),
+        );
+
+        let response = app.response().expect("ready");
+        assert_eq!(response.places.len(), 2);
+        let first = &response.places[0];
+        assert_eq!(first.id, "p1");
+        assert_eq!(first.address, "");
+        assert_eq!(first.open, Some(true));
+        assert_eq!(first.closes, "10:30 PM");
+        assert_eq!(response.places[1].open, None);
+        assert_eq!(response.followups, vec!["open now".to_string()]);
+
+        // Names with quotes must still produce valid marker JSON.
+        let markers: serde_json::Value = serde_json::from_str(&app.markers()).unwrap();
+        assert_eq!(markers[0]["name"], "Luigi's \"Best\" Pizza");
+    }
+
+    #[test]
+    fn newer_search_cancels_and_ignores_the_stale_response() {
+        let mut app = remote_app();
+        submit(&mut app, "sushi");
+        let first = request_id(&mut app);
+        submit(&mut app, "pizza");
+        let calls = app.take_native_calls();
+        assert!(calls
+            .iter()
+            .any(|call| call.module == "http" && call.method == "cancel"));
+
+        http_response(
+            &mut app,
+            serde_json::json!({"id": first, "ok": true, "status": 200, "body": "{\"cards\":[]}"}),
+        );
+        assert!(app.search.is_loading());
+    }
+
+    #[test]
+    fn remote_failures_become_typed_errors() {
+        let mut app = remote_app();
+        submit(&mut app, "sushi");
+        let id = request_id(&mut app);
+        http_response(
+            &mut app,
+            serde_json::json!({"id": id, "ok": false, "error": "timeout"}),
+        );
+        assert_eq!(app.search, Resource::Failed("Search timed out".into()));
+
+        submit(&mut app, "sushi");
+        let id = request_id(&mut app);
+        http_response(
+            &mut app,
+            serde_json::json!({"id": id, "ok": true, "status": 500, "body": "{}"}),
+        );
+        assert_eq!(app.search, Resource::Failed("Search failed (500)".into()));
+
+        submit(&mut app, "sushi");
+        let id = request_id(&mut app);
+        http_response(
+            &mut app,
+            serde_json::json!({"id": id, "ok": true, "status": 200, "body": "<html>"}),
+        );
+        assert_eq!(
+            app.search,
+            Resource::Failed("Unexpected search response".into())
+        );
+    }
+
+    #[test]
+    fn clock_time_formats_backend_times() {
+        assert_eq!(
+            clock_time("2026-11-15T22:30:00").as_deref(),
+            Some("10:30 PM")
+        );
+        assert_eq!(clock_time("00:05").as_deref(), Some("12:05 AM"));
+        assert_eq!(clock_time("12:00:00-05:00").as_deref(), Some("12:00 PM"));
+        assert_eq!(clock_time("late"), None);
     }
 
     #[test]
