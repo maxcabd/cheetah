@@ -192,6 +192,12 @@ pub struct Props {
     /// Gestures to report as `gesture` events: comma-separated `pan`, `swipe`, `long_press`, `pinch`, `double_tap`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub gestures: Option<String>,
+    /// On a scroll or list: pull down at the top to send a `refresh` event.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refresh: Option<bool>,
+    /// On a scroll or list with `refresh`: show the refresh spinner until false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refreshing: Option<bool>,
 }
 
 impl Props {
@@ -278,6 +284,8 @@ impl Props {
         changed_field!(transition_ms);
         changed_field!(spring);
         changed_field!(gestures);
+        changed_field!(refresh);
+        changed_field!(refreshing);
 
         changed.then_some(delta)
     }
@@ -587,6 +595,18 @@ impl Props {
     /// Gestures to report as `gesture` events: comma-separated `pan`, `swipe`, `long_press`, `pinch`, `double_tap`.
     pub fn gestures(mut self, value: impl Into<String>) -> Self {
         self.gestures = Some(value.into());
+        self
+    }
+
+    /// On a scroll or list: pull down at the top to send a `refresh` event.
+    pub fn refresh(mut self, value: bool) -> Self {
+        self.refresh = Some(value);
+        self
+    }
+
+    /// On a scroll or list with `refresh`: show the refresh spinner until false.
+    pub fn refreshing(mut self, value: bool) -> Self {
+        self.refreshing = Some(value);
         self
     }
 }
@@ -958,6 +978,18 @@ impl Element {
     /// Gestures to report as `gesture` events: comma-separated `pan`, `swipe`, `long_press`, `pinch`, `double_tap`.
     pub fn gestures(mut self, value: impl Into<String>) -> Self {
         self.props.gestures = Some(value.into());
+        self
+    }
+
+    /// On a scroll or list: pull down at the top to send a `refresh` event.
+    pub fn refresh(mut self, value: bool) -> Self {
+        self.props.refresh = Some(value);
+        self
+    }
+
+    /// On a scroll or list with `refresh`: show the refresh spinner until false.
+    pub fn refreshing(mut self, value: bool) -> Self {
+        self.props.refreshing = Some(value);
         self
     }
 }

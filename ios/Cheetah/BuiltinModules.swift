@@ -6,8 +6,15 @@ enum BuiltinModules {
         NotificationsModule.self,
         LinkingModule.self,
         AuthModule.self,
+        DialogModule.self,
+        PickerModule.self,
     ]
-    static let views: [CheetahViewModule.Type] = []
+    static let views: [CheetahViewModule.Type] = [
+        SwitchViewModule.self,
+        SliderViewModule.self,
+        SpinnerViewModule.self,
+        WebViewModule.self,
+    ]
     /// Modules created up front so they see every incoming URL.
     static let urlHandlers: [String] = ["linking"]
 }

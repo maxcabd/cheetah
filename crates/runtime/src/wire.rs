@@ -90,6 +90,8 @@ const PROP_NAMES: &[&str] = &[
     "transitionMs",
     "spring",
     "gestures",
+    "refresh",
+    "refreshing",
 ];
 
 pub(crate) fn encode(ops: &[Op]) -> Vec<u8> {
@@ -295,6 +297,8 @@ fn put_props(out: &mut Vec<u8>, props: &Props) {
     f32_prop!("transitionMs", props.transition_ms);
     bool_prop!("spring", props.spring);
     string_prop!("gestures", props.gestures);
+    bool_prop!("refresh", props.refresh);
+    bool_prop!("refreshing", props.refreshing);
 }
 
 fn prop_count(props: &Props) -> usize {
@@ -371,6 +375,8 @@ fn prop_count(props: &Props) -> usize {
     count!(props.transition_ms);
     count!(props.spring);
     count!(props.gestures);
+    count!(props.refresh);
+    count!(props.refreshing);
     count
 }
 

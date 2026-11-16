@@ -181,7 +181,7 @@ private struct WireReader {
         return String(decoding: data[offset..<(offset + Int(length))], as: UTF8.self)
     }
 
-    static let propNames: [String] = ["text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures"]
+    static let propNames: [String] = ["text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures", "refresh", "refreshing"]
 
     mutating func take(_ count: Int) -> Data? {
         guard offset + count <= data.count else { return nil }
@@ -1078,6 +1078,25 @@ final class RustHost: NSObject {
             node.tapRecognizer = tap
         }
 
+        // Pull-to-refresh (`refresh` / `refreshing`) on vertical scrolls.
+        if let scroll = view as? UIScrollView, node.kind != "hscroll" {
+            if bool(props["refresh"]) {
+                let control = scroll.refreshControl ?? {
+                    let created = UIRefreshControl()
+                    created.addTarget(self, action: #selector(refreshPulled(_:)), for: .valueChanged)
+                    scroll.refreshControl = created
+                    return created
+                }()
+                if bool(props["refreshing"]), !control.isRefreshing {
+                    control.beginRefreshing()
+                } else if !bool(props["refreshing"]), control.isRefreshing {
+                    control.endRefreshing()
+                }
+            } else if scroll.refreshControl != nil {
+                scroll.refreshControl = nil
+            }
+        }
+
         let gestureKinds = Set(
             (props["gestures"] as? String ?? "")
                 .split(separator: ",")
@@ -1406,6 +1425,15 @@ final class RustHost: NSObject {
         event(id: UInt32(sender.tag), kind: "click", payload: "")
     }
 
+    @objc private func refreshPulled(_ control: UIRefreshControl) {
+        guard let scroll = control.superview as? UIScrollView,
+              let node = scrollTags[ObjectIdentifier(scroll)]
+        else {
+            return
+        }
+        event(id: node.id, kind: "refresh", payload: "")
+    }
+
     @objc private func viewTapped(_ sender: UITapGestureRecognizer) {
         guard let view = sender.view else {
             return
@@ -1445,6 +1473,8 @@ final class RustHost: NSObject {
         case "fail": return 12
         case "flush": return 13
         case "gesture": return 17
+        case "refresh": return 18
+        case "load": return 19
         case "connection": return 14
         case "select": return 15
         case "native": return 16

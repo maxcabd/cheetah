@@ -215,3 +215,52 @@ class GestureHandler(
         )
     }
 }
+
+/**
+ * Pull-to-refresh on a scroll view (`refresh` / `refreshing` props): pulling
+ * down past the top sends `refresh`; the platform spinner shows over the top
+ * of the list until Rust sets `refreshing` back to false.
+ */
+class PullToRefresh(
+    private val scroll: android.widget.ScrollView,
+    private val density: Float,
+    private val onRefresh: () -> Unit,
+) {
+    var enabled = false
+    private var refreshing = false
+    private var startY = -1f
+    private val spinner: android.graphics.drawable.Drawable =
+        android.widget.ProgressBar(scroll.context).indeterminateDrawable.mutate()
+
+    fun onTouch(event: MotionEvent) {
+        if (!enabled || refreshing) return
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> startY = if (scroll.scrollY == 0) event.rawY else -1f
+            MotionEvent.ACTION_MOVE -> {
+                if (startY >= 0f && scroll.scrollY == 0 && event.rawY - startY > 72f * density) {
+                    startY = -1f
+                    scroll.performHapticFeedback(android.view.HapticFeedbackConstants.CONTEXT_CLICK)
+                    setRefreshing(true)
+                    onRefresh()
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> startY = -1f
+        }
+    }
+
+    fun setRefreshing(on: Boolean) {
+        if (on == refreshing) return
+        refreshing = on
+        if (on) {
+            val size = (36f * density).toInt()
+            val left = (scroll.width - size) / 2
+            val top = scroll.scrollY + (12f * density).toInt()
+            spinner.setBounds(left, top, left + size, top + size)
+            scroll.overlay.add(spinner)
+            (spinner as? android.graphics.drawable.Animatable)?.start()
+        } else {
+            (spinner as? android.graphics.drawable.Animatable)?.stop()
+            scroll.overlay.remove(spinner)
+        }
+    }
+}

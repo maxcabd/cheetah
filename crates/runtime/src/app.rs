@@ -65,6 +65,8 @@ pub fn event_kind_from_code(code: u32) -> Option<&'static str> {
         15 => "select",
         16 => "native",
         17 => "gesture",
+        18 => "refresh",
+        19 => "load",
         _ => return None,
     })
 }

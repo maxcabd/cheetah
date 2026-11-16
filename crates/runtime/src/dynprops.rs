@@ -123,6 +123,8 @@ pub fn set(props: &mut Props, name: &str, arg: usize, value: &DynValue) -> Optio
         ("transition_ms", 0) => set!(transition_ms, num),
         ("spring", 0) => set!(spring, boolean),
         ("gestures", 0) => set!(gestures, string),
+        ("refresh", 0) => set!(refresh, boolean),
+        ("refreshing", 0) => set!(refreshing, boolean),
         ("map_dark", 0) => set!(map_dark, boolean),
         ("map_shows_user", 0) => set!(map_shows_user, boolean),
         _ => return None,

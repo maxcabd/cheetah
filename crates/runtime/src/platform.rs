@@ -275,6 +275,56 @@ pub mod purchases {
     }
 }
 
+/// Native controls, as elements. Their events arrive keyed like clicks:
+/// `change` (switch: `"true"`/`"false"`, slider: the value) and `load`
+/// (webview: the URL). Pull-to-refresh is the `refresh`/`refreshing` props
+/// on a scroll or list, which sends a `refresh` event.
+pub mod controls {
+    use super::*;
+    use crate::element::{native, Element};
+
+    /// A platform switch, 51x31.
+    pub fn switch(key: &str, value: bool) -> Element {
+        native("switch")
+            .key(key)
+            .native_props(json!({"value": value}).to_string())
+            .width(51.0)
+            .height(31.0)
+    }
+
+    /// A platform slider over `min..=max` (`step` 0: continuous); fills
+    /// the width.
+    pub fn slider(key: &str, value: f64, min: f64, max: f64, step: f64) -> Element {
+        native("slider")
+            .key(key)
+            .native_props(json!({"value": value, "min": min, "max": max, "step": step}).to_string())
+            .width(-1.0)
+            .height(32.0)
+    }
+
+    /// The platform activity spinner.
+    pub fn spinner(color: &str) -> Element {
+        native("spinner")
+            .native_props(json!({"color": color}).to_string())
+            .width(24.0)
+            .height(24.0)
+    }
+
+    /// A web page; links stay inside. Size it like any element.
+    pub fn web_view(key: &str, url: &str) -> Element {
+        native("webview")
+            .key(key)
+            .native_props(json!({"url": url}).to_string())
+    }
+
+    /// Web content from an HTML string.
+    pub fn web_html(key: &str, html: &str) -> Element {
+        native("webview")
+            .key(key)
+            .native_props(json!({"html": html}).to_string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,6 +342,17 @@ mod tests {
         assert_eq!(args["data"]["place"], 42);
         let alert = dialog::alert("del", "Delete?", "", &["Cancel", "Delete"], Some(1));
         assert!(alert.args.contains("\"destructive\":1"));
+    }
+
+    #[test]
+    fn controls_are_native_elements_with_props() {
+        let toggle = controls::switch("dark", true);
+        assert_eq!(toggle.props.native.as_deref(), Some("switch"));
+        assert_eq!(toggle.key.as_deref(), Some("dark"));
+        assert_eq!(
+            toggle.props.native_props.as_deref(),
+            Some(r#"{"value":true}"#)
+        );
     }
 
     #[test]

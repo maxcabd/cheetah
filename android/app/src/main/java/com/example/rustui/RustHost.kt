@@ -436,6 +436,22 @@ class RustHost(
             tag.scroll = view
             content.tag = tag
 
+            // Pull-to-refresh (`refresh` / `refreshing`). Watches touches
+            // without consuming them, so scrolling is unchanged.
+            if (props.optBoolean("refresh", false) || tag.refresh != null) {
+                val puller = tag.refresh ?: PullToRefresh(view, density) {
+                    event(tag.id, "refresh", "")
+                }.also { created ->
+                    tag.refresh = created
+                    view.setOnTouchListener { _, motion ->
+                        created.onTouch(motion)
+                        false
+                    }
+                }
+                puller.enabled = props.optBoolean("refresh", false)
+                puller.setRefreshing(puller.enabled && props.optBoolean("refreshing", false))
+            }
+
             view.setOnScrollChangeListener { _, _, y, _, _ ->
                 val current = view.tag as? NodeTag ?: return@setOnScrollChangeListener
                 if (current.pendingScrollTo != null) {
@@ -959,6 +975,8 @@ class RustHost(
         "select" -> 15
         "native" -> 16
         "gesture" -> 17
+        "refresh" -> 18
+        "load" -> 19
         else -> 0
     }
 
@@ -1348,7 +1366,7 @@ private class WireReader(bytes: ByteArray) {
         return String(bytes, Charsets.UTF_8)
     }
 
-    private val propNames = arrayOf("text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures")
+    private val propNames = arrayOf("text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures", "refresh", "refreshing")
 
     fun props(): JSONObject? {
         val count = u32()?.toInt() ?: return null

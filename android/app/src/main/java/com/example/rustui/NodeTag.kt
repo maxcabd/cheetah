@@ -35,6 +35,7 @@ class NodeTag(val id: Int, val view: View, val kind: String) {
     var transitionMs: Long = 200L
     var spring: Boolean = false
     var gestures: GestureHandler? = null
+    var refresh: PullToRefresh? = null
 
     val isSheet: Boolean
         get() = kind == "sheet" || native == "sheet"
