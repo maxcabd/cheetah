@@ -45,6 +45,11 @@ impl NightshadeApp {
             .child(Self::icon(icon_name, 16.0, "#ffffff"))
     }
 
+    /// Chip width for a label (the chip text is one line).
+    pub(crate) fn chip_width(label: &str) -> f32 {
+        label.chars().count() as f32 * 8.0 + 30.0
+    }
+
     pub(crate) fn chip(label: &str, key: &str) -> Element {
         text(label)
             .key(key)
@@ -55,7 +60,7 @@ impl NightshadeApp {
             .bg(CHIP_BG)
             .border(1.0, "#ffffff14")
             .pad_h(14.0)
-            .width(label.chars().count() as f32 * 8.0 + 30.0)
+            .width(Self::chip_width(label))
             .height(42.0)
             .lines(1)
             .align("center")

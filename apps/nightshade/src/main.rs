@@ -26,6 +26,10 @@ mod native_api {
 mod resource {
     pub use runtime::resource::*;
 }
+#[cfg(test)]
+mod views {
+    pub use runtime::views::*;
+}
 
 #[allow(dead_code)]
 mod nightshade;

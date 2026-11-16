@@ -1,0 +1,13 @@
+# Empty search sheet: heading and suggestion chips.
+component EmptyBody
+  column width=-1 weight=1 pad_h=24 gap=14
+    text "Ready to discover?" size=20 font="brice-semibold" line_height=26 color=TEXT height=26
+    hscroll width=-1 height=260 content_width=600
+      column width=600 height=260
+        row width=600 wrap=true gap=10 align_items="center"
+          for chip in suggestions
+            use Chip label=chip.label key=chip.key width=chip.width
+
+# A pressable suggestion pill. Rust computes `width` from the label.
+component Chip
+  text label key=key pressable=true size=14 font="satoshi-bold" color="#ffffff" bg=CHIP_BG border=1 border_color="#ffffff14" pad_h=14 width=width height=42 lines=1 align="center" radius=18

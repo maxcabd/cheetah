@@ -76,42 +76,28 @@ impl NightshadeApp {
             .child(bar)
     }
 
-    pub(crate) fn empty_body(&self) -> Element {
+    /// Heading and suggestion chips, laid out by `views/sheet.view`.
+    pub(crate) fn empty_body(&self, context: &ViewContext) -> Element {
         if let Some(cached) = self.suggestion_cache.borrow().as_ref() {
             return cached.clone();
         }
-
-        let mut suggestions = row()
-            .width(600.0)
-            .wrap(true)
-            .gap(10.0)
-            .align_items("center");
-        for (index, suggestion) in SUGGESTIONS.iter().enumerate() {
-            suggestions = suggestions.child(Self::chip(suggestion, &format!("suggest:{index}")));
-        }
-
-        let grid = column()
-            .width(-1.0)
-            .weight(1.0)
-            .pad_h(24.0)
-            .gap(14.0)
-            .child(
-                text("Ready to discover?")
-                    .size(20.0)
-                    .font("brice-semibold")
-                    .line_height(26.0)
-                    .color(TEXT)
-                    .height(26.0),
-            )
-            .child(
-                hscroll()
-                    .width(-1.0)
-                    .height(260.0)
-                    .content_width(600.0)
-                    .child(column().width(600.0).height(260.0).child(suggestions)),
-            );
-        *self.suggestion_cache.borrow_mut() = Some(grid.clone());
-        grid
+        let suggestions: Vec<serde_json::Value> = SUGGESTIONS
+            .iter()
+            .enumerate()
+            .map(|(index, label)| {
+                serde_json::json!({
+                    "label": label,
+                    "key": format!("suggest:{index}"),
+                    "width": Self::chip_width(label),
+                })
+            })
+            .collect();
+        let body = context.view(
+            "EmptyBody",
+            &serde_json::json!({ "suggestions": suggestions }),
+        );
+        *self.suggestion_cache.borrow_mut() = Some(body.clone());
+        body
     }
 
     pub(crate) fn results_body(&self) -> Element {
@@ -197,7 +183,7 @@ impl NightshadeApp {
             match &self.search {
                 Resource::Ready(_) => self.results_body(),
                 Resource::Loading => self.searching_body(),
-                _ => self.empty_body(),
+                _ => self.empty_body(context),
             }
         };
 

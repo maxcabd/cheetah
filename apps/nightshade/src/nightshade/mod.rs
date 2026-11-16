@@ -206,6 +206,13 @@ impl App for NightshadeApp {
         std::mem::take(&mut self.calls)
     }
 
+    fn views(&self) -> Vec<(&'static str, &'static str)> {
+        vec![
+            ("views/theme.view", include_str!("views/theme.view")),
+            ("views/sheet.view", include_str!("views/sheet.view")),
+        ]
+    }
+
     fn hot_reloaded(&mut self) {
         // Memoized elements were built by the old view code.
         self.suggestion_cache.borrow_mut().take();
