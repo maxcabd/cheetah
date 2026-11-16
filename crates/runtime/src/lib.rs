@@ -28,7 +28,7 @@ pub mod nav;
 // Dev-server builds leave it out: apps/nightshade compiles it itself, and
 // including it here would rebuild the whole runtime on every app edit.
 #[cfg(not(feature = "devserver"))]
-#[path = "../../../apps/nightshade/src/nightshade.rs"]
+#[path = "../../../apps/nightshade/src/nightshade/mod.rs"]
 pub mod nightshade;
 pub mod resource;
 pub mod secure_store;
