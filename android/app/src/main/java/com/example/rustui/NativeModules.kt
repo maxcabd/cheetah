@@ -274,6 +274,8 @@ private class IconNativeModule(private val context: Context) : CheetahNativeModu
         "magnifying-glass" -> "\uF002"
         "circle-xmark" -> "\uF057"
         "star" -> "\uF005"
+        // Font Awesome Free has no waveform; the microphone reads the same.
+        "waveform" -> "\uF130"
         else -> null
     }
 

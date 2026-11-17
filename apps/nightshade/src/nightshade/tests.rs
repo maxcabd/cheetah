@@ -305,11 +305,16 @@ fn views_render_the_empty_sheet() {
     let screen = render(&app);
     assert!(find(&screen, "map").is_some());
     assert!(find(&screen, "places").is_none());
-    let chip = find(&screen, "suggest:6").expect("last suggestion chip");
-    assert_eq!(chip.props.text.as_deref(), Some("Amazing pizza places"));
+    let chip = find(&screen, "suggest:5").expect("last suggestion chip");
+    assert_eq!(
+        chip.props.text.as_deref(),
+        Some("Nearby spots that open late night")
+    );
     assert_eq!(
         chip.props.width,
-        Some(NightshadeApp::chip_width("Amazing pizza places"))
+        Some(NightshadeApp::chip_width(
+            "Nearby spots that open late night"
+        ))
     );
 }
 
@@ -342,4 +347,34 @@ fn runtime_version_matches_cheetah_toml() {
         super::RUNTIME_VERSION,
         format!("{}+{}", field("version"), field("build"))
     );
+}
+
+#[test]
+fn search_field_expands_and_swaps_voice_for_send() {
+    let mut app = NightshadeApp::new(false);
+    let search = |app: &mut NightshadeApp, kind: &str, payload: &str| {
+        app.update(Event {
+            id: 0,
+            key: Some("search".into()),
+            kind: kind.into(),
+            payload: payload.into(),
+        })
+    };
+
+    let screen = render(&app);
+    let field = find(&screen, "search").expect("search field");
+    assert_eq!(
+        field.props.placeholder.as_deref(),
+        Some("What are you in the mood for?")
+    );
+    assert!(find(&screen, "search:voice").is_some());
+    assert!(find(&screen, "search:send").is_none());
+
+    search(&mut app, "focus", "");
+    assert!(app.expanded);
+
+    search(&mut app, "change", "tacos");
+    let screen = render(&app);
+    assert!(find(&screen, "search:voice").is_none());
+    assert!(find(&screen, "search:send").is_some());
 }

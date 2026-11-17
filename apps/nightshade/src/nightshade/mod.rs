@@ -29,14 +29,13 @@ const VIEWS_URL: Option<&str> = option_env!("NIGHTSHADE_VIEWS_URL");
 /// This build's runtime: `version+build` from cheetah.toml (a test checks).
 const RUNTIME_VERSION: &str = "1.0.0+1";
 
-const SUGGESTIONS: [&str; 7] = [
+const SUGGESTIONS: [&str; 6] = [
     "Cafes within 12 min walk",
     "Best dessert spots near me",
     "Halal spots in Ottawa",
     "Best brunch spots",
     "Casual catch up with friends",
     "Nearby spots that open late night",
-    "Amazing pizza places",
 ];
 
 pub struct NightshadeApp {
