@@ -141,6 +141,10 @@ pub struct Props {
     pub content_inset_bottom: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bottom: Option<f32>,
+    /// With `absolute`: distance from the parent's right edge. Layout only,
+    /// so it never reaches the native host.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub right: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub map_latitude: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -198,6 +202,10 @@ pub struct Props {
     /// On a scroll or list with `refresh`: show the refresh spinner until false.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refreshing: Option<bool>,
+    /// On a paged hscroll: scale of a page one page away from center, e.g.
+    /// 0.85 shrinks the neighbours of the centered card. Unset: no scaling.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_scale: Option<f32>,
 }
 
 impl Props {
@@ -262,6 +270,7 @@ impl Props {
         changed_field!(content_inset_top);
         changed_field!(content_inset_bottom);
         changed_field!(bottom);
+        changed_field!(right);
         changed_field!(map_latitude);
         changed_field!(map_longitude);
         changed_field!(map_latitude_delta);
@@ -286,6 +295,7 @@ impl Props {
         changed_field!(gestures);
         changed_field!(refresh);
         changed_field!(refreshing);
+        changed_field!(page_scale);
 
         changed.then_some(delta)
     }
@@ -502,6 +512,11 @@ impl Props {
         self
     }
 
+    pub fn right(mut self, value: f32) -> Self {
+        self.right = Some(value);
+        self
+    }
+
     pub fn map_region(
         mut self,
         latitude: f32,
@@ -607,6 +622,11 @@ impl Props {
     /// On a scroll or list with `refresh`: show the refresh spinner until false.
     pub fn refreshing(mut self, value: bool) -> Self {
         self.refreshing = Some(value);
+        self
+    }
+
+    pub fn page_scale(mut self, value: f32) -> Self {
+        self.page_scale = Some(value);
         self
     }
 }
@@ -870,6 +890,11 @@ impl Element {
         self
     }
 
+    pub fn right(mut self, value: f32) -> Self {
+        self.props.right = Some(value);
+        self
+    }
+
     pub fn map_region(
         mut self,
         latitude: f32,
@@ -990,6 +1015,12 @@ impl Element {
     /// On a scroll or list with `refresh`: show the refresh spinner until false.
     pub fn refreshing(mut self, value: bool) -> Self {
         self.props.refreshing = Some(value);
+        self
+    }
+
+    /// On a paged hscroll: scale of a page one page away from center.
+    pub fn page_scale(mut self, value: f32) -> Self {
+        self.props.page_scale = Some(value);
         self
     }
 }

@@ -157,9 +157,18 @@ fn style_for(kind: Kind, props: &Props) -> Style {
         } else {
             LengthPercentageAuto::length(props.top.unwrap_or(0.0))
         };
+        // `right` without `left` pins the right edge instead of the left.
+        let left = if props.right.is_some() && props.left.is_none() {
+            LengthPercentageAuto::auto()
+        } else {
+            LengthPercentageAuto::length(props.left.unwrap_or(0.0))
+        };
         style.inset = Rect {
-            left: LengthPercentageAuto::length(props.left.unwrap_or(0.0)),
-            right: LengthPercentageAuto::auto(),
+            left,
+            right: props
+                .right
+                .map(LengthPercentageAuto::length)
+                .unwrap_or(LengthPercentageAuto::auto()),
             top,
             bottom: props
                 .bottom
@@ -383,6 +392,20 @@ mod tests {
         assert_close(frame.y, 532.0);
         assert_close(frame.width, 300.0);
         assert_close(frame.height, 68.0);
+    }
+
+    #[test]
+    fn absolute_right_anchors_to_the_right_edge() {
+        let root = build(
+            column()
+                .width(300.0)
+                .height(600.0)
+                .child(row().absolute().top(10.0).right(16.0).width(38.0).height(38.0)),
+        );
+        let frames = compute(&root, 300.0, 600.0, None);
+        let frame = frames[&root.children[0].id];
+        assert_close(frame.x, 246.0);
+        assert_close(frame.y, 10.0);
     }
 
     #[test]

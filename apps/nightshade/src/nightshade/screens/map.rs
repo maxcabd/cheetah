@@ -26,18 +26,9 @@ impl NightshadeApp {
                     "lng": longitude,
                     "lat_delta": latitude_delta,
                     "lng_delta": longitude_delta,
+                    "satellite": self.satellite,
                     "pins": self.pins(),
-                    "native_props": serde_json::json!({
-                        "mapType": if self.satellite { "satellite" } else { "standard" },
-                    })
-                    .to_string(),
-                },
-                // Top right, under the status bar; shows the mode it
-                // switches to.
-                "map_button": {
-                    "top": self.host.safe_top.max(20.0) + 8.0,
-                    "left": context.viewport.width - MAP_BUTTON_SIZE - 16.0,
-                    "icon": if self.satellite { "map.fill" } else { "globe.americas.fill" },
+                    "safe_top": self.host.safe_top.max(20.0),
                 },
                 "carousel": carousel,
                 "sheet": self.sheet_model(context),
@@ -124,7 +115,7 @@ impl NightshadeApp {
                         "lat": place.lat,
                         "lng": place.lng,
                         "state": state,
-                        "icon": if results { "fork.knife" } else { place.icon.as_str() },
+                        "icon": place.icon,
                         "icon_color": place.icon_color,
                     }),
                 )

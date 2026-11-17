@@ -2,6 +2,7 @@
 # theme.rs; keep the shared sizes in step.
 const BG = "#0b0b0f"
 const SHEET_BG = "#171717"
+const CLEAR = "#00000000"
 const CARD_BG = "#1f1f1f"
 const CHIP_BG = "#242424"
 const TEXT = "#f5f5f5"

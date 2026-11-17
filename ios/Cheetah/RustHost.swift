@@ -133,6 +133,8 @@ private final class NodeTag {
     var gestures: GestureRelay?
     var lastPage: Int = -1
     var paged = false
+    /// `page_scale`: scale of a page one page from center (1: none).
+    var pageScale: CGFloat = 1
 
     var isSheet: Bool {
         kind == "sheet" || native == "sheet"
@@ -181,7 +183,7 @@ private struct WireReader {
         return String(decoding: data[offset..<(offset + Int(length))], as: UTF8.self)
     }
 
-    static let propNames: [String] = ["text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures", "refresh", "refreshing"]
+    static let propNames: [String] = ["text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures", "refresh", "refreshing", "pageScale"]
 
     mutating func take(_ count: Int) -> Data? {
         guard offset + count <= data.count else { return nil }
@@ -533,27 +535,28 @@ final class RustHost: NSObject {
         guard let count = reader.u32() else { return nil }
         var props: [String: Any] = [:]
         for _ in 0..<count {
-            guard
-                let id = reader.u16(),
-                id < WireReader.propNames.count,
-                let type = reader.u8()
-            else { return nil }
-            let key = WireReader.propNames[Int(id)]
+            guard let id = reader.u16(), let type = reader.u8() else { return nil }
+            let value: Any
             switch type {
             case 1:
-                guard let value = reader.string() else { return nil }
-                props[key] = value
+                guard let string = reader.string() else { return nil }
+                value = string
             case 2:
-                guard let value = reader.f32() else { return nil }
-                props[key] = NSNumber(value: value)
+                guard let number = reader.f32() else { return nil }
+                value = NSNumber(value: number)
             case 3:
-                guard let value = reader.u8() else { return nil }
-                props[key] = value != 0
+                guard let flag = reader.u8() else { return nil }
+                value = flag != 0
             case 4:
-                guard let value = reader.u32() else { return nil }
-                props[key] = NSNumber(value: value)
+                guard let number = reader.u32() else { return nil }
+                value = NSNumber(value: number)
             default:
                 return nil
+            }
+            // A prop newer than this build: skip it and keep the rest, so new
+            // view attributes never break an installed app.
+            if Int(id) < WireReader.propNames.count {
+                props[WireReader.propNames[Int(id)]] = value
             }
         }
         return props
@@ -658,7 +661,6 @@ final class RustHost: NSObject {
             let imageView = UIImageView()
             imageView.contentMode = .scaleAspectFill
             imageView.clipsToBounds = true
-            imageView.backgroundColor = UIColor(hex: "#242424")
             imageView.isUserInteractionEnabled = false
             return imageView
 
@@ -884,6 +886,32 @@ final class RustHost: NSObject {
         }
     }
 
+    /// The native sheet's look, from the sheet element's `native_props`:
+    ///   background: color behind the content (default: clear on iOS 26, so
+    ///     the system's Liquid Glass shows; "#171717" before)
+    ///   grabber: system grabber (default true)
+    ///   cornerRadius: (default 28)
+    private func styleSheet(_ controller: UIViewController, props: [String: Any]) {
+        var config: [String: Any] = [:]
+        if let raw = props["nativeProps"] as? String,
+           let data = raw.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            config = parsed
+        }
+        if let background = config["background"] as? String {
+            controller.view.backgroundColor = UIColor(hex: background)
+        } else if #available(iOS 26.0, *) {
+            controller.view.backgroundColor = .clear
+        } else {
+            controller.view.backgroundColor = UIColor(hex: "#171717")
+        }
+        if let sheet = controller.sheetPresentationController {
+            sheet.prefersGrabberVisible = (config["grabber"] as? Bool) ?? true
+            sheet.preferredCornerRadius = CGFloat((config["cornerRadius"] as? NSNumber)?.doubleValue ?? 28)
+        }
+    }
+
     private func presentSheetIfNeeded(_ view: UIView, id: UInt32) {
         guard sheetController == nil else {
             return
@@ -899,12 +927,6 @@ final class RustHost: NSObject {
         }
 
         let controller = UIViewController()
-        if #available(iOS 26.0, *) {
-            // Leave the system's Liquid Glass sheet visible.
-            controller.view.backgroundColor = .clear
-        } else {
-            controller.view.backgroundColor = UIColor(hex: "#171717")
-        }
         controller.isModalInPresentation = true
         view.translatesAutoresizingMaskIntoConstraints = false
         controller.view.addSubview(view)
@@ -924,10 +946,9 @@ final class RustHost: NSObject {
             sheet.detents = [detent]
             sheet.selectedDetentIdentifier = identifier
             sheet.largestUndimmedDetentIdentifier = identifier
-            sheet.prefersGrabberVisible = true
-            sheet.preferredCornerRadius = 28
             sheet.prefersScrollingExpandsWhenScrolledToEdge = false
         }
+        styleSheet(controller, props: tags[id]?.props ?? [:])
 
         // The sheet can't be dismissed, so a drag down only "attempts" it:
         // see presentationControllerDidAttemptToDismiss.
@@ -1181,6 +1202,9 @@ final class RustHost: NSObject {
         if let pin = view.superview as? ViewAnnotationView {
             pin.move(to: props)
         }
+        if node.isSheet, node.id == sheetNodeId, let controller = sheetController {
+            styleSheet(controller, props: props)
+        }
 
         if let background = props["bg"] as? String {
             view.backgroundColor = UIColor(hex: background)
@@ -1193,7 +1217,8 @@ final class RustHost: NSObject {
             glass.apply(
                 style: props["glassStyle"] as? String ?? "regular",
                 tint: props["glassTint"] as? String,
-                interactive: bool(props["glassInteractive"])
+                interactive: bool(props["glassInteractive"]),
+                fallback: props["bg"] as? String
             )
         }
 
@@ -1298,6 +1323,7 @@ final class RustHost: NSObject {
                 node.paged = paged.boolValue
                 scroll.isPagingEnabled = paged.boolValue
             }
+            node.pageScale = props["pageScale"] != nil ? number(props["pageScale"]) : 1
             if let scrollX = props["scrollX"] as? NSNumber {
                 let target = CGFloat(scrollX.doubleValue)
                 let animated = node.paged && abs(scroll.contentOffset.x - target) > 1
@@ -1467,7 +1493,7 @@ final class RustHost: NSObject {
             guard let card = page.subviews.first else { continue }
             let pageCenter = CGFloat(index) * pageWidth + pageWidth / 2
             let distance = min(abs(viewportCenter - pageCenter) / pageWidth, 1)
-            let scale = 1 - 0.15 * distance
+            let scale = 1 - (1 - node.pageScale) * distance
             card.transform = CGAffineTransform(scaleX: scale, y: scale)
         }
     }

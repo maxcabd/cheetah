@@ -92,6 +92,8 @@ const PROP_NAMES: &[&str] = &[
     "gestures",
     "refresh",
     "refreshing",
+    // Append only: hosts index this list, and skip ids they don't know.
+    "pageScale",
 ];
 
 pub(crate) fn encode(ops: &[Op]) -> Vec<u8> {
@@ -299,6 +301,7 @@ fn put_props(out: &mut Vec<u8>, props: &Props) {
     string_prop!("gestures", props.gestures);
     bool_prop!("refresh", props.refresh);
     bool_prop!("refreshing", props.refreshing);
+    f32_prop!("pageScale", props.page_scale);
 }
 
 fn prop_count(props: &Props) -> usize {
@@ -377,6 +380,7 @@ fn prop_count(props: &Props) -> usize {
     count!(props.gestures);
     count!(props.refresh);
     count!(props.refreshing);
+    count!(props.page_scale);
     count
 }
 

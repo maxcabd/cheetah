@@ -1,7 +1,9 @@
-# Bottom sheet: grabber, body, search bar.
+# Bottom sheet: grabber, body, search bar. On iOS 26 (`glass`) the system's
+# Liquid Glass sheet shows through instead of SHEET_BG. `native_props` styles
+# the native sheet itself: background, system grabber, corner radius.
 
 component Sheet
-  sheet key="search-panel" absolute=true bottom=0 left=0 width=-1 height=sheet.height radius=54 clip=true bg=sheet.bg
+  sheet key="search-panel" absolute=true bottom=0 left=0 width=-1 height=sheet.height radius=54 clip=true bg=sheet.glass ? CLEAR : SHEET_BG native_props=sheet.glass ? "{{\"background\":\"#00000000\",\"grabber\":true,\"cornerRadius\":28}}" : "{{\"background\":\"#171717\",\"grabber\":true,\"cornerRadius\":28}}"
     column width=-1 height=sheet.height
       row key="sheet:toggle" pressable=true width=-1 height=24 .center
         row width=30 height=6 bg="#404040" radius=3

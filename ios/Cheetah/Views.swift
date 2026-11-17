@@ -62,6 +62,7 @@ final class GlassView: UIView {
     private var style = "regular"
     private var tint: String?
     private var interactive = false
+    private var fallback: String?
     private var transparencyObserver: NSObjectProtocol?
 
     override init(frame: CGRect) {
@@ -95,10 +96,13 @@ final class GlassView: UIView {
         updateShape(radius: layer.cornerRadius)
     }
 
-    func apply(style: String, tint: String?, interactive: Bool) {
+    /// `fallback`: the element's `bg`, shown instead of glass when Reduce
+    /// Transparency is on.
+    func apply(style: String, tint: String?, interactive: Bool, fallback: String? = nil) {
         self.style = style
         self.tint = tint
         self.interactive = interactive
+        self.fallback = fallback
         refresh()
     }
 
@@ -116,7 +120,7 @@ final class GlassView: UIView {
             UIView.performWithoutAnimation {
                 effectView.effect = nil
                 effectView.contentView.backgroundColor = .clear
-                backgroundColor = UIColor(hex: "#1e1f22")
+                backgroundColor = UIColor(hex: fallback ?? "#1e1f22")
             }
             return
         }
@@ -140,7 +144,10 @@ final class GlassView: UIView {
 
         backgroundColor = .clear
         effectView.contentView.backgroundColor = tint.map { UIColor(hex: $0) } ?? .clear
-        effectView.effect = UIBlurEffect(style: .systemUltraThinMaterialLight)
+        // Before iOS 26: a blur. glass_style "dark" picks a dark material.
+        effectView.effect = UIBlurEffect(
+            style: style == "dark" ? .systemUltraThinMaterialDark : .systemUltraThinMaterialLight
+        )
     }
 }
 

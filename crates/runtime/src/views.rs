@@ -30,6 +30,8 @@
 //!   `true`/`false`, or paths into the model, loop variables, component
 //!   arguments, and `const`s.
 //! - `for item[, index] in path`, `if [!]path`, `if path == value`, `else`.
+//! - Choose a value inline: `bg=glass ? CLEAR : SHEET_BG`, with the same
+//!   conditions as `if` (`!path ? a : b`, `path == value ? a : b`).
 //! - `use Component arg=value ...` renders another component.
 //! - `style name = attr=value ...` names a set of attributes; `.name` on an
 //!   element applies it in place, so later attributes override it. Styles
@@ -83,6 +85,8 @@ enum Expr {
     Value(DynValue),
     Template(Vec<Part>),
     Path(Path),
+    /// `cond ? then : otherwise`.
+    Choose(Box<Cond>, Box<Expr>, Box<Expr>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -150,6 +154,8 @@ enum Token {
     NotEq,
     Bang,
     Comma,
+    Question,
+    Colon,
     /// `.name`: apply a style.
     Style(String),
 }
@@ -212,6 +218,12 @@ fn lex_line(text: &str, file: &str, number: usize) -> Result<Vec<Token>, ViewErr
             i += 1;
         } else if c == ',' {
             tokens.push(Token::Comma);
+            i += 1;
+        } else if c == '?' {
+            tokens.push(Token::Question);
+            i += 1;
+        } else if c == ':' {
+            tokens.push(Token::Colon);
             i += 1;
         } else if c == '.'
             && chars
@@ -363,6 +375,47 @@ impl<'a> Parser<'a> {
         })
     }
 
+    /// `cond ? then : otherwise` at the start of `tokens`, with how many
+    /// tokens it used; `None` when the value isn't a choice.
+    fn choose(&self, tokens: &[Token], line: usize) -> Result<Option<(Expr, usize)>, ViewError> {
+        let (cond, used) = match tokens {
+            [Token::Bang, Token::Word(path), Token::Question, ..] => (
+                Cond::Truthy {
+                    path: path_of(path),
+                    negate: true,
+                },
+                2,
+            ),
+            [Token::Word(path), op @ (Token::EqEq | Token::NotEq), value, Token::Question, ..] => (
+                Cond::Compare {
+                    path: path_of(path),
+                    equal: *op == Token::EqEq,
+                    value: self.expr(value, line)?,
+                },
+                3,
+            ),
+            [Token::Word(path), Token::Question, ..] => (
+                Cond::Truthy {
+                    path: path_of(path),
+                    negate: false,
+                },
+                1,
+            ),
+            _ => return Ok(None),
+        };
+        match &tokens[used..] {
+            [Token::Question, then, Token::Colon, otherwise, ..] => Ok(Some((
+                Expr::Choose(
+                    Box::new(cond),
+                    Box::new(self.expr(then, line)?),
+                    Box::new(self.expr(otherwise, line)?),
+                ),
+                used + 4,
+            ))),
+            _ => Err(self.err(line, "expected `cond ? value : value`")),
+        }
+    }
+
     /// `name=value .style name=value ...`, styles expanded in place.
     fn attrs(&self, tokens: &[Token], line: usize) -> Result<Attrs, ViewError> {
         let mut attrs = Vec::new();
@@ -377,9 +430,14 @@ impl<'a> Parser<'a> {
                     attrs.extend(style.iter().cloned());
                     i += 1;
                 }
-                (Token::Word(name), Some(Token::Eq), Some(value)) => {
-                    attrs.push((name.clone(), self.expr(value, line)?));
-                    i += 3;
+                (Token::Word(name), Some(Token::Eq), Some(_)) => {
+                    if let Some((choose, used)) = self.choose(&tokens[i + 2..], line)? {
+                        attrs.push((name.clone(), choose));
+                        i += 2 + used;
+                    } else {
+                        attrs.push((name.clone(), self.expr(&tokens[i + 2], line)?));
+                        i += 3;
+                    }
                 }
                 (other, ..) => {
                     return Err(self.err(line, format!("expected `name=value`, found {other:?}")))
@@ -505,8 +563,13 @@ impl<'a> Parser<'a> {
                     && !matches!(tokens[i], Token::Style(_))
                     && tokens.get(i + 1) != Some(&Token::Eq)
                 {
-                    args.push(self.expr(&tokens[i], number)?);
-                    i += 1;
+                    if let Some((choose, used)) = self.choose(&tokens[i..], number)? {
+                        args.push(choose);
+                        i += used;
+                    } else {
+                        args.push(self.expr(&tokens[i], number)?);
+                        i += 1;
+                    }
                 }
                 for position in 0..args.len() {
                     if !dynprops::supports(&ctor, position) {
@@ -760,8 +823,18 @@ impl Scope<'_> {
         current.clone()
     }
 
+    fn holds(&self, cond: &Cond) -> bool {
+        match cond {
+            Cond::Truthy { path, negate } => truthy(&self.lookup(path)) != *negate,
+            Cond::Compare { path, equal, value } => (self.lookup(path) == self.eval(value)) == *equal,
+        }
+    }
+
     fn eval(&self, expr: &Expr) -> Value {
         match expr {
+            Expr::Choose(cond, then, otherwise) => {
+                self.eval(if self.holds(cond) { then } else { otherwise })
+            }
             Expr::Value(value) => to_json(value),
             Expr::Path(path) => self.lookup(path),
             Expr::Template(parts) => Value::String(
@@ -866,12 +939,7 @@ impl Scope<'_> {
                     then,
                     otherwise,
                 } => {
-                    let pass = match cond {
-                        Cond::Truthy { path, negate } => truthy(&self.lookup(path)) != *negate,
-                        Cond::Compare { path, equal, value } => {
-                            (self.lookup(path) == self.eval(value)) == *equal
-                        }
-                    };
+                    let pass = self.holds(cond);
                     let branch = if pass { then } else { otherwise };
                     let rendered = self.nodes(branch, depth + 1);
                     out.extend(rendered);
@@ -939,6 +1007,32 @@ component Card
         assert_eq!(root.children[0].props.bold, Some(true));
         assert_eq!(root.children[1].props.width, Some(-1.0));
         assert_eq!(root.children[1].children[0].kind, Kind::Space);
+    }
+
+    #[test]
+    fn values_can_be_chosen_inline() {
+        let views = parse(
+            r##"
+const CLEAR = "#00000000"
+
+component Pill
+  row bg=glass ? CLEAR : "#171717" radius=!big ? 8 : 20 key=mode == "map" ? "on-map" : "elsewhere" width=4
+    text big ? "Big {mode}" : "Small" size=12
+"##,
+        );
+        let root = views.render("Pill", &serde_json::json!({"glass": true, "big": false, "mode": "map"}));
+        assert_eq!(root.props.bg.as_deref(), Some("#00000000"));
+        assert_eq!(root.props.radius, Some(8.0));
+        assert_eq!(root.key.as_deref(), Some("on-map"));
+        assert_eq!(root.props.width, Some(4.0), "attributes after a choice still apply");
+        assert_eq!(root.children[0].props.text.as_deref(), Some("Small"));
+        assert_eq!(root.children[0].props.size, Some(12.0));
+
+        let root = views.render("Pill", &serde_json::json!({"glass": false, "big": true, "mode": "list"}));
+        assert_eq!(root.props.bg.as_deref(), Some("#171717"));
+        assert_eq!(root.props.radius, Some(20.0));
+        assert_eq!(root.key.as_deref(), Some("elsewhere"));
+        assert_eq!(root.children[0].props.text.as_deref(), Some("Big list"));
     }
 
     #[test]

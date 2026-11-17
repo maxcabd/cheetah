@@ -13,16 +13,10 @@ impl NightshadeApp {
         } else {
             format!("{:.1}km", place.distance_m / 1000.0)
         };
-        let (status, hours) = match place.open {
-            None => ("unknown", String::new()),
-            Some(true) if place.closes.is_empty() => ("open", String::new()),
-            Some(true) => ("open", format!("Closes at {}", place.closes)),
-            Some(false) if place.opens.is_empty() => ("closed", String::new()),
-            // "8:00 AM" today, else "tomorrow at …" / "Wed at …".
-            Some(false) if place.opens.starts_with(|c: char| c.is_ascii_digit()) => {
-                ("closed", format!("Opens at {}", place.opens))
-            }
-            Some(false) => ("closed", format!("Opens {}", place.opens)),
+        let status = match place.open {
+            None => "unknown",
+            Some(true) => "open",
+            Some(false) => "closed",
         };
         json!({
             "id": place.id,
@@ -32,7 +26,10 @@ impl NightshadeApp {
             "drive_minutes": drive_minutes,
             "price": "$".repeat(place.price_tier.min(4) as usize),
             "status": status,
-            "hours": hours,
+            "closes": place.closes,
+            "opens": place.opens,
+            // "8:00 AM" is today; otherwise "tomorrow at …" / "Wed at …".
+            "opens_today": place.opens.starts_with(|c: char| c.is_ascii_digit()),
             "has_rating": !place.rating.is_empty(),
             "rating": if place.reviews.is_empty() {
                 place.rating.clone()

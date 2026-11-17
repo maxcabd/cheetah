@@ -45,7 +45,7 @@ final class NativeModuleHostView: UIView {
         {
             pendingName = name
             pendingProps = props
-            backgroundColor = UIColor(hex: "#101826")
+            backgroundColor = (props["bg"] as? String).map { UIColor(hex: $0) }
             setNeedsLayout()
             return
         }
@@ -159,34 +159,6 @@ private enum NativeModuleRegistry {
     }
 }
 
-private final class PlaceAnnotation: NSObject, MKAnnotation {
-    let coordinate: CLLocationCoordinate2D
-    let placeID: String
-    var title: String?
-    var kind: String
-    var icon: String
-    var iconColor: String
-    var selected: Bool
-
-    init(
-        coordinate: CLLocationCoordinate2D,
-        placeID: String,
-        title: String?,
-        kind: String,
-        icon: String,
-        iconColor: String,
-        selected: Bool
-    ) {
-        self.coordinate = coordinate
-        self.placeID = placeID
-        self.title = title
-        self.kind = kind
-        self.icon = icon
-        self.iconColor = iconColor
-        self.selected = selected
-    }
-}
-
 /// A child view of the map element, pinned at its coordinate.
 private final class ViewAnnotation: NSObject, MKAnnotation {
     @objc dynamic var coordinate: CLLocationCoordinate2D
@@ -239,13 +211,11 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
     private var regionApplied = false
     private var appliedAfterLoad = false
     private var lastRegionKey: String?
-    private var lastMarkers: String?
     private var lastDark: Bool?
     private var lastShowUser: Bool?
     private var lastMapType: String?
     private var childAnnotations: [ObjectIdentifier: ViewAnnotation] = [:]
     private var nextRegionAnimated = false
-    private var annotationsByID: [String: PlaceAnnotation] = [:]
 
     var nativeView: UIView {
         map
@@ -258,7 +228,6 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
             : CGRect(x: 0, y: 0, width: 1, height: 1)
         map = MKMapView(frame: initialFrame)
         super.init()
-        map.backgroundColor = UIColor(hex: "#101826")
         map.isOpaque = true
         map.overrideUserInterfaceStyle = .dark
         map.mapType = .mutedStandard
@@ -282,18 +251,33 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
             }
         }
 
-        // `native_props` `{"mapType": "satellite"}`: imagery with road and
-        // place labels; anything else is the muted street map.
+        if let background = props["bg"] as? String {
+            map.backgroundColor = UIColor(hex: background)
+        }
+
+        // The map's look, from `native_props`:
+        //   mapType: "muted" (default), "standard", "satellite", "hybrid"
+        //   pointsOfInterest, buildings: false by default
+        var config: [String: Any] = [:]
         if let raw = props["nativeProps"] as? String,
            let data = raw.data(using: .utf8),
-           let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         {
-            let type = config["mapType"] as? String ?? "standard"
-            if type != lastMapType {
-                lastMapType = type
-                map.mapType = type == "satellite" ? .hybrid : .mutedStandard
+            config = parsed
+        }
+        let type = config["mapType"] as? String ?? "muted"
+        if type != lastMapType {
+            lastMapType = type
+            switch type {
+            case "standard": map.mapType = .standard
+            case "satellite": map.mapType = .satellite
+            case "hybrid": map.mapType = .hybrid
+            default: map.mapType = .mutedStandard
             }
         }
+        let pointsOfInterest = (config["pointsOfInterest"] as? Bool) ?? false
+        map.pointOfInterestFilter = pointsOfInterest ? .includingAll : .excludingAll
+        map.showsBuildings = (config["buildings"] as? Bool) ?? false
 
         let showUser = (props["mapShowsUser"] as? NSNumber)?.boolValue ?? false
         let showUserChanged = lastShowUser.map { $0 != showUser } ?? true
@@ -331,75 +315,6 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
                     self?.applyPendingRegion(force: true)
                 }
             }
-        }
-
-        guard let rawMarkers = props["mapMarkers"] as? String, rawMarkers != lastMarkers else {
-            return
-        }
-        lastMarkers = rawMarkers
-        guard
-            let data = rawMarkers.data(using: .utf8),
-            let markers = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]]
-        else {
-            return
-        }
-
-        let samePlaces = markers.count == annotationsByID.count && markers.allSatisfy { marker in
-            guard
-                let id = marker["id"] as? String,
-                let existing = annotationsByID[id],
-                let latitude = marker["lat"] as? NSNumber,
-                let longitude = marker["lng"] as? NSNumber
-            else {
-                return false
-            }
-            return abs(existing.coordinate.latitude - latitude.doubleValue) < 0.0000001
-                && abs(existing.coordinate.longitude - longitude.doubleValue) < 0.0000001
-        }
-
-        if samePlaces {
-            for marker in markers {
-                guard
-                    let id = marker["id"] as? String,
-                    let existing = annotationsByID[id]
-                else {
-                    continue
-                }
-                existing.title = marker["name"] as? String
-                existing.kind = marker["kind"] as? String ?? "static"
-                existing.icon = marker["icon"] as? String ?? "utensils"
-                existing.iconColor = marker["iconColor"] as? String ?? "#D32F2F"
-                existing.selected = (marker["selected"] as? NSNumber)?.boolValue ?? false
-                if let view = map.view(for: existing) as? MKAnnotationView {
-                    view.image = Self.markerImage(existing)
-                }
-            }
-            return
-        }
-
-        map.removeAnnotations(Array(annotationsByID.values))
-        annotationsByID.removeAll(keepingCapacity: true)
-        for marker in markers {
-            guard
-                let latitude = marker["lat"] as? NSNumber,
-                let longitude = marker["lng"] as? NSNumber
-            else {
-                continue
-            }
-            let annotation = PlaceAnnotation(
-                coordinate: CLLocationCoordinate2D(
-                    latitude: latitude.doubleValue,
-                    longitude: longitude.doubleValue
-                ),
-                placeID: marker["id"] as? String ?? "",
-                title: marker["name"] as? String,
-                kind: marker["kind"] as? String ?? "static",
-                icon: marker["icon"] as? String ?? "utensils",
-                iconColor: marker["iconColor"] as? String ?? "#D32F2F",
-                selected: (marker["selected"] as? NSNumber)?.boolValue ?? false
-            )
-            annotationsByID[annotation.placeID] = annotation
-            map.addAnnotation(annotation)
         }
     }
 
@@ -481,17 +396,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
             view.canShowCallout = false
             return view
         }
-        guard let place = annotation as? PlaceAnnotation else {
-            return nil
-        }
-        let identifier = "cheetah-place"
-        let marker = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
-            ?? MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
-        marker.annotation = annotation
-        marker.image = Self.markerImage(place)
-        marker.canShowCallout = true
-        marker.displayPriority = .required
-        return marker
+        return nil
     }
 
     func mapView(_ mapView: MKMapView, didSelect annotation: MKAnnotation) {
@@ -500,84 +405,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
             mapView.deselectAnnotation(annotation, animated: false)
             return
         }
-        guard let place = annotation as? PlaceAnnotation, !place.placeID.isEmpty else {
-            return
-        }
-        owner?.event("marker", place.placeID)
-        mapView.deselectAnnotation(annotation, animated: false)
     }
-
-    private static var markerImageCache: [String: UIImage] = [:]
-
-    private static func markerImage(_ place: PlaceAnnotation) -> UIImage {
-        let cacheKey = [
-            place.placeID,
-            place.kind,
-            place.icon,
-            place.iconColor,
-            place.selected ? "selected" : "idle",
-        ].joined(separator: "|")
-        if let cached = markerImageCache[cacheKey] {
-            return cached
-        }
-        let result = place.kind == "result"
-        let size = result ? CGSize(width: 40, height: 40) : CGSize(width: 56, height: 56)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        let image = renderer.image { context in
-            let rect = CGRect(origin: .zero, size: size).insetBy(dx: 2, dy: 2)
-            let circle = UIBezierPath(ovalIn: rect)
-            context.cgContext.setShadow(
-                offset: CGSize(width: 0, height: 2),
-                blur: 4,
-                color: UIColor.black.withAlphaComponent(0.3).cgColor
-            )
-            if result {
-                (place.selected ? UIColor(hex: "#ef4444") : UIColor(hex: "#404040")).setFill()
-                circle.fill()
-                (place.selected ? UIColor.white : UIColor(hex: "#262626")).setStroke()
-                circle.lineWidth = 3
-                circle.stroke()
-            } else {
-                UIColor.white.setFill()
-                circle.fill()
-                UIColor(hex: "#262626").withAlphaComponent(0.5).setStroke()
-                circle.lineWidth = 1
-                circle.stroke()
-            }
-
-            let symbol = Self.symbols[place.icon] ?? "fork.knife"
-            let configuration = UIImage.SymbolConfiguration(
-                pointSize: result ? 14 : 20,
-                weight: .regular
-            )
-            if let image = UIImage(systemName: symbol, withConfiguration: configuration)?
-                .withTintColor(
-                    result ? .white : UIColor(hex: place.iconColor),
-                    renderingMode: .alwaysOriginal
-                )
-            {
-                let side = result ? 16.0 : 22.0
-                image.draw(
-                    in: CGRect(
-                        x: (size.width - side) / 2,
-                        y: (size.height - side) / 2,
-                        width: side,
-                        height: side
-                    )
-                )
-            }
-        }
-        markerImageCache[cacheKey] = image
-        return image
-    }
-
-    private static let symbols: [String: String] = [
-        "coffee": "cup.and.saucer.fill",
-        "hamburger": "takeoutbag.and.cup.and.straw.fill",
-        "pizza-slice": "triangle.fill",
-        "fish": "fish.fill",
-        "utensils": "fork.knife",
-    ]
 }
 
 private final class SheetNativeModule: CheetahNativeModule {

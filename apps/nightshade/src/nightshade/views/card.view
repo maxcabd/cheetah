@@ -1,7 +1,7 @@
 # Place cards in a paged carousel above the sheet.
 
 component Carousel
-  hscroll key="places" absolute=true bottom=CAROUSEL_BOTTOM left=0 width=carousel.width height=340 paged=true scroll_x=carousel.scroll_x content_width=carousel.content_width
+  hscroll key="places" absolute=true bottom=CAROUSEL_BOTTOM left=0 width=carousel.width height=340 paged=true page_scale=0.85 scroll_x=carousel.scroll_x content_width=carousel.content_width
     for place in carousel.places
       column width=carousel.width height=340 align_items="center" justify="end"
         use Card place=place width=carousel.card_width inner=carousel.card_inner controls=carousel.card_controls
@@ -29,18 +29,19 @@ component Card
             use Icon name="google" size=9 color="#4285F4"
           text place.rating size=12 font="satoshi-medium" color="#ffffff" width=80 height=16
 
-# Open / closed line; `place.hours` is "Closes at …" or "Opens at …".
+# Open / closed line. `place.opens` is "8:00 AM" today (`opens_today`), else
+# "tomorrow at 9:00 AM" / "Fri at 8:00 AM".
 component Hours
   if place.status == "open"
     row width=inner .line
       text "Open" .label font="satoshi-bold" color=GREEN width=38
       text "·" .label width=10
-      text place.hours .label width=130
+      text place.closes ? "Closes at {place.closes}" : "" .label width=130
   if place.status == "closed"
     row width=inner .line
       text "Closed" .label font="satoshi-bold" color=RED width=48
       text "·" .label width=10
-      text place.hours .label color="#ffffffb3" width=130
+      text place.opens_today ? "Opens at {place.opens}" : "Opens {place.opens}" .label color="#ffffffb3" width=130
   if place.status == "unknown"
     row width=inner height=18
       text "Hours unavailable" .label color="#ffffffb3" width=160

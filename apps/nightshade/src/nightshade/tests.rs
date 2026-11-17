@@ -678,13 +678,13 @@ fn the_map_button_switches_to_satellite_and_back() {
         let map = find(&render(app), "map").expect("map").props.native_props.clone().unwrap();
         serde_json::from_str::<serde_json::Value>(&map).unwrap()["mapType"].clone()
     };
-    assert_eq!(map_type(&app), "standard");
+    assert_eq!(map_type(&app), "muted");
     assert!(find(&render(&app), "map:type").is_some(), "button shown");
 
     click(&mut app, "map:type");
-    assert_eq!(map_type(&app), "satellite");
+    assert_eq!(map_type(&app), "hybrid");
     click(&mut app, "map:type");
-    assert_eq!(map_type(&app), "standard");
+    assert_eq!(map_type(&app), "muted");
 }
 
 #[test]
@@ -704,4 +704,21 @@ fn pins_are_map_children_at_their_coordinates() {
     let last = map.children.last().unwrap();
     assert_eq!(last.key.as_deref(), Some(format!("place:{}", app.visible_places()[1].id).as_str()));
     assert_eq!(last.children[0].props.glass_tint.as_deref(), Some("#ef4444d9"));
+}
+
+#[test]
+fn the_view_styles_the_native_sheet_and_carousel() {
+    let mut app = NightshadeApp::new(true);
+    let sheet_style = |app: &NightshadeApp| {
+        let tree = render(app);
+        let raw = find(&tree, "search-panel").expect("sheet").props.native_props.clone().expect("native_props");
+        serde_json::from_str::<serde_json::Value>(&raw).unwrap()
+    };
+    assert_eq!(sheet_style(&app)["background"], "#171717");
+    app.host.glass = true;
+    assert_eq!(sheet_style(&app)["background"], "#00000000", "Liquid Glass shows through");
+    assert_eq!(sheet_style(&app)["cornerRadius"], 28);
+
+    let tree = render(&app);
+    assert_eq!(find(&tree, "places").expect("carousel").props.page_scale, Some(0.85));
 }

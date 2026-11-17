@@ -443,6 +443,7 @@ fn props_affect_layout(previous: &Props, next: &Props) -> bool {
         || previous.top != next.top
         || previous.left != next.left
         || previous.bottom != next.bottom
+        || previous.right != next.right
         || previous.size != next.size
         || previous.bold != next.bold
         || previous.font != next.font

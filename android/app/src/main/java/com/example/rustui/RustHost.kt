@@ -1367,22 +1367,23 @@ private class WireReader(bytes: ByteArray) {
         return String(bytes, Charsets.UTF_8)
     }
 
-    private val propNames = arrayOf("text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures", "refresh", "refreshing")
+    private val propNames = arrayOf("text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures", "refresh", "refreshing", "pageScale")
 
     fun props(): JSONObject? {
         val count = u32()?.toInt() ?: return null
         val props = JSONObject()
         for (index in 0 until count) {
             val keyId = u16() ?: return null
-            if (keyId !in propNames.indices) return null
-            val key = propNames[keyId]
-            when (val type = u8() ?: return null) {
-                1 -> props.put(key, string() ?: return null)
-                2 -> props.put(key, f32() ?: return null)
-                3 -> props.put(key, (u8() ?: return null) != 0)
-                4 -> props.put(key, u32() ?: return null)
+            val value: Any = when (u8() ?: return null) {
+                1 -> string() ?: return null
+                2 -> f32() ?: return null
+                3 -> (u8() ?: return null) != 0
+                4 -> u32() ?: return null
                 else -> return null
             }
+            // A prop newer than this build: skip it and keep the rest, so new
+            // view attributes never break an installed app.
+            if (keyId in propNames.indices) props.put(propNames[keyId], value)
         }
         return props
     }
