@@ -25,7 +25,7 @@ use runtime::app::{Action, App, Event, ViewContext};
 use runtime::dev::{
     rough_measure, DevRuntime, Host, LiteralOverrides, RerenderHandle, TextRequest, Views,
 };
-use runtime::{Element, NativeCall, Runtime};
+use runtime::{Element, NativeCall, Op, Runtime};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -585,13 +585,17 @@ fn handle(runtime: &DevRuntime, host: &WsHost, text: &str) {
             }
         }
         Some("lifecycle") => runtime.lifecycle(message["active"].as_bool().unwrap_or(true)),
-        Some("hello") => println!(
-            "devserver: {}",
-            native_status(
-                message["platform"].as_str().unwrap_or(""),
-                message["native"].as_str().unwrap_or("unknown"),
-            )
-        ),
+        Some("hello") => {
+            let platform = message["platform"].as_str().unwrap_or("");
+            let installed = message["native"].as_str().unwrap_or("unknown");
+            println!("devserver: {}", native_status(platform, installed));
+            // A stale build runs .view and Rust code written for native code
+            // it doesn't have, which shows up as layout and touch bugs. Say
+            // so on the phone, where it's noticed.
+            if let Some(alert) = stale_alert(platform, installed) {
+                host.emit_ops(&runtime::encode_ops(&[alert]));
+            }
+        }
         Some("measured") => {
             let seq = message["seq"].as_u64().unwrap_or(u64::MAX);
             let sizes = message["sizes"]
@@ -615,10 +619,44 @@ fn handle(runtime: &DevRuntime, host: &WsHost, text: &str) {
 /// of the dev build's native fingerprint.
 static APP_NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
 
-fn native_status(platform: &str, installed: &str) -> String {
+fn local_fingerprint(platform: &str) -> Option<String> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let app = APP_NAME.get().map(String::as_str);
-    let Some(local) = cheetah_cli::fingerprint::native(&root, platform, app) else {
+    cheetah_cli::fingerprint::native(&root, platform, app)
+}
+
+/// A native alert for a dev build whose native code differs from this
+/// checkout. Uses the `dialog` module, which every dev build has.
+fn stale_alert(platform: &str, installed: &str) -> Option<Op> {
+    let local = local_fingerprint(platform)?;
+    if installed == local || installed == "unknown" || installed.is_empty() {
+        return None;
+    }
+    let store = if platform == "ios" {
+        "TestFlight"
+    } else {
+        "a new build"
+    };
+    let message = format!(
+        "This build's native code ({installed}) doesn't match the code on your          computer ({local}), so some views may draw or respond wrong.
+
+         Install the latest Cheetah Dev from {store}. If none is newer, push          the native changes or run: cheetah build {platform} --dev"
+    );
+    Some(Op::Invoke {
+        module: "dialog".into(),
+        method: "alert".into(),
+        args: json!({
+            "id": "cheetah-dev-stale",
+            "title": "Dev build is out of date",
+            "message": message,
+            "buttons": ["OK"],
+        })
+        .to_string(),
+    })
+}
+
+fn native_status(platform: &str, installed: &str) -> String {
+    let Some(local) = local_fingerprint(platform) else {
         return format!("{platform} dev build connected ({installed}); no git checkout to compare");
     };
     if installed == local {
@@ -762,7 +800,7 @@ pub fn run(name: &str, options: Options, source: AppSource) {
 
 #[cfg(test)]
 mod tests {
-    use super::native_status;
+    use super::{native_status, stale_alert, Op};
 
     #[test]
     fn says_when_the_dev_build_needs_rebuilding() {
@@ -771,5 +809,23 @@ mod tests {
         assert!(native_status("ios", &local).contains("is current"));
         assert!(native_status("ios", "ios-0000000000000000").contains("NATIVE CODE CHANGED"));
         assert!(native_status("ios", "unknown").contains("cheetah build ios --dev"));
+    }
+
+    #[test]
+    fn alerts_the_phone_only_when_the_dev_build_is_stale() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let local = cheetah_cli::fingerprint::native(&root, "ios", None).expect("git checkout");
+        assert!(stale_alert("ios", &local).is_none());
+        assert!(stale_alert("ios", "unknown").is_none());
+        let Some(Op::Invoke {
+            module,
+            method,
+            args,
+        }) = stale_alert("ios", "ios-0000000000000000")
+        else {
+            panic!("expected an alert");
+        };
+        assert_eq!((module.as_str(), method.as_str()), ("dialog", "alert"));
+        assert!(args.contains("TestFlight") && args.contains("ios-0000000000000000"));
     }
 }
