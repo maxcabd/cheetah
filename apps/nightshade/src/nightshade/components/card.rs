@@ -18,7 +18,11 @@ impl NightshadeApp {
             Some(true) if place.closes.is_empty() => ("open", String::new()),
             Some(true) => ("open", format!("Closes at {}", place.closes)),
             Some(false) if place.opens.is_empty() => ("closed", String::new()),
-            Some(false) => ("closed", format!("Opens at {}", place.opens)),
+            // "8:00 AM" today, else "tomorrow at …" / "Wed at …".
+            Some(false) if place.opens.starts_with(|c: char| c.is_ascii_digit()) => {
+                ("closed", format!("Opens at {}", place.opens))
+            }
+            Some(false) => ("closed", format!("Opens {}", place.opens)),
         };
         json!({
             "id": place.id,
@@ -29,7 +33,12 @@ impl NightshadeApp {
             "price": "$".repeat(place.price_tier.min(4) as usize),
             "status": status,
             "hours": hours,
-            "rating": format!("{} ({})", place.rating, place.reviews),
+            "has_rating": !place.rating.is_empty(),
+            "rating": if place.reviews.is_empty() {
+                place.rating.clone()
+            } else {
+                format!("{} ({})", place.rating, place.reviews)
+            },
         })
     }
 

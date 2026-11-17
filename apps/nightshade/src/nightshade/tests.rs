@@ -541,3 +541,46 @@ fn reopening_after_the_app_was_ended_resumes_its_state() {
 
     let _ = std::fs::remove_file(&file);
 }
+
+#[test]
+fn search_time_gives_weekday_and_minute() {
+    // 2026-11-17 is a Tuesday.
+    assert_eq!(
+        super::local_day_minute("2026-11-17T10:40:00.27-05:00"),
+        Some((1, 640))
+    );
+    assert_eq!(super::local_day_minute(""), None);
+}
+
+#[test]
+fn closed_cards_show_when_they_open() {
+    let card = |hours: serde_json::Value| -> super::Place {
+        serde_json::from_value::<super::ApiCard>(serde_json::json!({
+            "place_id": "p", "name": "P", "lat": 45.0, "lng": -75.0,
+            "open_now": false, "hours": hours,
+        }))
+        .unwrap()
+        .into_place(Some((1, 640)))
+    };
+    let later = card(serde_json::json!({ "tue": [{ "start": "17:00", "end": "22:00" }] }));
+    assert_eq!(later.opens, "5:00 PM");
+    let tomorrow = card(serde_json::json!({ "wed": [{ "start": "09:00", "end": "21:00" }] }));
+    assert_eq!(tomorrow.opens, "tomorrow at 9:00 AM");
+    let friday = card(serde_json::json!({ "fri": [{ "start": "08:00", "end": "16:00" }] }));
+    assert_eq!(friday.opens, "Fri at 8:00 AM");
+    assert_eq!(card(serde_json::Value::Null).opens, "");
+}
+
+#[test]
+fn google_rating_and_review_count_reach_the_card() {
+    let place = serde_json::from_value::<super::ApiCard>(serde_json::json!({
+        "place_id": "p", "name": "P", "lat": 45.0, "lng": -75.0,
+        "rating": 4.36, "user_rating_count": 1234,
+    }))
+    .unwrap()
+    .into_place(None);
+    assert_eq!((place.rating.as_str(), place.reviews.as_str()), ("4.4", "1.2k"));
+    assert_eq!(super::review_count(812), "812");
+    assert_eq!(super::review_count(2000), "2k");
+    assert_eq!(super::review_count(25_300), "25k");
+}

@@ -23,10 +23,11 @@ component Card
         use Icon name="car" size=14 color="#ffffff"
         text "{place.distance} • {place.drive_minutes} min • {place.price}" .label color="#fffffff2"
       use Hours place=place inner=inner
-      row width=150 height=30 pad_h=12 gap=8 radius=15 border=1 border_color="#404040" align_items="center"
-        row width=16 height=16 radius=8 bg="#ffffff" .center
-          use Icon name="google" size=9 color="#4285F4"
-        text place.rating size=12 font="satoshi-medium" color="#ffffff" width=80 height=16
+      if place.has_rating
+        row width=150 height=30 pad_h=12 gap=8 radius=15 border=1 border_color="#404040" align_items="center"
+          row width=16 height=16 radius=8 bg="#ffffff" .center
+            use Icon name="google" size=9 color="#4285F4"
+          text place.rating size=12 font="satoshi-medium" color="#ffffff" width=80 height=16
 
 # Open / closed line; `place.hours` is "Closes at …" or "Opens at …".
 component Hours
