@@ -87,7 +87,8 @@ impl Client {
         .map_err(|error| format!("cannot write a temp file: {error}"))?;
         let mut command = Command::new("curl");
         command
-            .args(["-sS", "-X", method, "-w", "\n%{http_code}", "-H"])
+            // -g: query keys like filter[identifier] are not curl globs.
+            .args(["-sS", "-g", "-X", method, "-w", "\n%{http_code}", "-H"])
             .arg(format!("@{}", header.display()))
             .args(["-H", "Content-Type: application/json"])
             // CHEETAH_ASC_BASE points at a local server, for testing.
@@ -128,7 +129,8 @@ impl Client {
         if (200..300).contains(&status) {
             Ok(json)
         } else {
-            Err(api_error(status, &json))
+            let endpoint = path.split('?').next().unwrap_or(path);
+            Err(format!("{method} {endpoint}: {}", api_error(status, &json)))
         }
     }
 
