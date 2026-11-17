@@ -720,9 +720,8 @@ fn the_view_styles_the_native_sheet_and_carousel() {
         serde_json::from_str::<serde_json::Value>(&raw).unwrap()
     };
     assert_eq!(sheet_style(&app)["background"], "#171717");
-    app.host.glass = true;
-    assert_eq!(sheet_style(&app)["background"], "#00000000", "Liquid Glass shows through");
-    assert_eq!(sheet_style(&app)["cornerRadius"], 28);
+    assert_eq!(sheet_style(&app)["grabber"], false, "the view draws its own grabber");
+    assert_eq!(sheet_style(&app)["cornerRadius"], 54);
 
     let tree = render(&app);
     assert_eq!(find(&tree, "places").expect("carousel").props.page_scale, Some(0.85));
@@ -742,5 +741,15 @@ fn the_teardrop_marker_describes_a_valid_shape() {
         serde_json::from_str(shape.props.native_props.as_deref().unwrap()).expect("valid JSON");
     assert!(look["path"].as_str().unwrap().ends_with('Z'));
     assert_eq!(look["viewBox"], serde_json::json!([100, 120]));
-    assert_eq!(look["gradient"]["colors"][0], "#ff3b24");
+    assert_eq!(look["gradient"]["colors"][0], "#ff4a33");
+}
+
+#[test]
+fn show_on_map_collapses_the_sheet_and_drops_the_keyboard() {
+    let mut app = NightshadeApp::new(true);
+    click(&mut app, "sheet:toggle");
+    let mount = app.field_mount;
+    click(&mut app, "show-on-map");
+    assert!(!app.expanded);
+    assert_eq!(app.field_mount, mount + 1);
 }

@@ -17,9 +17,9 @@ component MapScreen
 # that coordinate. Glass is Liquid Glass on iOS 26 and a blur before.
 component MapPin
   if pin.state == "selected"
-    use Marker pin=pin d=40 r=20 box=49 outer=98 sq=20 sq_left=10 sq_top=24.14 icon_size=17 body="{{\"colors\":[\"#ff3b24\",\"#ff6a55\",\"#ff9a8a\"],\"locations\":[0,0.5,1],\"startX\":0,\"startY\":0,\"endX\":1,\"endY\":1}}" tail="{{\"colors\":[\"#ff7d69\",\"#ffa194\"],\"locations\":[0,1],\"startX\":0,\"startY\":0,\"endX\":1,\"endY\":1}}" rim="#ffb6ab"
+    use TeardropMarker pin=pin w=40 h=48 outer=96 icon_size=17 look=MARKER_RED
   if pin.state == "idle"
-    use Marker pin=pin d=30 r=15 box=37 outer=74 sq=15 sq_left=7.5 sq_top=18.1 icon_size=13 body="{{\"colors\":[\"#3f3f46e6\",\"#27272ae6\",\"#18181be6\"],\"locations\":[0,0.5,1],\"startX\":0,\"startY\":0,\"endX\":1,\"endY\":1}}" tail="{{\"colors\":[\"#27272ae6\",\"#18181be6\"],\"locations\":[0,1],\"startX\":0,\"startY\":0,\"endX\":1,\"endY\":1}}" rim="#ffffff40"
+    use TeardropMarker pin=pin w=30 h=36 outer=72 icon_size=13 look=MARKER_DARK
   if pin.state == "static"
     use PinGlass pin=pin size=48 radius=24 tint="#ffffff33" ring=1 ring_color="#ffffff59" icon=pin.icon icon_size=22 icon_color=pin.icon_color
 
@@ -28,29 +28,12 @@ component PinGlass
     glass width=size height=size radius=radius glass_style="regular" glass_tint=tint border=ring border_color=ring_color .center
       use Icon name=icon size=icon_size color=icon_color
 
-# A result pin (design: Downloads/marker.jpg): a teardrop with a diagonal
-# gradient (`body`, `tail`), a rim, and a fork and knife. Selected pins are
-# red, the rest dark glass. The tip marks the place: the pin fills the top
-# half of a box twice its height, which the map centers on the coordinate.
-#
-# The teardrop is a circle (diameter d) over a square rotated 45 degrees,
-# whose bottom corner is the tip. For the square's side corners to meet the
-# circle: side sq = d / 2, centered sq * 0.707 below the circle's center;
-# the tip lands at d * 1.207.
-component Marker
-  column key="pin:{pin.id}" width=d height=outer map_latitude=pin.lat map_longitude=pin.lng
-    column key="place:{pin.id}" pressable=true width=d height=box
-      row absolute=true top=sq_top left=sq_left width=sq height=sq rotate=45 border=1.5 border_color=rim
-        native "gradient" absolute=true top=0 left=0 width=sq height=sq native_props=tail
-      glass absolute=true top=0 left=0 width=d height=d radius=r glass_style="regular" border=1.5 border_color=rim .center
-        native "gradient" absolute=true top=0 left=0 width=d height=d native_props=body
-        use Icon name="fork.knife" size=icon_size color="#ffffff"
-
-# The teardrop from Downloads/marker.jpg as one `shape` (SVG path, viewBox
-# 100x120): circle, pinched neck, rounded tip at the bottom center. Selected
-# pins are red, the rest dark. Needs a build with `native "shape"`; MapPin
-# switches to it once that build is installed.
-const MARKER_RED = "{{\"path\":\"M85.8 82C93.67 73.2 98 61.8 98 50C98 23.49 76.51 2 50 2C23.49 2 2 23.49 2 50C2 61.8 6.33 73.2 14.2 82C24 91 34 95.5 40 101C43.5 104.5 45.5 110 46.6 115.5Q50 121.5 53.4 115.5C54.5 110 56.5 104.5 60 101C66 95.5 76 91 85.8 82Z\",\"viewBox\":[100,120],\"gradient\":{{\"colors\":[\"#ff3b24\",\"#ff6a55\",\"#ff9a8a\"],\"locations\":[0,0.5,1],\"startX\":0,\"startY\":0,\"endX\":1,\"endY\":1}},\"stroke\":\"#ffb6ab\",\"strokeWidth\":1.5}}"
+# A result pin: the teardrop from Downloads/marker.jpg as one `shape` (SVG
+# path, viewBox 100x120: circle, pinched neck, rounded tip at the bottom
+# center) with a fork and knife in the circle. Selected pins are red, the
+# rest dark. The tip marks the place: the pin fills the top half of a box
+# twice its height (`outer`), which the map centers on the coordinate.
+const MARKER_RED = "{{\"path\":\"M85.8 82C93.67 73.2 98 61.8 98 50C98 23.49 76.51 2 50 2C23.49 2 2 23.49 2 50C2 61.8 6.33 73.2 14.2 82C24 91 34 95.5 40 101C43.5 104.5 45.5 110 46.6 115.5Q50 121.5 53.4 115.5C54.5 110 56.5 104.5 60 101C66 95.5 76 91 85.8 82Z\",\"viewBox\":[100,120],\"gradient\":{{\"colors\":[\"#ff4a33\",\"#ec3a25\",\"#c92814\"],\"locations\":[0,0.5,1],\"startX\":0,\"startY\":0,\"endX\":1,\"endY\":1}},\"stroke\":\"#ff8676\",\"strokeWidth\":1.5}}"
 const MARKER_DARK = "{{\"path\":\"M85.8 82C93.67 73.2 98 61.8 98 50C98 23.49 76.51 2 50 2C23.49 2 2 23.49 2 50C2 61.8 6.33 73.2 14.2 82C24 91 34 95.5 40 101C43.5 104.5 45.5 110 46.6 115.5Q50 121.5 53.4 115.5C54.5 110 56.5 104.5 60 101C66 95.5 76 91 85.8 82Z\",\"viewBox\":[100,120],\"gradient\":{{\"colors\":[\"#3f3f46\",\"#27272a\",\"#18181b\"],\"locations\":[0,0.5,1],\"startX\":0,\"startY\":0,\"endX\":1,\"endY\":1}},\"stroke\":\"#ffffff40\",\"strokeWidth\":1.5}}"
 
 component TeardropMarker

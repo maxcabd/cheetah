@@ -252,6 +252,8 @@ impl App for NightshadeApp {
                     self.haptic("selection");
                 } else if key == "show-on-map" {
                     self.expanded = false;
+                    // Remounting the field dismisses the keyboard.
+                    self.field_mount += 1;
                 } else if let Some(id) = key.strip_prefix("place:") {
                     self.select_place(id);
                 } else if key.starts_with("card:") {

@@ -410,8 +410,15 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
     }
 }
 
-private final class SheetNativeModule: CheetahNativeModule {
+/// The native bottom sheet (`sheet` in .view files). A drag down reports a
+/// `dismiss` event: the sheet can't close, so the app decides what it means.
+/// Its look comes from `native_props`:
+///   background: color behind the content (default "#171717")
+///   grabber: system grabber (default false: views draw their own)
+///   cornerRadius: (default: the element's `radius`)
+private final class SheetNativeModule: NSObject, CheetahNativeModule, UIAdaptivePresentationControllerDelegate {
     private weak var owner: NativeModuleHostView?
+    private var style: [String: Any] = [:]
     private var controller: UIViewController?
     private let placeholder = UIView()
     private var sheetHeight: CGFloat = 230
@@ -426,16 +433,25 @@ private final class SheetNativeModule: CheetahNativeModule {
 
     init(owner: NativeModuleHostView) {
         self.owner = owner
+        super.init()
     }
 
     func apply(props: [String: Any]) {
+        if let raw = props["nativeProps"] as? String,
+           let data = raw.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            style = parsed
+        }
+        if let radius = props["radius"] as? NSNumber {
+            sheetRadius = CGFloat(radius.doubleValue)
+        }
+        if let controller {
+            applyStyle(controller)
+        }
         var changed = false
         if let height = props["height"] as? NSNumber, CGFloat(height.doubleValue) != sheetHeight {
             sheetHeight = CGFloat(height.doubleValue)
-            changed = true
-        }
-        if let radius = props["radius"] as? NSNumber, CGFloat(radius.doubleValue) != sheetRadius {
-            sheetRadius = CGFloat(radius.doubleValue)
             changed = true
         }
         guard changed, let sheet = controller?.sheetPresentationController else {
@@ -525,6 +541,19 @@ private final class SheetNativeModule: CheetahNativeModule {
         return nil
     }
 
+    private func applyStyle(_ controller: UIViewController) {
+        controller.view.backgroundColor = UIColor(hex: style["background"] as? String ?? "#171717")
+        if let sheet = controller.sheetPresentationController {
+            sheet.prefersGrabberVisible = (style["grabber"] as? Bool) ?? false
+            sheet.preferredCornerRadius = (style["cornerRadius"] as? NSNumber)
+                .map { CGFloat($0.doubleValue) } ?? sheetRadius
+        }
+    }
+
+    func presentationControllerDidAttemptToDismiss(_ presentationController: UIPresentationController) {
+        owner?.event("dismiss", "")
+    }
+
     func presentIfNeeded(owner: NativeModuleHostView) {
         guard controller == nil else {
             return
@@ -543,7 +572,6 @@ private final class SheetNativeModule: CheetahNativeModule {
         }
 
         let controller = UIViewController()
-        controller.view.backgroundColor = UIColor(hex: "#171717")
         controller.isModalInPresentation = true
         owner.translatesAutoresizingMaskIntoConstraints = false
         controller.view.addSubview(owner)
@@ -563,10 +591,11 @@ private final class SheetNativeModule: CheetahNativeModule {
             sheet.detents = [detent]
             sheet.selectedDetentIdentifier = identifier
             sheet.largestUndimmedDetentIdentifier = identifier
-            sheet.prefersGrabberVisible = false
-            sheet.preferredCornerRadius = sheetRadius
             sheet.prefersScrollingExpandsWhenScrolledToEdge = false
         }
+        applyStyle(controller)
+        // The sheet can't be dismissed, so a drag down only "attempts" it.
+        controller.presentationController?.delegate = self
 
         presenter.present(controller, animated: true)
         self.controller = controller

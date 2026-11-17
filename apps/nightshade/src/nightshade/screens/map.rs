@@ -5,9 +5,9 @@ use crate::nightshade::*;
 
 const INITIAL_LAT: f32 = 37.7749;
 const INITIAL_LNG: f32 = -122.4194;
-/// Height of a map pin above its coordinate: the selected Marker's box in
+/// Height of a map pin above its coordinate: the selected TeardropMarker in
 /// `views/map.view`.
-const PIN_HEIGHT: f32 = 49.0;
+const PIN_HEIGHT: f32 = 48.0;
 
 impl NightshadeApp {
     /// Full-screen map, result cards over it, and the search sheet.
