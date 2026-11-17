@@ -201,6 +201,18 @@ impl App for NightshadeApp {
                 }
             }
             "submit" if key == "search" => self.send_draft(),
+            // The user dragged the sheet to a detent (`views/sheet.view`).
+            "select" if key == "search-panel" => match event.payload.as_str() {
+                "expanded" => self.expanded = true,
+                "rest" => {
+                    if self.expanded {
+                        self.expanded = false;
+                        // Remounting the field dismisses the keyboard.
+                        self.field_mount += 1;
+                    }
+                }
+                _ => {}
+            },
             "select" if key == "open-menu" => match event.payload.as_str() {
                 "Coffee" => self.run_search("coffee"),
                 "Sushi" => self.run_search("sushi"),

@@ -6,9 +6,20 @@ use serde_json::{json, Value};
 impl NightshadeApp {
     pub(crate) fn sheet_height(&self, context: &ViewContext) -> f32 {
         if self.expanded {
-            let fraction = if self.keyboard_open() { 0.92 } else { 0.85 };
-            (context.viewport.height * fraction).max(520.0)
-        } else if self.has_results() {
+            self.expanded_sheet_height(context)
+        } else {
+            self.resting_sheet_height()
+        }
+    }
+
+    /// The sheet's two detents: iOS drags between them natively.
+    fn expanded_sheet_height(&self, context: &ViewContext) -> f32 {
+        let fraction = if self.keyboard_open() { 0.92 } else { 0.85 };
+        (context.viewport.height * fraction).max(520.0)
+    }
+
+    fn resting_sheet_height(&self) -> f32 {
+        if self.has_results() {
             RESULT_SHEET_HEIGHT
         } else {
             IDLE_SHEET_HEIGHT
@@ -21,14 +32,11 @@ impl NightshadeApp {
         self.host.keyboard_inset > self.host.safe_bottom + 1.0
     }
 
-    /// Space under the search bar. The native sheet stays put when the
-    /// keyboard opens, so the bar is lifted above the keyboard here.
+    /// Space under the search bar. The keyboard doesn't change it: the
+    /// native sheet lifts the bar above the keyboard (`keyboardView` in
+    /// `views/sheet.view`) with the keyboard's own animation.
     pub(crate) fn search_bottom_gap(&self) -> f32 {
-        if self.keyboard_open() {
-            self.host.keyboard_inset + KEYBOARD_GAP
-        } else {
-            SEARCH_BOTTOM_GAP
-        }
+        SEARCH_BOTTOM_GAP
     }
 
     /// Search the typed text and let the keyboard go.
@@ -56,6 +64,9 @@ impl NightshadeApp {
             .unwrap_or_default();
         json!({
             "height": height,
+            "rest_height": self.resting_sheet_height(),
+            "expanded_height": self.expanded_sheet_height(context),
+            "detent": if self.expanded { "expanded" } else { "rest" },
             "body_height": (height - 24.0 - SEARCH_HEIGHT - self.search_bottom_gap()).max(0.0),
             "bottom_gap": self.search_bottom_gap(),
             "body": body,

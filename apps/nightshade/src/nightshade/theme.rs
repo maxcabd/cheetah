@@ -9,8 +9,6 @@ pub(crate) const RESULT_SHEET_HEIGHT: f32 = 120.0;
 pub(crate) const CAROUSEL_BOTTOM: f32 = 224.0;
 pub(crate) const CARD_HEIGHT: f32 = 320.0;
 pub(crate) const SEARCH_BOTTOM_GAP: f32 = 4.0;
-/// Space between the search bar and an open keyboard.
-pub(crate) const KEYBOARD_GAP: f32 = 8.0;
 /// Before a search: grabber, heading, suggestion chips, search bar.
 pub(crate) const IDLE_SHEET_HEIGHT: f32 = 320.0;
 

@@ -1,15 +1,17 @@
 # Bottom sheet: grabber, body, search bar. On iOS 26 (`glass`) the system's
-# Liquid Glass sheet shows through instead of SHEET_BG. SHEET_STYLE styles the
-# native sheet itself: its background, the system grabber (off: the grabber
-# row below is ours), and corner radius.
-const SHEET_STYLE = "{{\"background\":\"#171717\",\"grabber\":false,\"cornerRadius\":54}}"
+# Liquid Glass sheet shows through instead of SHEET_BG.
+#
+# native_props configures the native sheet: two detents iOS drags between
+# (it reports where the user left it as `select`), the search bar kept above
+# the keyboard, background, system grabber (off: the grabber row below is
+# ours), and corner radius. The contents animate with the sheet.
 
 component Sheet
-  sheet key="search-panel" absolute=true bottom=0 left=0 width=-1 height=sheet.height radius=54 clip=true bg=sheet.glass ? CLEAR : SHEET_BG native_props=SHEET_STYLE
-    column width=-1 height=sheet.height
+  sheet key="search-panel" absolute=true bottom=0 left=0 width=-1 height=sheet.height radius=54 clip=true bg=sheet.glass ? CLEAR : SHEET_BG native_props="{{\"background\":\"#171717\",\"grabber\":false,\"cornerRadius\":54,\"keyboardView\":\"cheetah-search-bar\",\"keyboardGap\":12,\"detents\":[{{\"id\":\"rest\",\"height\":{sheet.rest_height}}},{{\"id\":\"expanded\",\"height\":{sheet.expanded_height}}}],\"selected\":\"{sheet.detent}\"}}"
+    column width=-1 height=sheet.height animate=true transition_ms=380 spring=true
       row key="sheet:toggle" pressable=true width=-1 height=24 .center
         row width=30 height=6 bg="#404040" radius=3
-      column width=-1 height=sheet.body_height clip=true
+      column width=-1 height=sheet.body_height clip=true animate=true transition_ms=380 spring=true
         if sheet.body == "collapsed"
           column width=-1 height=sheet.body_height
         if sheet.body == "results"
@@ -22,7 +24,7 @@ component Sheet
       column width=-1 height=sheet.bottom_gap
 
 component SearchBar
-  column width=-1 height=SEARCH_HEIGHT pad_h=24 justify="end" test_id="cheetah-search-bar"
+  column width=-1 height=SEARCH_HEIGHT pad_h=24 justify="end" test_id="cheetah-search-bar" animate=true transition_ms=380 spring=true
     row width=-1 height=SEARCH_HEIGHT gap=12 align_items="center"
       # Liquid Glass field on iOS 26; a solid pill elsewhere.
       # Not interactive: the press effect spreads to the whole glass sheet

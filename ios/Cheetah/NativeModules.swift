@@ -410,15 +410,29 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
     }
 }
 
-/// The native bottom sheet (`sheet` in .view files). A drag down reports a
-/// `dismiss` event: the sheet can't close, so the app decides what it means.
-/// Its look comes from `native_props`:
+/// The native bottom sheet (`sheet` in .view files), configured by
+/// `native_props`:
+///   detents: [{"id": "rest", "height": 120}, {"id": "expanded", ...}]: the
+///     heights it rests at. iOS drags between them natively and reports where
+///     the user left it as a `select` event (payload: the id). Without
+///     detents it has one, the element's `height`.
+///   selected: the detent to show; changing it animates natively.
+///   keyboardView: test_id of a child kept above the keyboard, moved with the
+///     keyboard's own animation; keyboardGap: points above it (default 12).
 ///   background: color behind the content (default "#171717")
 ///   grabber: system grabber (default false: views draw their own)
 ///   cornerRadius: (default: the element's `radius`)
-private final class SheetNativeModule: NSObject, CheetahNativeModule, UIAdaptivePresentationControllerDelegate {
+/// A drag below the lowest detent reports `dismiss`: the sheet can't close,
+/// so the app decides what it means.
+private final class SheetNativeModule: NSObject, CheetahNativeModule, UISheetPresentationControllerDelegate {
     private weak var owner: NativeModuleHostView?
     private var style: [String: Any] = [:]
+    private var detentIDs: [String] = []
+    private var detentHeights: [String: CGFloat] = [:]
+    private var selectedDetent: String?
+    private var appliedDetentKey: String?
+    private var keyboardDuration: TimeInterval = 0.25
+    private var keyboardCurve: UInt = 7
     private var controller: UIViewController?
     private let placeholder = UIView()
     private var sheetHeight: CGFloat = 230
@@ -446,26 +460,82 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, UIAdaptive
         if let radius = props["radius"] as? NSNumber {
             sheetRadius = CGFloat(radius.doubleValue)
         }
+        if let height = props["height"] as? NSNumber {
+            sheetHeight = CGFloat(height.doubleValue)
+        }
+        readDetents()
         if let controller {
             applyStyle(controller)
+            if let sheet = controller.sheetPresentationController {
+                applyDetents(sheet, animated: true)
+            }
         }
-        var changed = false
-        if let height = props["height"] as? NSNumber, CGFloat(height.doubleValue) != sheetHeight {
-            sheetHeight = CGFloat(height.doubleValue)
-            changed = true
+    }
+
+    /// Detents from `native_props`, or one at the element's height.
+    private func readDetents() {
+        if let list = style["detents"] as? [[String: Any]], !list.isEmpty {
+            detentIDs = list.compactMap { $0["id"] as? String }
+            for item in list {
+                if let id = item["id"] as? String, let height = item["height"] as? NSNumber {
+                    detentHeights[id] = CGFloat(height.doubleValue)
+                }
+            }
+            selectedDetent = style["selected"] as? String ?? detentIDs.last
+        } else {
+            detentIDs = ["cheetah-search"]
+            detentHeights["cheetah-search"] = sheetHeight
+            selectedDetent = "cheetah-search"
         }
-        guard changed, let sheet = controller?.sheetPresentationController else {
+    }
+
+    private func applyDetents(_ sheet: UISheetPresentationController, animated: Bool) {
+        let key = detentIDs.map { "\($0)=\(detentHeights[$0] ?? 0)" }.joined(separator: ",")
+            + "|" + (selectedDetent ?? "")
+        guard key != appliedDetentKey else {
             return
         }
-        let identifier = UISheetPresentationController.Detent.Identifier("cheetah-search")
-        let detent = UISheetPresentationController.Detent.custom(identifier: identifier) { _ in
-            self.sheetHeight
+        let idsChanged = sheet.detents.map(\.identifier.rawValue) != detentIDs
+        appliedDetentKey = key
+        let changes = {
+            if idsChanged {
+                sheet.detents = self.detentIDs.map { id in
+                    UISheetPresentationController.Detent.custom(
+                        identifier: UISheetPresentationController.Detent.Identifier(id)
+                    ) { [weak self] context in
+                        min(self?.detentHeights[id] ?? 230, context.maximumDetentValue)
+                    }
+                }
+            } else {
+                sheet.invalidateDetents()
+            }
+            // Never dim the map behind the sheet.
+            if let largest = self.detentIDs.max(by: {
+                (self.detentHeights[$0] ?? 0) < (self.detentHeights[$1] ?? 0)
+            }) {
+                sheet.largestUndimmedDetentIdentifier = UISheetPresentationController.Detent.Identifier(largest)
+            }
+            if let selected = self.selectedDetent, sheet.selectedDetentIdentifier?.rawValue != selected {
+                sheet.selectedDetentIdentifier = UISheetPresentationController.Detent.Identifier(selected)
+            }
         }
-        sheet.animateChanges {
-            sheet.detents = [detent]
-            sheet.selectedDetentIdentifier = identifier
-            sheet.largestUndimmedDetentIdentifier = identifier
+        if animated {
+            sheet.animateChanges(changes)
+        } else {
+            changes()
         }
+    }
+
+    /// The user dragged the sheet to another detent.
+    func sheetPresentationControllerDidChangeSelectedDetentIdentifier(
+        _ sheetPresentationController: UISheetPresentationController
+    ) {
+        guard let id = sheetPresentationController.selectedDetentIdentifier?.rawValue else {
+            return
+        }
+        selectedDetent = id
+        appliedDetentKey = nil
+        owner?.event("select", id)
     }
 
     func layout() {
@@ -502,39 +572,57 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, UIAdaptive
         }
         let frame = window.convert(value.cgRectValue, from: nil)
         keyboardTop = frame.minY < window.bounds.maxY ? frame.minY : 0
+        // Move with the keyboard's own timing.
+        if let duration = note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber {
+            keyboardDuration = duration.doubleValue
+        }
+        if let curve = note.userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? NSNumber {
+            keyboardCurve = curve.uintValue
+        }
         updateKeyboardOffset()
     }
 
     private func updateKeyboardOffset() {
-        guard let owner, let window = owner.window else { return }
-        if searchBar?.window == nil {
-            searchBar = findSearchBar(owner)
+        guard let owner, let window = owner.window,
+              let identifier = style["keyboardView"] as? String
+        else {
+            return
+        }
+        if searchBar?.window == nil || searchBar?.accessibilityIdentifier != identifier {
+            searchBar = findView(owner, identifier: identifier)
         }
         guard let bar = searchBar, bar.window != nil else { return }
+        let options = UIView.AnimationOptions(rawValue: keyboardCurve << 16)
+            .union([.beginFromCurrentState, .allowUserInteraction])
         if keyboardTop <= 0 {
             if abs(bar.transform.ty) > 0.5 {
-                UIView.animate(withDuration: 0.22) { bar.transform = .identity }
+                UIView.animate(withDuration: keyboardDuration, delay: 0, options: options) {
+                    bar.transform = .identity
+                }
             }
             return
         }
-        guard let baseBottom = bar.superview?.convert(bar.frame, to: window).maxY else {
+        // Where the bar sits without the lift.
+        guard let laidOut = bar.superview?.convert(bar.frame, to: window) else {
             return
         }
-        let target = min(0, keyboardTop - 12 - baseBottom)
+        let baseBottom = laidOut.maxY - bar.transform.ty
+        let gap = CGFloat((style["keyboardGap"] as? NSNumber)?.doubleValue ?? 12)
+        let target = min(0, keyboardTop - gap - baseBottom)
         if abs(bar.transform.ty - target) < 0.5 {
             return
         }
-        UIView.animate(withDuration: 0.22) {
+        UIView.animate(withDuration: keyboardDuration, delay: 0, options: options) {
             bar.transform = CGAffineTransform(translationX: 0, y: target)
         }
     }
 
-    private func findSearchBar(_ view: UIView) -> UIView? {
-        if view.accessibilityIdentifier == "cheetah-search-bar" {
+    private func findView(_ view: UIView, identifier: String) -> UIView? {
+        if view.accessibilityIdentifier == identifier {
             return view
         }
         for child in view.subviews {
-            if let match = findSearchBar(child) {
+            if let match = findView(child, identifier: identifier) {
                 return match
             }
         }
@@ -584,14 +672,9 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, UIAdaptive
 
         controller.modalPresentationStyle = .pageSheet
         if let sheet = controller.sheetPresentationController {
-            let identifier = UISheetPresentationController.Detent.Identifier("cheetah-search")
-            let detent = UISheetPresentationController.Detent.custom(identifier: identifier) { _ in
-                self.sheetHeight
-            }
-            sheet.detents = [detent]
-            sheet.selectedDetentIdentifier = identifier
-            sheet.largestUndimmedDetentIdentifier = identifier
             sheet.prefersScrollingExpandsWhenScrolledToEdge = false
+            appliedDetentKey = nil
+            applyDetents(sheet, animated: false)
         }
         applyStyle(controller)
         // The sheet can't be dismissed, so a drag down only "attempts" it.

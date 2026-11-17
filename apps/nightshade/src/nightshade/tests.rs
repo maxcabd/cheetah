@@ -382,7 +382,7 @@ fn search_field_expands_and_swaps_voice_for_send() {
 }
 
 #[test]
-fn open_keyboard_lifts_the_search_bar_above_it() {
+fn the_native_sheet_keeps_the_search_bar_above_the_keyboard() {
     let mut app = NightshadeApp::new(false);
     let host = |app: &mut NightshadeApp, keyboard: f32| {
         app.update(Event {
@@ -395,12 +395,50 @@ fn open_keyboard_lifts_the_search_bar_above_it() {
         })
     };
 
-    // At rest the inset is the safe area, not a keyboard.
+    // The layout ignores the keyboard: re-laying out on every keyboard frame
+    // made the bar step. The native sheet moves it with the keyboard.
     host(&mut app, 34.0);
     assert_eq!(app.search_bottom_gap(), 4.0);
-
     host(&mut app, 335.0);
-    assert_eq!(app.search_bottom_gap(), 343.0);
+    assert_eq!(app.search_bottom_gap(), 4.0);
+
+    let tree = render(&app);
+    let raw = find(&tree, "search-panel").unwrap().props.native_props.clone().unwrap();
+    let sheet: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(sheet["keyboardView"], "cheetah-search-bar");
+}
+
+#[test]
+fn the_sheet_detents_follow_drags_both_ways() {
+    let mut app = NightshadeApp::new(true);
+    let sheet = |app: &NightshadeApp| -> serde_json::Value {
+        let tree = render(app);
+        let raw = find(&tree, "search-panel").unwrap().props.native_props.clone().unwrap();
+        serde_json::from_str(&raw).expect("valid sheet JSON")
+    };
+    let drag_to = |app: &mut NightshadeApp, detent: &str| {
+        app.update(Event {
+            id: 0,
+            key: Some("search-panel".into()),
+            kind: "select".into(),
+            payload: detent.into(),
+        })
+    };
+
+    let at_rest = sheet(&app);
+    assert_eq!(at_rest["selected"], "rest");
+    assert_eq!(at_rest["detents"][0]["id"], "rest");
+    assert_eq!(at_rest["detents"][0]["height"], 120.0);
+    assert!(at_rest["detents"][1]["height"].as_f64().unwrap() > 500.0);
+
+    drag_to(&mut app, "expanded");
+    assert!(app.expanded);
+    assert_eq!(sheet(&app)["selected"], "expanded");
+
+    let mount = app.field_mount;
+    drag_to(&mut app, "rest");
+    assert!(!app.expanded);
+    assert_eq!(app.field_mount, mount + 1, "the keyboard goes with it");
 }
 
 #[test]
@@ -713,7 +751,7 @@ fn pins_are_map_children_at_their_coordinates() {
 
 #[test]
 fn the_view_styles_the_native_sheet_and_carousel() {
-    let mut app = NightshadeApp::new(true);
+    let app = NightshadeApp::new(true);
     let sheet_style = |app: &NightshadeApp| {
         let tree = render(app);
         let raw = find(&tree, "search-panel").expect("sheet").props.native_props.clone().expect("native_props");
