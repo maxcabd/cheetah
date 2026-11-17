@@ -59,7 +59,8 @@ pub(crate) fn spawn(
         // Dev-server builds run Nightshade from apps/nightshade instead.
         #[cfg(not(feature = "devserver"))]
         if app == "nightshade" || app == "nightshade-demo" {
-            return Runtime::new(NightshadeApp::new(app == "nightshade-demo"));
+            let state = std::path::Path::new(&store_path).with_file_name("nightshade-state.redb");
+            return Runtime::new(NightshadeApp::new(app == "nightshade-demo").with_state_file(state));
         }
         let _ = &app;
         Runtime::new(ChatApp::new(&store_path))
@@ -215,6 +216,16 @@ pub(crate) fn spawn_with(
                         }
                         paused = !active;
                         gateway.set_active(active);
+                        // Apps save state here: a backgrounded app may be
+                        // ended without another event.
+                        let lifecycle = Event {
+                            id: 0,
+                            key: None,
+                            kind: "lifecycle".into(),
+                            payload: if active { "active" } else { "background" }.into(),
+                        };
+                        let ops = runtime.dispatch(lifecycle);
+                        emit(host.as_ref(), ops);
                         let event = Event {
                             id: 0,
                             key: None,

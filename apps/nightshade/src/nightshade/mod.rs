@@ -52,6 +52,8 @@ pub struct NightshadeApp {
     /// keyboard: no host API can blur a field yet.
     field_mount: u32,
     center: Option<(f32, f32)>,
+    /// Where state is saved for the next launch (`with_state_file`).
+    state_file: Option<std::path::PathBuf>,
     calls: Vec<NativeCall>,
     updates: Option<Updates>,
 }
@@ -80,6 +82,7 @@ impl NightshadeApp {
             expanded: false,
             field_mount: 0,
             center: None,
+            state_file: None,
             calls: vec![NativeCall::new("location", "request", "{}")],
             updates: None,
         };
@@ -140,6 +143,14 @@ impl App for NightshadeApp {
 
         if event.kind == "native" {
             self.handle_native_event(&event.payload);
+            return;
+        }
+
+        // iOS may end a backgrounded app; save so the next launch resumes.
+        if event.kind == "lifecycle" {
+            if event.payload == "background" {
+                self.save_state();
+            }
             return;
         }
 

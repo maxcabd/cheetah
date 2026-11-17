@@ -412,13 +412,13 @@ fn search_field_fills_the_bar_with_and_without_glass() {
             payload: format!(r#"{{"safeTop":62,"safeBottom":34,"keyboardInset":34,"glass":{glass},"scale":3,"overlayChrome":true}}"#),
         });
         let element = render(&app);
-        let root = runtime::build(element);
-        let frames = runtime::layout::compute(&root, 393.0, 852.0, None);
+        let root = crate::tree::build(element);
+        let frames = crate::layout::compute(&root, 393.0, 852.0, None);
         fn frame_of(
-            node: &runtime::UiNode,
-            frames: &std::collections::HashMap<u32, runtime::Frame>,
+            node: &crate::tree::UiNode,
+            frames: &std::collections::HashMap<u32, crate::layout::Frame>,
             key: &str,
-        ) -> Option<runtime::Frame> {
+        ) -> Option<crate::layout::Frame> {
             if node.key.as_deref() == Some(key) {
                 return frames.get(&node.id).copied();
             }
@@ -439,13 +439,13 @@ fn search_field_fills_the_bar_with_and_without_glass() {
 #[test]
 fn sending_remounts_the_field_to_dismiss_the_keyboard() {
     fn field_id(app: &NightshadeApp) -> u32 {
-        fn find_id(node: &runtime::UiNode) -> Option<u32> {
+        fn find_id(node: &crate::tree::UiNode) -> Option<u32> {
             if node.key.as_deref() == Some("search") {
                 return Some(node.id);
             }
             node.children.iter().find_map(find_id)
         }
-        find_id(&runtime::build(render(app))).expect("search field")
+        find_id(&crate::tree::build(render(app))).expect("search field")
     }
     let mut app = NightshadeApp::new(false);
     let search = |app: &mut NightshadeApp, kind: &str, payload: &str| {
@@ -469,4 +469,75 @@ fn sending_remounts_the_field_to_dismiss_the_keyboard() {
     search(&mut app, "change", "tea");
     click(&mut app, "search:send");
     assert_ne!(field_id(&app), after_return, "the send arrow remounts it too");
+}
+
+#[test]
+fn result_pins_sit_between_the_status_bar_and_the_cards() {
+    let (width, height) = (393.0, 852.0);
+    let mut app = NightshadeApp::new(false);
+    app.update(Event {
+        id: 0,
+        key: None,
+        kind: "host".into(),
+        payload: r#"{"safeTop":62,"safeBottom":34,"keyboardInset":34,"glass":true,"scale":3,"overlayChrome":true}"#.into(),
+    });
+    // "Best dessert spots near me" matches every sample place.
+    click(&mut app, "suggest:1");
+    assert!(app.visible_places().len() > 1, "a search with several places");
+
+    let card_top = height - super::theme::CAROUSEL_BOTTOM - super::theme::CARD_HEIGHT;
+    let check = |app: &NightshadeApp, only_selected: bool| {
+        let (lat, lng, lat_delta, lng_delta) = app.region(width, height);
+        for (index, place) in app.visible_places().iter().enumerate() {
+            if only_selected && index != app.selected {
+                continue;
+            }
+            let y = height / 2.0 - (place.lat - lat) / lat_delta * height;
+            let x = width / 2.0 + (place.lng - lng) / lng_delta * width;
+            assert!(y - 40.0 >= 62.0, "{} pin top {y} under the status bar", place.name);
+            assert!(y <= card_top, "{} at {y} hidden by cards from {card_top}", place.name);
+            assert!((0.0..=width).contains(&x), "{} at x {x} off screen", place.name);
+        }
+    };
+    check(&app, false);
+
+    app.focused = true;
+    check(&app, true);
+}
+
+#[test]
+fn reopening_after_the_app_was_ended_resumes_its_state() {
+    let file = std::env::temp_dir().join(format!("nightshade-test-{}.redb", std::process::id()));
+    let _ = std::fs::remove_file(&file);
+    let lifecycle = |app: &mut NightshadeApp, payload: &str| {
+        app.update(Event {
+            id: 0,
+            key: None,
+            kind: "lifecycle".into(),
+            payload: payload.into(),
+        })
+    };
+
+    let mut app = NightshadeApp::new(false).with_state_file(&file);
+    click(&mut app, "suggest:1");
+    click(&mut app, "place:pizza");
+    app.update(Event {
+        id: 0,
+        key: Some("search".into()),
+        kind: "change".into(),
+        payload: "late night ".into(),
+    });
+    let (selected, response) = (app.selected, app.response().cloned());
+    assert!(response.is_some() && selected > 0);
+    lifecycle(&mut app, "background");
+    drop(app);
+
+    let reopened = NightshadeApp::new(false).with_state_file(&file);
+    assert_eq!(reopened.response().cloned(), response);
+    assert_eq!(reopened.selected, selected);
+    assert_eq!(reopened.query, "Best dessert spots near me");
+    assert_eq!(reopened.draft, "late night ");
+    assert!(!reopened.expanded, "reopens with the sheet down");
+
+    let _ = std::fs::remove_file(&file);
 }

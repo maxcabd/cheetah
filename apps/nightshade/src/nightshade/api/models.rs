@@ -1,6 +1,6 @@
 //! Place models, sample data, and the offline place source.
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Place {
     pub(crate) id: String,
     pub(crate) name: String,
@@ -106,7 +106,7 @@ pub(crate) fn local_places() -> Vec<Place> {
     ]
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(crate) struct SearchResponse {
     pub(crate) places: Vec<Place>,
     pub(crate) followups: Vec<String>,

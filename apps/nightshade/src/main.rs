@@ -20,6 +20,9 @@ mod element {
 mod http {
     pub use runtime::http::*;
 }
+mod kv {
+    pub use runtime::kv::*;
+}
 mod native_api {
     pub use runtime::native_api::*;
 }
@@ -32,6 +35,14 @@ mod updates {
 #[cfg(test)]
 mod views {
     pub use runtime::views::*;
+}
+#[cfg(test)]
+mod tree {
+    pub use runtime::tree::*;
+}
+#[cfg(test)]
+mod layout {
+    pub use runtime::layout::*;
 }
 
 #[allow(dead_code)]
@@ -51,6 +62,13 @@ fn main() {
     run(
         name,
         options,
-        AppSource::custom(move || Runtime::new(Hot(nightshade::NightshadeApp::new(demo)))),
+        // State outlives the phone's connection, like the app's own file
+        // does on a device: reopening the app resumes where it was.
+        AppSource::custom(move || {
+            let state = std::env::temp_dir().join(format!("{name}-state.redb"));
+            Runtime::new(Hot(
+                nightshade::NightshadeApp::new(demo).with_state_file(state),
+            ))
+        }),
     );
 }

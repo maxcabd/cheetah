@@ -5,11 +5,14 @@ use crate::nightshade::*;
 
 const INITIAL_LAT: f32 = 37.7749;
 const INITIAL_LNG: f32 = -122.4194;
+/// Height of a map pin above its coordinate.
+const PIN_HEIGHT: f32 = 40.0;
 
 impl NightshadeApp {
     /// Full-screen map, result cards over it, and the search sheet.
     pub(crate) fn map_screen(&self, context: &ViewContext) -> Element {
-        let (latitude, longitude, latitude_delta, longitude_delta) = self.region();
+        let (latitude, longitude, latitude_delta, longitude_delta) =
+            self.region(context.viewport.width, context.viewport.height);
         let carousel = if self.has_results() {
             self.carousel_model(context, self.visible_places())
         } else {
@@ -37,7 +40,10 @@ impl NightshadeApp {
             .unwrap_or(&self.sample_places)
     }
 
-    pub(crate) fn region(&self) -> (f32, f32, f32, f32) {
+    /// Map region as (lat, lng, lat delta, lng delta). With results, the
+    /// pins fit the band between the status bar and the cards, so the cards
+    /// never cover them.
+    pub(crate) fn region(&self, width: f32, height: f32) -> (f32, f32, f32, f32) {
         if !self.has_results() {
             let (latitude, longitude) = self.center.unwrap_or((INITIAL_LAT, INITIAL_LNG));
             return (latitude, longitude, 0.025, 0.025);
@@ -47,30 +53,38 @@ impl NightshadeApp {
         let Some(first) = places.first() else {
             return (INITIAL_LAT, INITIAL_LNG, 0.025, 0.025);
         };
+        let shown: Vec<&Place> = if self.focused || places.len() == 1 {
+            vec![places.get(self.selected).unwrap_or(first)]
+        } else {
+            places.iter().collect()
+        };
+        let min_lat = shown.iter().map(|p| p.lat).fold(f32::MAX, f32::min);
+        let max_lat = shown.iter().map(|p| p.lat).fold(f32::MIN, f32::max);
+        let min_lng = shown.iter().map(|p| p.lng).fold(f32::MAX, f32::min);
+        let max_lng = shown.iter().map(|p| p.lng).fold(f32::MIN, f32::max);
 
-        if self.focused || places.len() == 1 {
-            let place = places.get(self.selected).unwrap_or(first);
-            let delta = 0.018;
-            return (place.lat - delta * 0.40, place.lng, delta, delta);
-        }
+        let (width, height) = (width.max(1.0), height.max(1.0));
+        // A pin's balloon stands above its coordinate, so the band's top
+        // leaves room for it under the status bar.
+        let band_top = self.host.safe_top.max(20.0) + PIN_HEIGHT + 8.0;
+        let band_bottom = (height - CAROUSEL_BOTTOM - CARD_HEIGHT - 12.0).max(band_top + 40.0);
+        let band = band_bottom - band_top;
 
-        let mut min_lat = first.lat;
-        let mut max_lat = first.lat;
-        let mut min_lng = first.lng;
-        let mut max_lng = first.lng;
-        for place in places {
-            min_lat = min_lat.min(place.lat);
-            max_lat = max_lat.max(place.lat);
-            min_lng = min_lng.min(place.lng);
-            max_lng = max_lng.max(place.lng);
-        }
-
-        let latitude = (min_lat + max_lat) / 2.0;
+        // Mercator: a degree of latitude is 1/cos(lat) times taller on
+        // screen than a degree of longitude is wide.
+        let mid_lat = (min_lat + max_lat) / 2.0;
+        let cos = mid_lat.to_radians().cos().max(0.1);
+        let lat_span = (max_lat - min_lat).max(0.004);
+        let lng_span = (max_lng - min_lng).max(0.004);
+        // Degrees of latitude per screen point for the pins to fit the band
+        // (with a margin), and for their width to fit the screen.
+        let per_point = (lat_span * 1.2 / band).max(lng_span * cos * 1.2 / (width - 48.0));
+        let latitude_delta = per_point * height;
+        let longitude_delta = latitude_delta / cos * width / height;
+        // Put the pins' midpoint at the band's middle, above screen center.
+        let band_mid = (band_top + band_bottom) / 2.0;
+        let latitude = mid_lat - (height / 2.0 - band_mid) * per_point;
         let longitude = (min_lng + max_lng) / 2.0;
-        let latitude_delta = ((max_lat - min_lat) * 1.4).max(0.012);
-        let longitude_delta = ((max_lng - min_lng) * 1.4).max(0.012);
-        // Keep result pins above the card carousel and search bar.
-        let latitude = latitude - latitude_delta * 0.32;
         (latitude, longitude, latitude_delta, longitude_delta)
     }
 
