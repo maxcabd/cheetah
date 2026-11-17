@@ -26,7 +26,7 @@ cheetah: develop and ship Cheetah apps
   cheetah build ios|android [--dev] [--app NAME] [--install]
       --dev builds the dev client (connects to `cheetah dev`). Android builds
       locally (--install puts it on the USB device); iOS queues the TestFlight
-      workflow on GitHub (needs GITHUB_TOKEN).
+      workflow on GitHub (GitHub CLI login, or GITHUB_TOKEN).
   cheetah prebuild [--app NAME] [--dev] [--check]
       Write apps/NAME/cheetah.toml (name, IDs, permissions, links, native
       modules) into the iOS and Android projects. --dev makes the iOS dev
@@ -374,16 +374,12 @@ fn build_ios(root: &Path, app: &str, dev: bool, out: &Out) -> ExitCode {
         );
     };
     let actions = format!("https://github.com/{repo}/actions/workflows/{TESTFLIGHT_WORKFLOW}");
-    let Some(token) = std::env::var("GITHUB_TOKEN")
-        .or_else(|_| std::env::var("GH_TOKEN"))
-        .ok()
-        .filter(|token| !token.is_empty())
-    else {
+    let Some((token, _)) = github_token() else {
         return out.fail(
             "build",
             &format!(
-                "set GITHUB_TOKEN (a token allowed to run workflows) to queue the build, \
-                 or run it from {actions} with dev_client = {dev}"
+                "log in with the GitHub CLI (gh auth login) or set GITHUB_TOKEN to queue \
+                 the build, or run it from {actions} with dev_client = {dev}"
             ),
         );
     };
@@ -447,6 +443,28 @@ fn build_ios(root: &Path, app: &str, dev: bool, out: &Out) -> ExitCode {
         "native": fingerprint::native(root, "ios", Some(app)),
     }));
     ExitCode::SUCCESS
+}
+
+/// A GitHub token and where it came from: GITHUB_TOKEN / GH_TOKEN, else the
+/// GitHub CLI's login (`gh auth token`).
+fn github_token() -> Option<(String, &'static str)> {
+    for name in ["GITHUB_TOKEN", "GH_TOKEN"] {
+        if let Ok(token) = std::env::var(name) {
+            if !token.trim().is_empty() {
+                return Some((token.trim().to_string(), name));
+            }
+        }
+    }
+    // Not on PATH in shells opened before it was installed.
+    for gh in ["gh", r"C:\Program Files\GitHub CLI\gh.exe"] {
+        if let Some(token) = output(gh, &["auth", "token"]) {
+            let token = token.trim().to_string();
+            if !token.is_empty() {
+                return Some((token, "GitHub CLI login"));
+            }
+        }
+    }
+    None
 }
 
 /// `owner/name` from the `origin` remote.
@@ -673,11 +691,11 @@ fn doctor(out: &Out) -> ExitCode {
         ),
         (
             "github token",
-            std::env::var("GITHUB_TOKEN")
-                .or_else(|_| std::env::var("GH_TOKEN"))
-                .is_ok_and(|t| !t.is_empty()),
+            github_token().is_some(),
             "ios builds",
-            "GITHUB_TOKEN or GH_TOKEN".into(),
+            github_token()
+                .map(|(_, source)| source.to_string())
+                .unwrap_or_else(|| "gh auth login, or set GITHUB_TOKEN".into()),
         ),
         (
             "github remote",
