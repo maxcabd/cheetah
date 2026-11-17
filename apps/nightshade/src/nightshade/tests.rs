@@ -177,9 +177,11 @@ fn remote_search_posts_text_and_maps_cards() {
     assert_eq!(response.places[1].open, None);
     assert_eq!(response.followups, vec!["open now".to_string()]);
 
-    // Names with quotes must still produce valid marker JSON.
-    let markers: serde_json::Value = serde_json::from_str(&app.markers()).unwrap();
-    assert_eq!(markers[0]["name"], "Luigi's \"Best\" Pizza");
+    // The selected place's pin comes last, so it draws on top.
+    let pins = app.pins();
+    assert_eq!(pins.len(), 2);
+    assert_eq!(pins[1]["id"], "p1");
+    assert_eq!(pins[1]["state"], "selected");
 }
 
 #[test]
@@ -683,4 +685,23 @@ fn the_map_button_switches_to_satellite_and_back() {
     assert_eq!(map_type(&app), "satellite");
     click(&mut app, "map:type");
     assert_eq!(map_type(&app), "standard");
+}
+
+#[test]
+fn pins_are_map_children_at_their_coordinates() {
+    let mut app = NightshadeApp::new(true);
+    app.selected = 1;
+    let tree = render(&app);
+    let map = find(&tree, "map").expect("map");
+    assert_eq!(map.children.len(), app.visible_places().len());
+    for pin in &map.children {
+        let key = pin.key.as_deref().unwrap();
+        let place = app.visible_places().iter().find(|p| key == format!("place:{}", p.id)).unwrap();
+        assert_eq!(pin.props.map_latitude, Some(place.lat));
+        assert_eq!(pin.props.map_longitude, Some(place.lng));
+        assert_eq!(pin.props.pressable, Some(true), "tapping a pin selects it");
+    }
+    let last = map.children.last().unwrap();
+    assert_eq!(last.key.as_deref(), Some(format!("place:{}", app.visible_places()[1].id).as_str()));
+    assert_eq!(last.children[0].props.glass_tint.as_deref(), Some("#ef4444d9"));
 }

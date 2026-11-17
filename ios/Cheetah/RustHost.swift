@@ -713,14 +713,22 @@ final class RustHost: NSObject {
 
     private func children(_ op: [String: Any]) {
         let id = uint32(op["id"])
+        let numbers = op["children"] as? [NSNumber] ?? []
+        let wanted = numbers.map { UInt32(truncating: $0) }
+
+        // A native element's children go to its module (e.g. map pins).
+        if let node = tags[id], node.container == nil, let native = views[id] as? NativeModuleHostView {
+            native.setChildren(wanted.compactMap { childId in
+                views[childId].map { (view: $0, props: tags[childId]?.props ?? [:]) }
+            })
+            return
+        }
+
         // Leaf views such as MKMapView, UITextField and UIButton own internal
         // subviews. Only nodes that opted into a container may be pruned.
         guard let node = tags[id], let parent = node.container else {
             return
         }
-
-        let numbers = op["children"] as? [NSNumber] ?? []
-        let wanted = numbers.map { UInt32(truncating: $0) }
         let wantedViews = Set(wanted.compactMap { views[$0] })
 
         for subview in parent.subviews where !wantedViews.contains(subview) {
@@ -766,6 +774,12 @@ final class RustHost: NSObject {
             width: number(op["width"]),
             height: number(op["height"])
         )
+        // A map pin: the map positions it; only its size comes from layout.
+        if let pin = view.superview as? ViewAnnotationView {
+            pin.fit(target.size)
+            return
+        }
+
         let current = placement(of: view)
         if let node = tags[id], node.animate, view.superview != nil,
            current.width > 0, current.height > 0, current != target
@@ -1162,6 +1176,10 @@ final class RustHost: NSObject {
                 name: props["native"] as? String ?? "",
                 props: props
             )
+        }
+
+        if let pin = view.superview as? ViewAnnotationView {
+            pin.move(to: props)
         }
 
         if let background = props["bg"] as? String {

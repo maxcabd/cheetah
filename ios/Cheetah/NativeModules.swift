@@ -13,6 +13,13 @@ extension CheetahNativeModule {
     func destroy() {}
 }
 
+/// A native module that shows its element's children itself, e.g. the map
+/// placing each child at its `map_latitude`/`map_longitude`. The children are
+/// ordinary views built from `.view` templates; only placement is native.
+protocol CheetahChildHosting: AnyObject {
+    func setChildren(_ children: [(view: UIView, props: [String: Any])])
+}
+
 /// Container for a semantic native module. The Rust layout owns this box;
 /// the module owns the platform control and its internal behavior.
 final class NativeModuleHostView: UIView {
@@ -21,6 +28,7 @@ final class NativeModuleHostView: UIView {
     private var pendingName: String?
     private var pendingProps: [String: Any]?
     private var mapScheduled = false
+    private var hostedChildren: [(view: UIView, props: [String: Any])] = []
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -62,6 +70,9 @@ final class NativeModuleHostView: UIView {
             addSubview(native)
         }
         created?.apply(props: props)
+        if !hostedChildren.isEmpty {
+            (created as? CheetahChildHosting)?.setChildren(hostedChildren)
+        }
         if let sheet = created as? SheetNativeModule {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -98,6 +109,13 @@ final class NativeModuleHostView: UIView {
         }
         module?.nativeView.frame = bounds
         module?.layout()
+    }
+
+    /// The element's children, for modules that place them (CheetahChildHosting).
+    /// Kept until the module exists: the map materializes only once sized.
+    func setChildren(_ children: [(view: UIView, props: [String: Any])]) {
+        hostedChildren = children
+        (module as? CheetahChildHosting)?.setChildren(children)
     }
 
     /// Access hatch for host-side integrations that need the platform object.
@@ -169,58 +187,52 @@ private final class PlaceAnnotation: NSObject, MKAnnotation {
     }
 }
 
-/// A place pin: Liquid Glass on iOS 26, a blurred material before (both
-/// via GlassView), with the place's icon on top. Selected pins tint red.
-private final class GlassPinView: MKAnnotationView {
-    private let glass = GlassView()
-    private let iconView = UIImageView()
+/// A child view of the map element, pinned at its coordinate.
+private final class ViewAnnotation: NSObject, MKAnnotation {
+    @objc dynamic var coordinate: CLLocationCoordinate2D
+    let content: UIView
+    var order: Int
 
-    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
-        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
-        backgroundColor = .clear
-        layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOpacity = 0.3
-        layer.shadowRadius = 4
-        layer.shadowOffset = CGSize(width: 0, height: 2)
-        glass.isUserInteractionEnabled = false
-        addSubview(glass)
-        iconView.contentMode = .scaleAspectFit
-        glass.contentView.addSubview(iconView)
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) is not supported")
-    }
-
-    func configure(_ place: PlaceAnnotation, symbol: String) {
-        let result = place.kind == "result"
-        let side: CGFloat = result ? 40 : 48
-        bounds = CGRect(x: 0, y: 0, width: side, height: side)
-        layer.shadowPath = UIBezierPath(ovalIn: bounds).cgPath
-        glass.frame = bounds
-        glass.updateShape(radius: side / 2)
-        let tint = place.selected ? "#ef4444d9" : (result ? "#00000059" : "#ffffff33")
-        glass.apply(style: "regular", tint: tint, interactive: false)
-        glass.layer.borderWidth = place.selected ? 2 : 0.5
-        glass.layer.borderColor = UIColor.white.withAlphaComponent(place.selected ? 0.95 : 0.35).cgColor
-
-        let iconSide: CGFloat = result ? 16 : 22
-        iconView.image = UIImage(
-            systemName: symbol,
-            withConfiguration: UIImage.SymbolConfiguration(pointSize: iconSide, weight: .semibold)
-        )?.withRenderingMode(.alwaysTemplate)
-        iconView.tintColor = result ? .white : UIColor(hex: place.iconColor)
-        iconView.frame = CGRect(
-            x: (side - iconSide) / 2,
-            y: (side - iconSide) / 2,
-            width: iconSide,
-            height: iconSide
-        )
-        zPriority = place.selected ? .max : .defaultUnselected
+    init(content: UIView, coordinate: CLLocationCoordinate2D, order: Int) {
+        self.content = content
+        self.coordinate = coordinate
+        self.order = order
     }
 }
 
-private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDelegate {
+/// Hosts a map child's view, centered on its coordinate and sized by the
+/// Rust layout. Taps go to the child (`pressable`), not to MapKit.
+final class ViewAnnotationView: MKAnnotationView {
+    func host(_ content: UIView) {
+        if content.superview !== self {
+            subviews.forEach { $0.removeFromSuperview() }
+            addSubview(content)
+        }
+        fit(content.bounds.size)
+    }
+
+    /// The Rust layout sized the child: match it and keep it centered.
+    func fit(_ size: CGSize) {
+        bounds = CGRect(origin: .zero, size: size)
+        for content in subviews {
+            content.bounds.size = size
+            content.center = CGPoint(x: size.width / 2, y: size.height / 2)
+        }
+    }
+
+    /// A child's `map_latitude`/`map_longitude` changed.
+    func move(to props: [String: Any]) {
+        guard
+            let annotation = annotation as? ViewAnnotation,
+            let coordinate = MapNativeModule.coordinate(props)
+        else {
+            return
+        }
+        annotation.coordinate = coordinate
+    }
+}
+
+private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChildHosting, MKMapViewDelegate {
     let map: MKMapView
     private weak var owner: NativeModuleHostView?
     private var pendingRegion: MKCoordinateRegion?
@@ -231,6 +243,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
     private var lastDark: Bool?
     private var lastShowUser: Bool?
     private var lastMapType: String?
+    private var childAnnotations: [ObjectIdentifier: ViewAnnotation] = [:]
     private var nextRegionAnimated = false
     private var annotationsByID: [String: PlaceAnnotation] = [:]
 
@@ -357,8 +370,8 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
                 existing.icon = marker["icon"] as? String ?? "utensils"
                 existing.iconColor = marker["iconColor"] as? String ?? "#D32F2F"
                 existing.selected = (marker["selected"] as? NSNumber)?.boolValue ?? false
-                if let view = map.view(for: existing) as? GlassPinView {
-                    view.configure(existing, symbol: Self.symbol(existing.icon))
+                if let view = map.view(for: existing) as? MKAnnotationView {
+                    view.image = Self.markerImage(existing)
                 }
             }
             return
@@ -422,21 +435,71 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
         appliedAfterLoad = true
     }
 
+    static func coordinate(_ props: [String: Any]) -> CLLocationCoordinate2D? {
+        guard
+            let latitude = props["mapLatitude"] as? NSNumber,
+            let longitude = props["mapLongitude"] as? NSNumber
+        else {
+            return nil
+        }
+        return CLLocationCoordinate2D(latitude: latitude.doubleValue, longitude: longitude.doubleValue)
+    }
+
+    /// Children with a coordinate become pins; later children draw on top.
+    func setChildren(_ children: [(view: UIView, props: [String: Any])]) {
+        var kept: [ObjectIdentifier: ViewAnnotation] = [:]
+        for (order, child) in children.enumerated() {
+            guard let coordinate = Self.coordinate(child.props) else {
+                continue
+            }
+            let key = ObjectIdentifier(child.view)
+            if let existing = childAnnotations.removeValue(forKey: key) {
+                existing.coordinate = coordinate
+                existing.order = order
+                kept[key] = existing
+                if let view = map.view(for: existing) {
+                    view.zPriority = MKAnnotationViewZPriority(rawValue: Float(order))
+                    (view as? ViewAnnotationView)?.host(child.view)
+                }
+            } else {
+                let annotation = ViewAnnotation(content: child.view, coordinate: coordinate, order: order)
+                kept[key] = annotation
+                map.addAnnotation(annotation)
+            }
+        }
+        map.removeAnnotations(Array(childAnnotations.values))
+        childAnnotations = kept
+    }
+
     func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+        if let child = annotation as? ViewAnnotation {
+            // Not reused: each pin owns its child view.
+            let view = ViewAnnotationView(annotation: child, reuseIdentifier: nil)
+            view.host(child.content)
+            view.displayPriority = .required
+            view.zPriority = MKAnnotationViewZPriority(rawValue: Float(child.order))
+            view.canShowCallout = false
+            return view
+        }
         guard let place = annotation as? PlaceAnnotation else {
             return nil
         }
         let identifier = "cheetah-place"
-        let marker = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? GlassPinView
-            ?? GlassPinView(annotation: annotation, reuseIdentifier: identifier)
+        let marker = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
+            ?? MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
         marker.annotation = annotation
-        marker.configure(place, symbol: Self.symbol(place.icon))
+        marker.image = Self.markerImage(place)
         marker.canShowCallout = true
         marker.displayPriority = .required
         return marker
     }
 
     func mapView(_ mapView: MKMapView, didSelect annotation: MKAnnotation) {
+        if annotation is ViewAnnotation {
+            // The child view handles its own taps.
+            mapView.deselectAnnotation(annotation, animated: false)
+            return
+        }
         guard let place = annotation as? PlaceAnnotation, !place.placeID.isEmpty else {
             return
         }
@@ -444,8 +507,68 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
         mapView.deselectAnnotation(annotation, animated: false)
     }
 
-    private static func symbol(_ icon: String) -> String {
-        symbols[icon] ?? "fork.knife"
+    private static var markerImageCache: [String: UIImage] = [:]
+
+    private static func markerImage(_ place: PlaceAnnotation) -> UIImage {
+        let cacheKey = [
+            place.placeID,
+            place.kind,
+            place.icon,
+            place.iconColor,
+            place.selected ? "selected" : "idle",
+        ].joined(separator: "|")
+        if let cached = markerImageCache[cacheKey] {
+            return cached
+        }
+        let result = place.kind == "result"
+        let size = result ? CGSize(width: 40, height: 40) : CGSize(width: 56, height: 56)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { context in
+            let rect = CGRect(origin: .zero, size: size).insetBy(dx: 2, dy: 2)
+            let circle = UIBezierPath(ovalIn: rect)
+            context.cgContext.setShadow(
+                offset: CGSize(width: 0, height: 2),
+                blur: 4,
+                color: UIColor.black.withAlphaComponent(0.3).cgColor
+            )
+            if result {
+                (place.selected ? UIColor(hex: "#ef4444") : UIColor(hex: "#404040")).setFill()
+                circle.fill()
+                (place.selected ? UIColor.white : UIColor(hex: "#262626")).setStroke()
+                circle.lineWidth = 3
+                circle.stroke()
+            } else {
+                UIColor.white.setFill()
+                circle.fill()
+                UIColor(hex: "#262626").withAlphaComponent(0.5).setStroke()
+                circle.lineWidth = 1
+                circle.stroke()
+            }
+
+            let symbol = Self.symbols[place.icon] ?? "fork.knife"
+            let configuration = UIImage.SymbolConfiguration(
+                pointSize: result ? 14 : 20,
+                weight: .regular
+            )
+            if let image = UIImage(systemName: symbol, withConfiguration: configuration)?
+                .withTintColor(
+                    result ? .white : UIColor(hex: place.iconColor),
+                    renderingMode: .alwaysOriginal
+                )
+            {
+                let side = result ? 16.0 : 22.0
+                image.draw(
+                    in: CGRect(
+                        x: (size.width - side) / 2,
+                        y: (size.height - side) / 2,
+                        width: side,
+                        height: side
+                    )
+                )
+            }
+        }
+        markerImageCache[cacheKey] = image
+        return image
     }
 
     private static let symbols: [String: String] = [
@@ -733,8 +856,6 @@ private final class IconNativeModule: CheetahNativeModule {
         "magnifying-glass": "magnifyingglass",
         "circle-xmark": "xmark.circle.fill",
         "star": "star.fill",
-        "globe": "globe.americas.fill",
-        "map": "map.fill",
     ]
 }
 

@@ -26,7 +26,7 @@ impl NightshadeApp {
                     "lng": longitude,
                     "lat_delta": latitude_delta,
                     "lng_delta": longitude_delta,
-                    "markers": self.markers(),
+                    "pins": self.pins(),
                     "native_props": serde_json::json!({
                         "mapType": if self.satellite { "satellite" } else { "standard" },
                     })
@@ -37,7 +37,7 @@ impl NightshadeApp {
                 "map_button": {
                     "top": self.host.safe_top.max(20.0) + 8.0,
                     "left": context.viewport.width - MAP_BUTTON_SIZE - 16.0,
-                    "icon": if self.satellite { "map" } else { "globe" },
+                    "icon": if self.satellite { "map.fill" } else { "globe.americas.fill" },
                 },
                 "carousel": carousel,
                 "sheet": self.sheet_model(context),
@@ -102,25 +102,35 @@ impl NightshadeApp {
         (latitude, longitude, latitude_delta, longitude_delta)
     }
 
-    pub(crate) fn markers(&self) -> String {
+    /// Map pins as data; `views/map.view` (MapPin) decides how they look.
+    /// The selected pin comes last so it draws on top.
+    pub(crate) fn pins(&self) -> Vec<serde_json::Value> {
         let results = self.has_results();
-        let items = self
+        let mut pins: Vec<(bool, serde_json::Value)> = self
             .visible_places()
             .iter()
             .enumerate()
             .map(|(index, place)| {
-                serde_json::json!({
-                    "id": place.id,
-                    "name": place.name,
-                    "lat": place.lat,
-                    "lng": place.lng,
-                    "kind": if results { "result" } else { "static" },
-                    "icon": if results { "utensils" } else { place.icon.as_str() },
-                    "iconColor": if results { "#ffffff" } else { place.icon_color.as_str() },
-                    "selected": results && index == self.selected,
-                })
+                let selected = results && index == self.selected;
+                let state = match (results, selected) {
+                    (false, _) => "static",
+                    (true, true) => "selected",
+                    (true, false) => "idle",
+                };
+                (
+                    selected,
+                    serde_json::json!({
+                        "id": place.id,
+                        "lat": place.lat,
+                        "lng": place.lng,
+                        "state": state,
+                        "icon": if results { "fork.knife" } else { place.icon.as_str() },
+                        "icon_color": place.icon_color,
+                    }),
+                )
             })
-            .collect::<Vec<_>>();
-        serde_json::Value::Array(items).to_string()
+            .collect();
+        pins.sort_by_key(|(selected, _)| *selected);
+        pins.into_iter().map(|(_, pin)| pin).collect()
     }
 }

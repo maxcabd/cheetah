@@ -1,7 +1,9 @@
 # The map screen: map with markers, result cards, and the search sheet.
 component MapScreen
   column width=-1 height=-1 bg=BG
-    map key="map" width=-1 height=-1 bg="#101826" test_id="nightshade-map" map_latitude=region.lat map_longitude=region.lng map_latitude_delta=region.lat_delta map_longitude_delta=region.lng_delta map_markers=region.markers map_dark=true map_shows_user=true native_props=region.native_props
+    map key="map" width=-1 height=-1 bg="#101826" test_id="nightshade-map" map_latitude=region.lat map_longitude=region.lng map_latitude_delta=region.lat_delta map_longitude_delta=region.lng_delta map_dark=true map_shows_user=true native_props=region.native_props
+      for pin in region.pins
+        use MapPin pin=pin
     # Street map / satellite toggle; GlassIcon is Liquid Glass on iOS 26 and
     # a blur before.
     row absolute=true top=map_button.top left=map_button.left width=38 height=38
@@ -9,3 +11,18 @@ component MapScreen
     if carousel
       use Carousel carousel=carousel
     use Sheet sheet=sheet
+
+# A map pin: any child of `map` with map_latitude/map_longitude is placed at
+# that coordinate. Glass is Liquid Glass on iOS 26 and a blur before.
+component MapPin
+  if pin.state == "selected"
+    use PinGlass pin=pin size=40 radius=20 tint="#ef4444d9" ring=2 ring_color="#fffffff2" icon_size=16 icon_color="#ffffff"
+  if pin.state == "idle"
+    use PinGlass pin=pin size=40 radius=20 tint="#00000059" ring=1 ring_color="#ffffff59" icon_size=16 icon_color="#ffffff"
+  if pin.state == "static"
+    use PinGlass pin=pin size=48 radius=24 tint="#ffffff33" ring=1 ring_color="#ffffff59" icon_size=22 icon_color=pin.icon_color
+
+component PinGlass
+  column key="place:{pin.id}" pressable=true width=size height=size map_latitude=pin.lat map_longitude=pin.lng
+    glass width=size height=size radius=radius glass_style="regular" glass_tint=tint border=ring border_color=ring_color .center
+      use Icon name=pin.icon size=icon_size color=icon_color
