@@ -73,6 +73,9 @@ pub fn event_kind_from_code(code: u32) -> Option<&'static str> {
 
 pub enum Action {
     SendMessage { id: u32, body: String },
+    /// After `ms`, deliver a `timer` event with `name` as its payload. For
+    /// animations driven from `update`, such as a loading indicator.
+    Timer { name: String, ms: u64 },
 }
 
 pub struct ViewContext<'a> {

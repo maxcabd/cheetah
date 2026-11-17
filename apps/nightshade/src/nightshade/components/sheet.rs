@@ -60,6 +60,7 @@ impl NightshadeApp {
             "bottom_gap": self.search_bottom_gap(),
             "body": body,
             "query": self.query,
+            "searching_emoji": SEARCHING_EMOJIS[self.searching_frame % SEARCHING_EMOJIS.len()],
             "followups": followups,
             "show_followups": self.expanded && self.response().is_some(),
             "suggestions": Self::chips(&SUGGESTIONS, "suggest"),

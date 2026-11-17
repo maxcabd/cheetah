@@ -262,12 +262,16 @@ pub(crate) fn parse_search(response: &HttpResponse) -> Result<SearchResponse, St
     if !response.is_success() {
         return Err(format!("Search failed ({})", response.status));
     }
-    let body: ApiSearchResponse = response
+    let raw: serde_json::Value = response
         .json()
         .map_err(|_| "Unexpected search response".to_string())?;
+    let plan = raw.get("plan").filter(|plan| plan.is_object()).cloned();
+    let body: ApiSearchResponse =
+        serde_json::from_value(raw).map_err(|_| "Unexpected search response".to_string())?;
     let now = local_day_minute(&body.plan.time_context.local_datetime_iso);
     Ok(SearchResponse {
         places: body.cards.into_iter().map(|card| card.into_place(now)).collect(),
         followups: body.followups,
+        plan,
     })
 }

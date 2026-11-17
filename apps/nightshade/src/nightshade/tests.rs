@@ -584,3 +584,66 @@ fn google_rating_and_review_count_reach_the_card() {
     assert_eq!(super::review_count(2000), "2k");
     assert_eq!(super::review_count(25_300), "25k");
 }
+
+#[test]
+fn follow_ups_send_the_previous_plan() {
+    let mut app = remote_app();
+    submit(&mut app, "bakery");
+    let id = request_id(&mut app);
+    let body = serde_json::json!({"cards": [], "plan": {"categories": ["bakery"]}});
+    http_response(
+        &mut app,
+        serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}),
+    );
+
+    submit(&mut app, "with seating");
+    let calls = app.take_native_calls();
+    let call = calls.iter().find(|call| call.module == "http" && call.method == "request").unwrap();
+    let args: serde_json::Value = serde_json::from_str(&call.args).unwrap();
+    let sent: serde_json::Value = serde_json::from_str(args["body"].as_str().unwrap()).unwrap();
+    assert_eq!(sent["previous_plan"]["categories"][0], "bakery");
+
+    // A fresh search after clearing starts over.
+    click(&mut app, "search:clear");
+    submit(&mut app, "sushi");
+    let calls = app.take_native_calls();
+    let call = calls.iter().find(|call| call.module == "http" && call.method == "request").unwrap();
+    let args: serde_json::Value = serde_json::from_str(&call.args).unwrap();
+    assert!(!args["body"].as_str().unwrap().contains("previous_plan"));
+}
+
+#[test]
+fn searching_cycles_emojis_until_results_arrive() {
+    use crate::app::Action;
+    let timer = |app: &mut NightshadeApp| {
+        app.update(Event {
+            id: 0,
+            key: None,
+            kind: "timer".into(),
+            payload: "searching".into(),
+        })
+    };
+
+    let mut app = remote_app();
+    submit(&mut app, "sushi");
+    request_id(&mut app);
+    assert!(matches!(app.take_actions().as_slice(), [Action::Timer { .. }]));
+    assert_eq!(app.searching_frame, 0);
+
+    timer(&mut app);
+    assert_eq!(app.searching_frame, 1);
+    assert_eq!(app.take_actions().len(), 1);
+
+    // A second search while one timer is pending doesn't start another.
+    submit(&mut app, "pizza");
+    assert!(app.take_actions().is_empty());
+    let id = request_id(&mut app);
+
+    http_response(
+        &mut app,
+        serde_json::json!({"id": id, "ok": true, "status": 200, "body": "{\"cards\":[]}"}),
+    );
+    timer(&mut app);
+    assert!(app.take_actions().is_empty());
+    assert!(!app.searching_timer);
+}

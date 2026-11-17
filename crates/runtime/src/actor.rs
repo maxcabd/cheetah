@@ -302,6 +302,17 @@ fn process_actions(
                     spawn_send_timeout(tokio_runtime, sender.clone(), id);
                 }
             }
+            Action::Timer { name, ms } => {
+                let sender = sender.clone();
+                tokio_runtime.spawn(async move {
+                    tokio::time::sleep(Duration::from_millis(ms)).await;
+                    let _ = sender.send(Command::Event {
+                        id: 0,
+                        kind: "timer".into(),
+                        payload: name,
+                    });
+                });
+            }
         }
     }
 }

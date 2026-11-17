@@ -11,7 +11,7 @@ component Sheet
         if sheet.body == "results"
           use ResultsBody query=sheet.query followups=sheet.followups show_followups=sheet.show_followups
         if sheet.body == "searching"
-          use SearchingBody query=sheet.query
+          use SearchingBody query=sheet.query emoji=sheet.searching_emoji
         if sheet.body == "empty"
           use EmptyBody suggestions=sheet.suggestions
       use SearchBar placeholder=sheet.placeholder draft=sheet.draft can_send=sheet.can_send results=sheet.results glass=sheet.glass field_key=sheet.field_key
@@ -74,4 +74,4 @@ component ResultsBody
 component SearchingBody
   column .sheet_body gap=10
     text query size=20 font="brice-semibold" color="#ffffff" height=26
-    text "Searching..." size=16 height=24
+    text emoji size=32 width=48 height=40

@@ -1158,6 +1158,9 @@ final class RustHost: NSObject {
 
         if let background = props["bg"] as? String {
             view.backgroundColor = UIColor(hex: background)
+        } else if ["text", "row", "column", "space"].contains(node.kind) {
+            // A removed `bg` must not leave the old color behind.
+            view.backgroundColor = node.kind == "text" ? .clear : nil
         }
 
         if let glass = view as? GlassView {

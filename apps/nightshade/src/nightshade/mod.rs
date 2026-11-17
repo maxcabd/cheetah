@@ -4,7 +4,7 @@
 //! apps/nightshade binary compiles it for the hot-reloading dev server.
 //! Split by area so an edit recompiles only that file's code.
 
-use crate::app::{App, Event, HostInfo, ViewContext};
+use crate::app::{Action, App, Event, HostInfo, ViewContext};
 use crate::element::Element;
 use crate::http::{HttpClient, HttpResponse};
 use crate::native_api::{NativeCall, NativeEvent};
@@ -38,6 +38,10 @@ const SUGGESTIONS: [&str; 6] = [
     "Nearby spots that open late night",
 ];
 
+/// Cycled while a search runs, like the React Native app.
+const SEARCHING_EMOJIS: [&str; 8] = ["🍕", "🍔", "🍣", "🍜", "🌮", "🍝", "🥗", "🍱"];
+const SEARCHING_FRAME_MS: u64 = 500;
+
 pub struct NightshadeApp {
     host: HostInfo,
     draft: String,
@@ -55,6 +59,11 @@ pub struct NightshadeApp {
     /// Where state is saved for the next launch (`with_state_file`).
     state_file: Option<std::path::PathBuf>,
     calls: Vec<NativeCall>,
+    actions: Vec<Action>,
+    /// Index into SEARCHING_EMOJIS while a search runs.
+    searching_frame: usize,
+    /// A searching timer is pending; at most one runs at a time.
+    searching_timer: bool,
     updates: Option<Updates>,
 }
 
@@ -84,6 +93,9 @@ impl NightshadeApp {
             center: None,
             state_file: None,
             calls: vec![NativeCall::new("location", "request", "{}")],
+            actions: Vec::new(),
+            searching_frame: 0,
+            searching_timer: false,
             updates: None,
         };
 
@@ -100,6 +112,7 @@ impl NightshadeApp {
                     "Cafes within 12 min walk".into(),
                     "Best dessert spots near me".into(),
                 ],
+                plan: None,
             });
             app.query = "Coffee".into();
         }
@@ -150,6 +163,13 @@ impl App for NightshadeApp {
         if event.kind == "lifecycle" {
             if event.payload == "background" {
                 self.save_state();
+            }
+            return;
+        }
+
+        if event.kind == "timer" {
+            if event.payload == "searching" {
+                self.searching_tick();
             }
             return;
         }
@@ -229,6 +249,10 @@ impl App for NightshadeApp {
 
     fn take_native_calls(&mut self) -> Vec<NativeCall> {
         std::mem::take(&mut self.calls)
+    }
+
+    fn take_actions(&mut self) -> Vec<Action> {
+        std::mem::take(&mut self.actions)
     }
 
     fn take_views(&mut self) -> Option<Vec<(String, String)>> {

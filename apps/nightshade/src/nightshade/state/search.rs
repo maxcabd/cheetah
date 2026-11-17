@@ -9,9 +9,13 @@ impl NightshadeApp {
             return;
         }
 
+        // A search typed or tapped over results is a follow-up: it refines
+        // the shown results ("with seating") rather than starting over.
+        let previous_plan = self.response().and_then(|response| response.plan.clone());
         self.search = Resource::Loading;
         self.query = query.into();
         self.draft.clear();
+        self.start_searching_animation();
         let result = match &mut self.backend {
             Backend::Local(source) => source.search(query),
             Backend::Remote { client, pending } => {
@@ -19,15 +23,41 @@ impl NightshadeApp {
                 if let Some(previous) = pending.take() {
                     self.calls.push(crate::http::cancel(previous));
                 }
-                let request = client
-                    .post("/v1/search")
-                    .json(&search_body(query, self.center));
+                let mut body = search_body(query, self.center);
+                if let Some(plan) = previous_plan {
+                    body["previous_plan"] = plan;
+                }
+                let request = client.post("/v1/search").json(&body);
                 *pending = Some(request.id);
                 self.calls.push(request.into_call());
                 return;
             }
         };
         self.finish_search(result);
+    }
+
+    pub(crate) fn start_searching_animation(&mut self) {
+        self.searching_frame = 0;
+        if !self.searching_timer {
+            self.searching_timer = true;
+            self.actions.push(Action::Timer {
+                name: "searching".into(),
+                ms: SEARCHING_FRAME_MS,
+            });
+        }
+    }
+
+    /// Next emoji while the search runs; stops once it finishes.
+    pub(crate) fn searching_tick(&mut self) {
+        if !self.search.is_loading() {
+            self.searching_timer = false;
+            return;
+        }
+        self.searching_frame = (self.searching_frame + 1) % SEARCHING_EMOJIS.len();
+        self.actions.push(Action::Timer {
+            name: "searching".into(),
+            ms: SEARCHING_FRAME_MS,
+        });
     }
 
     pub(crate) fn finish_search(&mut self, result: Result<SearchResponse, String>) {

@@ -110,6 +110,10 @@ pub(crate) fn local_places() -> Vec<Place> {
 pub(crate) struct SearchResponse {
     pub(crate) places: Vec<Place>,
     pub(crate) followups: Vec<String>,
+    /// The backend's plan for this search, sent back as `previous_plan` so
+    /// a follow-up refines it instead of starting over.
+    #[serde(default)]
+    pub(crate) plan: Option<serde_json::Value>,
 }
 
 pub(crate) trait PlaceSource {
@@ -153,6 +157,7 @@ impl PlaceSource for LocalPlaceSource {
                 "Best dessert spots near me".into(),
                 "Nearby spots that open late night".into(),
             ],
+            plan: None,
         })
     }
 }

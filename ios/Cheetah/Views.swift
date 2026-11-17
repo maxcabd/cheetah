@@ -34,6 +34,20 @@ extension UIColor {
 final class InsetLabel: UILabel {
     var insets = UIEdgeInsets.zero
 
+    // drawText is overridden, so UIKit draws this label itself: keep it
+    // transparent or a redraw can leave a black box behind the text.
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isOpaque = false
+        backgroundColor = .clear
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        isOpaque = false
+        backgroundColor = .clear
+    }
+
     override func drawText(in rect: CGRect) {
         super.drawText(in: rect.inset(by: insets))
     }
