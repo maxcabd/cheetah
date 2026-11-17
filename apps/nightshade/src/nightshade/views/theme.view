@@ -9,9 +9,9 @@ const MUTED = "#a3a3a3"
 const GREEN = "#4ade80"
 const RED = "#f87171"
 const SEARCH_HEIGHT = 52
-const SEARCH_BOTTOM_GAP = 12
+const SEARCH_BOTTOM_GAP = 4
 # Cards sit just above the results sheet (RESULT_SHEET_HEIGHT in theme.rs).
-const CAROUSEL_BOTTOM = 120
+const CAROUSEL_BOTTOM = 112
 const CARD_HEIGHT = 320
 const CARD_HEADER = 180
 const CARD_BODY = 140
