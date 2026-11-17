@@ -678,6 +678,20 @@ impl Views {
                     [Token::Word(kw), Token::Word(name), Token::Eq, value] if kw == "const" => {
                         let value = match parser.expr(value, number)? {
                             Expr::Value(v) => to_json(&v),
+                            // Only escaped braces (`{{`, `}}`): still a literal.
+                            Expr::Template(parts)
+                                if parts.iter().all(|part| matches!(part, Part::Text(_))) =>
+                            {
+                                Value::String(
+                                    parts
+                                        .iter()
+                                        .map(|part| match part {
+                                            Part::Text(text) => text.as_str(),
+                                            Part::Path(_) => "",
+                                        })
+                                        .collect(),
+                                )
+                            }
                             _ => return Err(parser.err(number, "a const must be a literal")),
                         };
                         views.consts.insert(name.clone(), value);
@@ -723,6 +737,11 @@ impl Views {
 
     pub fn has(&self, component: &str) -> bool {
         self.components.contains_key(component)
+    }
+
+    /// A `const` from the views, e.g. a color or a shape's native_props.
+    pub fn constant(&self, name: &str) -> Value {
+        self.consts.get(name).cloned().unwrap_or(Value::Null)
     }
 
     /// Render `component` with `model` (any serializable data) as one element.
@@ -1007,6 +1026,20 @@ component Card
         assert_eq!(root.children[0].props.bold, Some(true));
         assert_eq!(root.children[1].props.width, Some(-1.0));
         assert_eq!(root.children[1].children[0].kind, Kind::Space);
+    }
+
+    #[test]
+    fn consts_may_hold_escaped_braces() {
+        let views = parse(
+            r##"
+const LOOK = "{{\"fill\":\"#fff\"}}"
+
+component Shape
+  native "shape" native_props=LOOK
+"##,
+        );
+        let root = views.render("Shape", &Value::Null);
+        assert_eq!(root.props.native_props.as_deref(), Some(r##"{"fill":"#fff"}"##));
     }
 
     #[test]

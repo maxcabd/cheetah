@@ -151,6 +151,8 @@ private enum NativeModuleRegistry {
             return IconNativeModule()
         case "gradient":
             return GradientNativeModule()
+        case "shape":
+            return ShapeNativeModule()
         case "photo":
             return PhotoPagerNativeModule()
         default:
@@ -765,6 +767,240 @@ private final class GradientView: UIView {
         gradient.startPoint = start
         gradient.endPoint = end
         setNeedsLayout()
+    }
+}
+
+/// `native "shape"`: an SVG path scaled from `viewBox` to the element's size,
+/// filled with a color or a gradient and optionally stroked. native_props:
+///   path: SVG path data (M L H V C S Q T Z, absolute or relative)
+///   viewBox: [width, height] the path is drawn in
+///   fill: "#rrggbb[aa]", or gradient: {colors, locations, startX, startY,
+///     endX, endY} (unit coordinates, like `native "gradient"`)
+///   stroke: "#rrggbb[aa]", strokeWidth: points
+private final class ShapeNativeModule: CheetahNativeModule {
+    private let shapeView = ShapeView()
+
+    var nativeView: UIView {
+        shapeView
+    }
+
+    func apply(props: [String: Any]) {
+        guard let raw = props["nativeProps"] as? String,
+              let data = raw.data(using: .utf8),
+              let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return
+        }
+        shapeView.configure(config)
+    }
+}
+
+private func shapeNumber(_ value: Any?, _ fallback: Double) -> CGFloat {
+    CGFloat((value as? NSNumber)?.doubleValue ?? fallback)
+}
+
+private final class ShapeView: UIView {
+    private let fillLayer = CAGradientLayer()
+    private let fillMask = CAShapeLayer()
+    private let strokeLayer = CAShapeLayer()
+    private var path: CGPath = CGMutablePath()
+    private var viewBox = CGSize(width: 1, height: 1)
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isUserInteractionEnabled = false
+        fillLayer.mask = fillMask
+        layer.addSublayer(fillLayer)
+        strokeLayer.fillColor = nil
+        strokeLayer.lineJoin = .round
+        layer.addSublayer(strokeLayer)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func configure(_ config: [String: Any]) {
+        path = SVGPath.parse(config["path"] as? String ?? "")
+        if let box = config["viewBox"] as? [NSNumber], box.count == 2 {
+            viewBox = CGSize(width: box[0].doubleValue, height: box[1].doubleValue)
+        } else {
+            let bounds = path.boundingBoxOfPath
+            viewBox = CGSize(width: bounds.maxX, height: bounds.maxY)
+        }
+        if let gradient = config["gradient"] as? [String: Any] {
+            fillLayer.colors = (gradient["colors"] as? [String] ?? []).map { UIColor(hex: $0).cgColor }
+            fillLayer.locations = gradient["locations"] as? [NSNumber]
+            fillLayer.startPoint = CGPoint(
+                x: shapeNumber(gradient["startX"], 0),
+                y: shapeNumber(gradient["startY"], 0)
+            )
+            fillLayer.endPoint = CGPoint(
+                x: shapeNumber(gradient["endX"], 0),
+                y: shapeNumber(gradient["endY"], 1)
+            )
+        } else {
+            let color = (config["fill"] as? String).map { UIColor(hex: $0).cgColor } ?? UIColor.clear.cgColor
+            fillLayer.colors = [color, color]
+            fillLayer.locations = nil
+        }
+        strokeLayer.strokeColor = (config["stroke"] as? String).map { UIColor(hex: $0).cgColor }
+        strokeLayer.lineWidth = shapeNumber(config["strokeWidth"], 0)
+        setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        var transform = CGAffineTransform(
+            scaleX: bounds.width / max(viewBox.width, 0.001),
+            y: bounds.height / max(viewBox.height, 0.001)
+        )
+        let scaled = path.copy(using: &transform)
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fillLayer.frame = bounds
+        fillMask.frame = bounds
+        fillMask.path = scaled
+        strokeLayer.frame = bounds
+        strokeLayer.path = scaled
+        CATransaction.commit()
+    }
+}
+
+/// SVG path data -> CGPath: M L H V C S Q T Z, absolute and relative.
+/// Parsing stops at anything else (e.g. arcs).
+private enum SVGPath {
+    private enum Token {
+        case command(Character)
+        case number(CGFloat)
+    }
+
+    private static func tokenize(_ data: String) -> [Token] {
+        var tokens: [Token] = []
+        var number = ""
+        func flush() {
+            if let value = Double(number) {
+                tokens.append(.number(CGFloat(value)))
+            }
+            number = ""
+        }
+        for character in data {
+            if character.isLetter, character != "e", character != "E" {
+                flush()
+                tokens.append(.command(character))
+            } else if character == "-" || character == "+" {
+                if number.last == "e" || number.last == "E" {
+                    number.append(character)
+                } else {
+                    flush()
+                    number.append(character)
+                }
+            } else if character == "." {
+                if number.contains(".") {
+                    flush()
+                }
+                number.append(character)
+            } else if character.isNumber || character == "e" || character == "E" {
+                number.append(character)
+            } else {
+                flush()
+            }
+        }
+        flush()
+        return tokens
+    }
+
+    static func parse(_ data: String) -> CGPath {
+        let path = CGMutablePath()
+        let tokens = tokenize(data)
+        var index = 0
+        var command: Character = "M"
+        var current = CGPoint.zero
+        var start = CGPoint.zero
+        var lastCubic: CGPoint?
+        var lastQuad: CGPoint?
+
+        func number() -> CGFloat? {
+            guard index < tokens.count, case .number(let value) = tokens[index] else {
+                return nil
+            }
+            index += 1
+            return value
+        }
+
+        while index < tokens.count {
+            if case .command(let next) = tokens[index] {
+                command = next
+                index += 1
+            }
+            let relative = command.isLowercase
+            let origin = relative ? current : .zero
+            func point() -> CGPoint? {
+                guard let x = number(), let y = number() else { return nil }
+                return CGPoint(x: origin.x + x, y: origin.y + y)
+            }
+            var cubic: CGPoint?
+            var quad: CGPoint?
+
+            switch Character(command.uppercased()) {
+            case "M":
+                guard let target = point() else { return path }
+                path.move(to: target)
+                current = target
+                start = target
+                // Further pairs after a moveto are linetos.
+                command = relative ? "l" : "L"
+            case "L":
+                guard let target = point() else { return path }
+                path.addLine(to: target)
+                current = target
+            case "H":
+                guard let x = number() else { return path }
+                current = CGPoint(x: origin.x + x, y: current.y)
+                path.addLine(to: current)
+            case "V":
+                guard let y = number() else { return path }
+                current = CGPoint(x: current.x, y: origin.y + y)
+                path.addLine(to: current)
+            case "C":
+                guard let control1 = point(), let control2 = point(), let target = point() else {
+                    return path
+                }
+                path.addCurve(to: target, control1: control1, control2: control2)
+                cubic = control2
+                current = target
+            case "S":
+                let control1 = lastCubic.map { CGPoint(x: 2 * current.x - $0.x, y: 2 * current.y - $0.y) } ?? current
+                guard let control2 = point(), let target = point() else { return path }
+                path.addCurve(to: target, control1: control1, control2: control2)
+                cubic = control2
+                current = target
+            case "Q":
+                guard let control = point(), let target = point() else { return path }
+                path.addQuadCurve(to: target, control: control)
+                quad = control
+                current = target
+            case "T":
+                let control = lastQuad.map { CGPoint(x: 2 * current.x - $0.x, y: 2 * current.y - $0.y) } ?? current
+                guard let target = point() else { return path }
+                path.addQuadCurve(to: target, control: control)
+                quad = control
+                current = target
+            case "Z":
+                path.closeSubpath()
+                current = start
+                // Z takes no numbers: the next token must be a command.
+                if index < tokens.count, case .number = tokens[index] {
+                    return path
+                }
+            default:
+                return path
+            }
+            lastCubic = cubic
+            lastQuad = quad
+        }
+        return path
     }
 }
 

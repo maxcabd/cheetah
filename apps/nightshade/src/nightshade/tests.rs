@@ -696,14 +696,19 @@ fn pins_are_map_children_at_their_coordinates() {
     assert_eq!(map.children.len(), app.visible_places().len());
     for pin in &map.children {
         let key = pin.key.as_deref().unwrap();
-        let place = app.visible_places().iter().find(|p| key == format!("place:{}", p.id)).unwrap();
+        let place = app.visible_places().iter().find(|p| key == format!("pin:{}", p.id)).unwrap();
         assert_eq!(pin.props.map_latitude, Some(place.lat));
         assert_eq!(pin.props.map_longitude, Some(place.lng));
-        assert_eq!(pin.props.pressable, Some(true), "tapping a pin selects it");
+        // The marker fills the top half, so its tip sits on the coordinate.
+        let marker = find(pin, &format!("place:{}", place.id)).expect("tappable marker");
+        assert_eq!(marker.props.pressable, Some(true), "tapping a pin selects it");
+        assert!((pin.props.height.unwrap() - 2.0 * marker.props.height.unwrap()).abs() < 0.01);
     }
+    // The selected pin comes last (drawn on top) and is the larger marker.
     let last = map.children.last().unwrap();
-    assert_eq!(last.key.as_deref(), Some(format!("place:{}", app.visible_places()[1].id).as_str()));
-    assert_eq!(last.children[0].props.glass_tint.as_deref(), Some("#ef4444d9"));
+    assert_eq!(last.key.as_deref(), Some(format!("pin:{}", app.visible_places()[1].id).as_str()));
+    assert_eq!(last.props.width, Some(40.0));
+    assert_eq!(map.children[0].props.width, Some(30.0));
 }
 
 #[test]
@@ -721,4 +726,21 @@ fn the_view_styles_the_native_sheet_and_carousel() {
 
     let tree = render(&app);
     assert_eq!(find(&tree, "places").expect("carousel").props.page_scale, Some(0.85));
+}
+
+#[test]
+fn the_teardrop_marker_describes_a_valid_shape() {
+    let app = NightshadeApp::new(true);
+    let views = crate::views::Views::parse(&App::views(&app)).expect("views parse");
+    let model = serde_json::json!({
+        "pin": {"id": "p1", "lat": 45.4, "lng": -75.7},
+        "w": 40, "h": 48, "outer": 96, "icon_size": 17, "look": views.constant("MARKER_RED"),
+    });
+    let pin = views.render("TeardropMarker", &model);
+    let shape = &find(&pin, "place:p1").expect("marker").children[0];
+    let look: serde_json::Value =
+        serde_json::from_str(shape.props.native_props.as_deref().unwrap()).expect("valid JSON");
+    assert!(look["path"].as_str().unwrap().ends_with('Z'));
+    assert_eq!(look["viewBox"], serde_json::json!([100, 120]));
+    assert_eq!(look["gradient"]["colors"][0], "#ff3b24");
 }
