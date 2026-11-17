@@ -48,6 +48,9 @@ pub struct NightshadeApp {
     selected: usize,
     focused: bool,
     expanded: bool,
+    /// Bumped on send to remount the search field, which dismisses the
+    /// keyboard: no host API can blur a field yet.
+    field_mount: u32,
     center: Option<(f32, f32)>,
     calls: Vec<NativeCall>,
     updates: Option<Updates>,
@@ -75,6 +78,7 @@ impl NightshadeApp {
             selected: 0,
             focused: false,
             expanded: false,
+            field_mount: 0,
             center: None,
             calls: vec![NativeCall::new("location", "request", "{}")],
             updates: None,
@@ -153,10 +157,7 @@ impl App for NightshadeApp {
             "blur" if key == "search" => {
                 self.expanded = false;
             }
-            "submit" if key == "search" => {
-                let query = self.draft.clone();
-                self.run_search(&query);
-            }
+            "submit" if key == "search" => self.send_draft(),
             "select" if key == "open-menu" => match event.payload.as_str() {
                 "Coffee" => self.run_search("coffee"),
                 "Sushi" => self.run_search("sushi"),
@@ -200,8 +201,7 @@ impl App for NightshadeApp {
                     self.expanded = !self.expanded;
                     self.haptic("selection");
                 } else if key == "search:send" {
-                    let query = self.draft.clone();
-                    self.run_search(&query);
+                    self.send_draft();
                 } else if key == "search:clear" {
                     self.clear_search();
                 } else if key == "show-on-map" {

@@ -378,3 +378,95 @@ fn search_field_expands_and_swaps_voice_for_send() {
     assert!(find(&screen, "search:voice").is_none());
     assert!(find(&screen, "search:send").is_some());
 }
+
+#[test]
+fn open_keyboard_lifts_the_search_bar_above_it() {
+    let mut app = NightshadeApp::new(false);
+    let host = |app: &mut NightshadeApp, keyboard: f32| {
+        app.update(Event {
+            id: 0,
+            key: None,
+            kind: "host".into(),
+            payload: format!(
+                r#"{{"safeTop":62,"safeBottom":34,"keyboardInset":{keyboard},"glass":true,"scale":3,"overlayChrome":true}}"#
+            ),
+        })
+    };
+
+    // At rest the inset is the safe area, not a keyboard.
+    host(&mut app, 34.0);
+    assert_eq!(app.search_bottom_gap(), 4.0);
+
+    host(&mut app, 335.0);
+    assert_eq!(app.search_bottom_gap(), 343.0);
+}
+
+#[test]
+fn search_field_fills_the_bar_with_and_without_glass() {
+    for glass in [false, true] {
+        let mut app = NightshadeApp::new(false);
+        app.update(Event {
+            id: 0,
+            key: None,
+            kind: "host".into(),
+            payload: format!(r#"{{"safeTop":62,"safeBottom":34,"keyboardInset":34,"glass":{glass},"scale":3,"overlayChrome":true}}"#),
+        });
+        let element = render(&app);
+        let root = runtime::build(element);
+        let frames = runtime::layout::compute(&root, 393.0, 852.0, None);
+        fn frame_of(
+            node: &runtime::UiNode,
+            frames: &std::collections::HashMap<u32, runtime::Frame>,
+            key: &str,
+        ) -> Option<runtime::Frame> {
+            if node.key.as_deref() == Some(key) {
+                return frames.get(&node.id).copied();
+            }
+            node.children
+                .iter()
+                .find_map(|child| frame_of(child, frames, key))
+        }
+        let field = frame_of(&root, &frames, "search").expect("search field");
+        let voice = frame_of(&root, &frames, "search:voice").expect("voice icon");
+        // The bar is 345 wide (393 minus 24 on each side); the icon ends
+        // 8 short of it, inside the pill's rounded end.
+        assert_eq!(field.x, 0.0, "glass={glass}");
+        assert_eq!(voice.x + voice.width, 337.0, "glass={glass}");
+        assert_eq!(field.width, voice.x, "glass={glass}");
+    }
+}
+
+#[test]
+fn sending_remounts_the_field_to_dismiss_the_keyboard() {
+    fn field_id(app: &NightshadeApp) -> u32 {
+        fn find_id(node: &runtime::UiNode) -> Option<u32> {
+            if node.key.as_deref() == Some("search") {
+                return Some(node.id);
+            }
+            node.children.iter().find_map(find_id)
+        }
+        find_id(&runtime::build(render(app))).expect("search field")
+    }
+    let mut app = NightshadeApp::new(false);
+    let search = |app: &mut NightshadeApp, kind: &str, payload: &str| {
+        app.update(Event {
+            id: 0,
+            key: Some("search".into()),
+            kind: kind.into(),
+            payload: payload.into(),
+        })
+    };
+
+    search(&mut app, "change", "coffee");
+    let typing = field_id(&app);
+    search(&mut app, "change", "coffee shops");
+    assert_eq!(field_id(&app), typing, "typing keeps the field");
+
+    search(&mut app, "submit", "");
+    let after_return = field_id(&app);
+    assert_ne!(after_return, typing, "return remounts the field");
+
+    search(&mut app, "change", "tea");
+    click(&mut app, "search:send");
+    assert_ne!(field_id(&app), after_return, "the send arrow remounts it too");
+}
