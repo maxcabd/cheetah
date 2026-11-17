@@ -647,3 +647,21 @@ fn searching_cycles_emojis_until_results_arrive() {
     assert!(app.take_actions().is_empty());
     assert!(!app.searching_timer);
 }
+
+#[test]
+fn dragging_the_sheet_down_collapses_it() {
+    let mut app = NightshadeApp::new(true);
+    click(&mut app, "sheet:toggle");
+    assert!(app.expanded);
+    let mount = app.field_mount;
+
+    app.update(Event {
+        id: 0,
+        key: Some("search-panel".into()),
+        kind: "dismiss".into(),
+        payload: String::new(),
+    });
+    assert!(!app.expanded);
+    // The search field remounts, dropping the keyboard.
+    assert_eq!(app.field_mount, mount + 1);
+}

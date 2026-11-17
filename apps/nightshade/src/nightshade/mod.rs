@@ -188,6 +188,15 @@ impl App for NightshadeApp {
             "blur" if key == "search" => {
                 self.expanded = false;
             }
+            // Dragged down: an expanded sheet goes back to its resting
+            // height, taking the keyboard with it.
+            "dismiss" if key == "search-panel" => {
+                if self.expanded {
+                    self.expanded = false;
+                    self.field_mount += 1;
+                    self.haptic("selection");
+                }
+            }
             "submit" if key == "search" => self.send_draft(),
             "select" if key == "open-menu" => match event.payload.as_str() {
                 "Coffee" => self.run_search("coffee"),

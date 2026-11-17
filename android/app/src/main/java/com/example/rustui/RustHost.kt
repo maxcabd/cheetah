@@ -977,6 +977,7 @@ class RustHost(
         "gesture" -> 17
         "refresh" -> 18
         "load" -> 19
+        "dismiss" -> 20
         else -> 0
     }
 

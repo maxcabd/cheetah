@@ -209,6 +209,8 @@ final class RustHost: NSObject {
     private var scrollScheduled: Set<ObjectIdentifier> = []
     private var viewPool: [String: [UIView]] = [:]
     private var sheetController: UIViewController?
+    /// The node shown in the native sheet; drags on the sheet report to it.
+    private var sheetNodeId: UInt32?
     /// Height of the native sheet's detent, from the Rust layout.
     private var sheetHeight: CGFloat = 230
     private lazy var nativeApis = NativeApis(
@@ -380,6 +382,7 @@ final class RustHost: NSObject {
 
         sheetController?.dismiss(animated: false)
         sheetController = nil
+        sheetNodeId = nil
         nativeApis.dispose()
         for view in views.values {
             if let native = view as? NativeModuleHostView {
@@ -730,7 +733,7 @@ final class RustHost: NSObject {
             }
             if let childNode = tags[childId], childNode.isSheet {
                 if childNode.kind == "sheet" {
-                    presentSheetIfNeeded(child)
+                    presentSheetIfNeeded(child, id: childId)
                 }
                 continue
             }
@@ -867,7 +870,7 @@ final class RustHost: NSObject {
         }
     }
 
-    private func presentSheetIfNeeded(_ view: UIView) {
+    private func presentSheetIfNeeded(_ view: UIView, id: UInt32) {
         guard sheetController == nil else {
             return
         }
@@ -876,7 +879,7 @@ final class RustHost: NSObject {
                 guard let self, let view else {
                     return
                 }
-                self.presentSheetIfNeeded(view)
+                self.presentSheetIfNeeded(view, id: id)
             }
             return
         }
@@ -912,8 +915,12 @@ final class RustHost: NSObject {
             sheet.prefersScrollingExpandsWhenScrolledToEdge = false
         }
 
+        // The sheet can't be dismissed, so a drag down only "attempts" it:
+        // see presentationControllerDidAttemptToDismiss.
+        controller.presentationController?.delegate = self
         presenter.present(controller, animated: false)
         sheetController = controller
+        sheetNodeId = id
     }
 
     private func remove(_ op: [String: Any]) {
@@ -921,6 +928,7 @@ final class RustHost: NSObject {
         if tags[id]?.isSheet == true {
             sheetController?.dismiss(animated: false)
             sheetController = nil
+            sheetNodeId = nil
         }
         guard let view = views.removeValue(forKey: id) else {
             return
@@ -1500,6 +1508,7 @@ final class RustHost: NSObject {
         case "gesture": return 17
         case "refresh": return 18
         case "load": return 19
+        case "dismiss": return 20
         case "connection": return 14
         case "select": return 15
         case "native": return 16
@@ -1548,6 +1557,17 @@ final class RustHost: NSObject {
         default:
             return .left
         }
+    }
+}
+
+extension RustHost: UIAdaptivePresentationControllerDelegate {
+    /// A drag down on the sheet: the app decides what it means, e.g.
+    /// shrinking an expanded sheet back to its resting height.
+    func presentationControllerDidAttemptToDismiss(_ presentationController: UIPresentationController) {
+        guard let id = sheetNodeId else {
+            return
+        }
+        event(id: id, kind: "dismiss", payload: "")
     }
 }
 
