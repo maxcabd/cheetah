@@ -9,6 +9,9 @@
 //! Every command takes `--json` for machine-readable output (one JSON object
 //! per line), which is what agents should use.
 
+mod apple;
+mod setup;
+
 use cheetah_cli::config::AppConfig;
 use cheetah_cli::{dev_link, fingerprint, lan_ip, prebuild, repo_root};
 use serde_json::{json, Value};
@@ -31,6 +34,13 @@ cheetah: develop and ship Cheetah apps
       Write apps/NAME/cheetah.toml (name, IDs, permissions, links, native
       modules) into the iOS and Android projects. --dev makes the iOS dev
       build; --check only reports what would change.
+  cheetah setup ios [--app NAME] [--issuer ID] [--key FILE] [--team ID]
+                    [--release] [--build] [--no-secrets] [--no-wait]
+      Connect an Apple developer account through the App Store Connect API:
+      picks up the API key download, registers app IDs and capabilities from
+      cheetah.toml, waits for the App Store Connect app, adds the team as
+      TestFlight testers, and stores the GitHub secrets for the build.
+      --build continues with `cheetah build ios --dev`.
   cheetah publish [--app NAME] [--runtime VERSION] [--out DIR]
       Bundle the app's .view files for over-the-air updates
       (runtime::updates). Host the file and point Updates at its URL; it
@@ -55,7 +65,16 @@ struct Args {
 
 impl Args {
     fn parse(raw: Vec<String>) -> Self {
-        const VALUED: &[&str] = &["--app", "--port", "--host", "--runtime", "--out"];
+        const VALUED: &[&str] = &[
+            "--app",
+            "--port",
+            "--host",
+            "--runtime",
+            "--out",
+            "--issuer",
+            "--key",
+            "--team",
+        ];
         let mut args = Args {
             json: false,
             positional: Vec::new(),
@@ -148,6 +167,10 @@ fn main() -> ExitCode {
         "fingerprint" => fingerprint_command(&args, &out),
         "prebuild" => prebuild_command(&args, &out),
         "publish" => publish_command(&args, &out),
+        "setup" => match args.positional.first().map(String::as_str) {
+            Some("ios") => setup::ios(&args, &out),
+            _ => out.fail("setup", "name a platform: cheetah setup ios"),
+        },
         "doctor" => doctor(&out),
         other => out.fail(other, "unknown command; run `cheetah help`"),
     }

@@ -15,5 +15,11 @@ path = "src/main.rs"
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
+# ES256 tokens for the App Store Connect API (`cheetah setup ios`).
+p256 = { version = "0.13", features = ["ecdsa", "pem", "pkcs8"] }
+base64 = "0.22"
 qrcode = { version = "0.14", default-features = false }
 serde_json = "1"
+
+[dev-dependencies]
+rand_core = { version = "0.6", features = ["getrandom"] }
