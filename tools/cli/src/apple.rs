@@ -164,7 +164,7 @@ pub fn api_error(status: u16, body: &Value) -> String {
     let hint = match status {
         401 => " (check the key ID and issuer ID; a revoked key also gives this)",
         403 if agreement => {
-            " (accept the latest agreements as the Account Holder: developer.apple.com/account              and App Store Connect > Business)"
+            " (accept the latest agreements as the Account Holder: developer.apple.com/account, then App Store Connect under Business)"
         }
         403 => " (the key needs the Admin role: the build signs with cloud-managed certificates)",
         _ => "",
