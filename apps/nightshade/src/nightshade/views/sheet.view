@@ -22,26 +22,29 @@ component SearchBar
     row width=-1 height=SEARCH_HEIGHT gap=12 align_items="center"
       # Liquid Glass field on iOS 26; a solid pill elsewhere.
       if glass
-        glass weight=1 height=SEARCH_HEIGHT radius=36 glass_style="regular" glass_interactive=true align_items="center"
+        glass weight=1 height=SEARCH_HEIGHT radius=26 glass_style="regular" glass_interactive=true align_items="center"
           use SearchField placeholder=placeholder draft=draft can_send=can_send
       else
-        row weight=1 height=SEARCH_HEIGHT bg=CHIP_BG border=1 border_color="#2d2d2d" radius=36 align_items="center"
+        row weight=1 height=SEARCH_HEIGHT bg=CHIP_BG border=1 border_color="#2d2d2d" radius=26 align_items="center"
           use SearchField placeholder=placeholder draft=draft can_send=can_send
       if results
-        use ActionButton icon="xmark" key="search:clear" bg=CHIP_BG size=48 radius=24 label="Clear"
+        use ActionButton icon="xmark" key="search:clear" bg=CHIP_BG size=44 radius=22 label="Clear"
 
 component SearchField
   row weight=1 height=SEARCH_HEIGHT align_items="center"
-    input placeholder draft key="search" weight=1 height=64 size=16 font="satoshi-medium" color="#ffffff" placeholder_color="#a3a3a3" pad_h=32 align="start"
+    input placeholder draft key="search" weight=1 height=48 size=16 font="satoshi-medium" color="#ffffff" placeholder_color="#a3a3a3" pad_h=20 align="start"
     if can_send
-      use ActionButton icon="arrow-up" key="search:send" bg="#dc2626" size=40 radius=20
+      use ActionButton icon="arrow-up" key="search:send" bg="#dc2626" size=36 radius=18
 
 # No search yet: heading and suggestion chips.
+# The chips scroll edge to edge; their inset lives inside the scroll so the
+# first column lines up with the heading.
 component EmptyBody
-  column .sheet_body gap=14
-    text "Ready to discover?" .heading
-    hscroll width=-1 height=200 content_width=600
-      column width=600 height=200
+  column width=-1 weight=1 gap=14
+    row width=-1 pad_h=24
+      text "Ready to discover?" .heading
+    hscroll width=-1 height=200 content_width=648
+      column width=648 height=200 pad_h=24
         row width=600 wrap=true gap=10 align_items="center"
           for chip in suggestions
             use Chip label=chip.label key=chip.key width=chip.width

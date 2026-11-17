@@ -31,7 +31,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio_tungstenite::tungstenite::Message;
@@ -348,7 +348,7 @@ fn watch_live_edits(dirs: Vec<PathBuf>) {
                 // .view templates: re-parse and swap into the running app.
                 let views_now = view_files(&dirs);
                 if views_now != seen_views {
-                    let started = std::time::Instant::now();
+                    let started = Instant::now();
                     seen_views = views_now;
                     match parse_views(&seen_views) {
                         Ok(views) => {
@@ -432,7 +432,26 @@ struct WsHost {
     seq: AtomicU64,
     pending: Mutex<HashMap<u64, mpsc::Sender<Vec<f32>>>>,
     alive: AtomicBool,
+    /// Sizes the device already measured. Each measurement is a network
+    /// round trip that blocks layout, so every text is measured once per
+    /// connection, not on every render.
+    measured: Mutex<HashMap<MeasureKey, (f32, f32)>>,
 }
+
+/// Text, font size and max width (as bits, so they hash), bold.
+type MeasureKey = (String, u32, bool, u32);
+
+fn measure_key(request: &TextRequest) -> MeasureKey {
+    (
+        request.text.clone(),
+        request.font_size.to_bits(),
+        request.bold,
+        request.max_width.to_bits(),
+    )
+}
+
+/// Round trips slower than this are logged (they show as UI lag).
+const SLOW_MEASURE: Duration = Duration::from_millis(60);
 
 impl WsHost {
     fn answer(&self, seq: u64, sizes: Vec<f32>) {
@@ -459,6 +478,53 @@ impl Host for WsHost {
     }
 
     fn measure_text_batch(&self, requests: &[TextRequest]) -> Vec<(f32, f32)> {
+        // Only ask the device about texts it hasn't measured yet.
+        let mut sizes: Vec<Option<(f32, f32)>> = {
+            let measured = self.measured.lock().unwrap();
+            requests
+                .iter()
+                .map(|request| measured.get(&measure_key(request)).copied())
+                .collect()
+        };
+        let missing: Vec<TextRequest> = requests
+            .iter()
+            .zip(&sizes)
+            .filter(|(_, size)| size.is_none())
+            .map(|(request, _)| request.clone())
+            .collect();
+        if missing.is_empty() {
+            return sizes.into_iter().map(Option::unwrap_or_default).collect();
+        }
+        let started = Instant::now();
+        let fresh = self.measure_remote(&missing);
+        let elapsed = started.elapsed();
+        if elapsed > SLOW_MEASURE {
+            println!(
+                "devserver: measuring {} texts on the device took {:.0} ms",
+                missing.len(),
+                elapsed.as_secs_f64() * 1000.0
+            );
+        }
+        let mut fresh = fresh.into_iter();
+        let mut measured = self.measured.lock().unwrap();
+        for (request, size) in requests.iter().zip(sizes.iter_mut()) {
+            if size.is_none() {
+                let value = fresh.next().unwrap_or_default();
+                measured.insert(measure_key(request), value);
+                *size = Some(value);
+            }
+        }
+        sizes.into_iter().map(Option::unwrap_or_default).collect()
+    }
+
+    fn emit_ops(&self, bytes: &[u8]) {
+        let _ = self.out.send(Message::Binary(bytes.to_vec().into()));
+    }
+}
+
+impl WsHost {
+    /// One round trip: the device measures `requests` with its fonts.
+    fn measure_remote(&self, requests: &[TextRequest]) -> Vec<(f32, f32)> {
         let fallback = || {
             requests
                 .iter()
@@ -497,10 +563,6 @@ impl Host for WsHost {
                 fallback()
             }
         }
-    }
-
-    fn emit_ops(&self, bytes: &[u8]) {
-        let _ = self.out.send(Message::Binary(bytes.to_vec().into()));
     }
 }
 
@@ -600,6 +662,7 @@ async fn serve(
         seq: AtomicU64::new(1),
         pending: Mutex::new(HashMap::new()),
         alive: AtomicBool::new(true),
+        measured: Mutex::new(HashMap::new()),
     });
 
     let writer = tokio::spawn(async move {
