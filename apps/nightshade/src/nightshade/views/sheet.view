@@ -41,8 +41,7 @@ component SearchField
 # first column lines up with the heading.
 component EmptyBody
   column width=-1 weight=1 gap=14
-    row width=-1 pad_h=24
-      text "Ready to discover?" .heading
+    text "Ready to discover?" .heading pad_h=24
     hscroll width=-1 height=200 content_width=648
       column width=648 height=200 pad_h=24
         row width=600 wrap=true gap=10 align_items="center"
