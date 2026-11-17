@@ -2,7 +2,13 @@ param(
     # App crate to serve with hot patching (apps/<name>).
     [string]$App = "nightshade",
     # Extra arguments for the app's dev server, e.g. -ServerArgs "--demo"
-    [string]$ServerArgs = ""
+    [string]$ServerArgs = "",
+    # Reach the phone through Cloudflare quick tunnels instead of the LAN,
+    # for networks that keep devices apart (public Wi-Fi). Needs cloudflared.
+    [switch]$Tunnel,
+    # With -Tunnel: the local backend to tunnel too, baked in as
+    # NIGHTSHADE_API_URL. 0 leaves NIGHTSHADE_API_URL alone.
+    [int]$ApiPort = 8000
 )
 
 # Hot-patching dev server: edits to the app crate are patched into the
@@ -40,10 +46,60 @@ if (-not $env:VCINSTALLDIR) {
     }
 }
 
+# Start a quick tunnel to a local port; returns its process and public URL.
+function Start-QuickTunnel([int]$Port) {
+    $log = Join-Path $env:TEMP "cheetah-tunnel-$Port.log"
+    Remove-Item $log -ErrorAction SilentlyContinue
+    # cloudflared logs, including the URL, to stderr.
+    $process = Start-Process cloudflared -PassThru -WindowStyle Hidden `
+        -ArgumentList "tunnel", "--no-autoupdate", "--url", "http://localhost:$Port" `
+        -RedirectStandardError $log -RedirectStandardOutput "$log.out"
+    for ($i = 0; $i -lt 60; $i++) {
+        Start-Sleep -Milliseconds 500
+        $match = Select-String -Path $log -Pattern "https://[a-z0-9-]+\.trycloudflare\.com" -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+        if ($match) {
+            return @{ Process = $process; Url = $match.Matches[0].Value }
+        }
+    }
+    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+    Write-Error "cloudflared gave no tunnel URL for port $Port (log: $log)"
+}
+
+$tunnels = @()
+if ($Tunnel) {
+    if (-not (Get-Command cloudflared -ErrorAction SilentlyContinue)) {
+        Write-Error "cloudflared not found. Install it with: scoop install cloudflared"
+    }
+    Write-Host "==> Starting Cloudflare tunnels"
+    $dev = Start-QuickTunnel 8787
+    $tunnels += $dev
+    if ($ApiPort -gt 0) {
+        $api = Start-QuickTunnel $ApiPort
+        $tunnels += $api
+        # Read at build time (option_env!), so set before dx builds.
+        $env:NIGHTSHADE_API_URL = $api.Url
+        Write-Host "    backend:  $($api.Url) -> localhost:$ApiPort (start the backend yourself)"
+    }
+    $wss = $dev.Url -replace "^https://", "wss://"
+    Write-Host "    dev:      $($dev.Url) -> localhost:8787"
+    Write-Host ""
+    $link = "cheetah://dev?url=$wss"
+    & cargo run -q -p cheetah-cli --bin cheetah -- qr $link
+    Write-Host "    Scan with the phone's camera, or open in Safari: $link"
+    Write-Host ""
+}
+
 Write-Host "==> dx serve --hot-patch -p $App (save a file in apps/$App to patch)"
 $dxArgs = @("serve", "--hot-patch", "-p", $App, "--bin", $App)
 if ($ServerArgs) {
     # Joined with `=` so dx doesn't parse a leading `--` as its own flag.
     $dxArgs += "--args=$ServerArgs"
 }
-& dx @dxArgs
+try {
+    & dx @dxArgs
+} finally {
+    foreach ($t in $tunnels) {
+        Stop-Process -Id $t.Process.Id -Force -ErrorAction SilentlyContinue
+    }
+}

@@ -50,6 +50,8 @@ cheetah: develop and ship Cheetah apps
       changes; Rust and .view edits never need one.
   cheetah doctor
       Check the tools each command needs.
+  cheetah qr TEXT
+      Print TEXT as a QR code, e.g. a dev link for the phone's camera.
 
   --json   machine-readable output (one JSON object per line)";
 
@@ -172,6 +174,13 @@ fn main() -> ExitCode {
             _ => out.fail("setup", "name a platform: cheetah setup ios"),
         },
         "doctor" => doctor(&out),
+        "qr" => match args.positional.first().and_then(|text| qr(text)) {
+            Some(code) => {
+                println!("{code}");
+                ExitCode::SUCCESS
+            }
+            None => out.fail("qr", "give the text to encode: cheetah qr TEXT"),
+        },
         other => out.fail(other, "unknown command; run `cheetah help`"),
     }
 }
