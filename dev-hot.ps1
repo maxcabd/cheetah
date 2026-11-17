@@ -43,6 +43,7 @@ if (-not $env:VCINSTALLDIR) {
 Write-Host "==> dx serve --hot-patch -p $App (save a file in apps/$App to patch)"
 $dxArgs = @("serve", "--hot-patch", "-p", $App, "--bin", $App)
 if ($ServerArgs) {
-    $dxArgs += @("--args", $ServerArgs)
+    # Joined with `=` so dx doesn't parse a leading `--` as its own flag.
+    $dxArgs += "--args=$ServerArgs"
 }
 & dx @dxArgs
