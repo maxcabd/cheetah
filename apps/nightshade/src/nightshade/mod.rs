@@ -56,6 +56,8 @@ pub struct NightshadeApp {
     /// keyboard: no host API can blur a field yet.
     field_mount: u32,
     center: Option<(f32, f32)>,
+    /// Satellite imagery instead of the street map (top-right map button).
+    satellite: bool,
     /// Where state is saved for the next launch (`with_state_file`).
     state_file: Option<std::path::PathBuf>,
     calls: Vec<NativeCall>,
@@ -91,6 +93,7 @@ impl NightshadeApp {
             expanded: false,
             field_mount: 0,
             center: None,
+            satellite: false,
             state_file: None,
             calls: vec![NativeCall::new("location", "request", "{}")],
             actions: Vec::new(),
@@ -244,6 +247,9 @@ impl App for NightshadeApp {
                     self.send_draft();
                 } else if key == "search:clear" {
                     self.clear_search();
+                } else if key == "map:type" {
+                    self.satellite = !self.satellite;
+                    self.haptic("selection");
                 } else if key == "show-on-map" {
                     self.expanded = false;
                 } else if let Some(id) = key.strip_prefix("place:") {

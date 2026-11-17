@@ -169,6 +169,57 @@ private final class PlaceAnnotation: NSObject, MKAnnotation {
     }
 }
 
+/// A place pin: Liquid Glass on iOS 26, a blurred material before (both
+/// via GlassView), with the place's icon on top. Selected pins tint red.
+private final class GlassPinView: MKAnnotationView {
+    private let glass = GlassView()
+    private let iconView = UIImageView()
+
+    override init(annotation: MKAnnotation?, reuseIdentifier: String?) {
+        super.init(annotation: annotation, reuseIdentifier: reuseIdentifier)
+        backgroundColor = .clear
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.3
+        layer.shadowRadius = 4
+        layer.shadowOffset = CGSize(width: 0, height: 2)
+        glass.isUserInteractionEnabled = false
+        addSubview(glass)
+        iconView.contentMode = .scaleAspectFit
+        glass.contentView.addSubview(iconView)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    func configure(_ place: PlaceAnnotation, symbol: String) {
+        let result = place.kind == "result"
+        let side: CGFloat = result ? 40 : 48
+        bounds = CGRect(x: 0, y: 0, width: side, height: side)
+        layer.shadowPath = UIBezierPath(ovalIn: bounds).cgPath
+        glass.frame = bounds
+        glass.updateShape(radius: side / 2)
+        let tint = place.selected ? "#ef4444d9" : (result ? "#00000059" : "#ffffff33")
+        glass.apply(style: "regular", tint: tint, interactive: false)
+        glass.layer.borderWidth = place.selected ? 2 : 0.5
+        glass.layer.borderColor = UIColor.white.withAlphaComponent(place.selected ? 0.95 : 0.35).cgColor
+
+        let iconSide: CGFloat = result ? 16 : 22
+        iconView.image = UIImage(
+            systemName: symbol,
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: iconSide, weight: .semibold)
+        )?.withRenderingMode(.alwaysTemplate)
+        iconView.tintColor = result ? .white : UIColor(hex: place.iconColor)
+        iconView.frame = CGRect(
+            x: (side - iconSide) / 2,
+            y: (side - iconSide) / 2,
+            width: iconSide,
+            height: iconSide
+        )
+        zPriority = place.selected ? .max : .defaultUnselected
+    }
+}
+
 private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDelegate {
     let map: MKMapView
     private weak var owner: NativeModuleHostView?
@@ -179,6 +230,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
     private var lastMarkers: String?
     private var lastDark: Bool?
     private var lastShowUser: Bool?
+    private var lastMapType: String?
     private var nextRegionAnimated = false
     private var annotationsByID: [String: PlaceAnnotation] = [:]
 
@@ -214,6 +266,19 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
             if changed {
                 map.overrideUserInterfaceStyle = value ? .dark : .light
                 lastDark = value
+            }
+        }
+
+        // `native_props` `{"mapType": "satellite"}`: imagery with road and
+        // place labels; anything else is the muted street map.
+        if let raw = props["nativeProps"] as? String,
+           let data = raw.data(using: .utf8),
+           let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            let type = config["mapType"] as? String ?? "standard"
+            if type != lastMapType {
+                lastMapType = type
+                map.mapType = type == "satellite" ? .hybrid : .mutedStandard
             }
         }
 
@@ -292,8 +357,8 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
                 existing.icon = marker["icon"] as? String ?? "utensils"
                 existing.iconColor = marker["iconColor"] as? String ?? "#D32F2F"
                 existing.selected = (marker["selected"] as? NSNumber)?.boolValue ?? false
-                if let view = map.view(for: existing) as? MKAnnotationView {
-                    view.image = Self.markerImage(existing)
+                if let view = map.view(for: existing) as? GlassPinView {
+                    view.configure(existing, symbol: Self.symbol(existing.icon))
                 }
             }
             return
@@ -362,10 +427,10 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
             return nil
         }
         let identifier = "cheetah-place"
-        let marker = mapView.dequeueReusableAnnotationView(withIdentifier: identifier)
-            ?? MKAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+        let marker = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? GlassPinView
+            ?? GlassPinView(annotation: annotation, reuseIdentifier: identifier)
         marker.annotation = annotation
-        marker.image = Self.markerImage(place)
+        marker.configure(place, symbol: Self.symbol(place.icon))
         marker.canShowCallout = true
         marker.displayPriority = .required
         return marker
@@ -379,68 +444,8 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, MKMapViewDel
         mapView.deselectAnnotation(annotation, animated: false)
     }
 
-    private static var markerImageCache: [String: UIImage] = [:]
-
-    private static func markerImage(_ place: PlaceAnnotation) -> UIImage {
-        let cacheKey = [
-            place.placeID,
-            place.kind,
-            place.icon,
-            place.iconColor,
-            place.selected ? "selected" : "idle",
-        ].joined(separator: "|")
-        if let cached = markerImageCache[cacheKey] {
-            return cached
-        }
-        let result = place.kind == "result"
-        let size = result ? CGSize(width: 40, height: 40) : CGSize(width: 56, height: 56)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        let image = renderer.image { context in
-            let rect = CGRect(origin: .zero, size: size).insetBy(dx: 2, dy: 2)
-            let circle = UIBezierPath(ovalIn: rect)
-            context.cgContext.setShadow(
-                offset: CGSize(width: 0, height: 2),
-                blur: 4,
-                color: UIColor.black.withAlphaComponent(0.3).cgColor
-            )
-            if result {
-                (place.selected ? UIColor(hex: "#ef4444") : UIColor(hex: "#404040")).setFill()
-                circle.fill()
-                (place.selected ? UIColor.white : UIColor(hex: "#262626")).setStroke()
-                circle.lineWidth = 3
-                circle.stroke()
-            } else {
-                UIColor.white.setFill()
-                circle.fill()
-                UIColor(hex: "#262626").withAlphaComponent(0.5).setStroke()
-                circle.lineWidth = 1
-                circle.stroke()
-            }
-
-            let symbol = Self.symbols[place.icon] ?? "fork.knife"
-            let configuration = UIImage.SymbolConfiguration(
-                pointSize: result ? 14 : 20,
-                weight: .regular
-            )
-            if let image = UIImage(systemName: symbol, withConfiguration: configuration)?
-                .withTintColor(
-                    result ? .white : UIColor(hex: place.iconColor),
-                    renderingMode: .alwaysOriginal
-                )
-            {
-                let side = result ? 16.0 : 22.0
-                image.draw(
-                    in: CGRect(
-                        x: (size.width - side) / 2,
-                        y: (size.height - side) / 2,
-                        width: side,
-                        height: side
-                    )
-                )
-            }
-        }
-        markerImageCache[cacheKey] = image
-        return image
+    private static func symbol(_ icon: String) -> String {
+        symbols[icon] ?? "fork.knife"
     }
 
     private static let symbols: [String: String] = [
@@ -728,6 +733,8 @@ private final class IconNativeModule: CheetahNativeModule {
         "magnifying-glass": "magnifyingglass",
         "circle-xmark": "xmark.circle.fill",
         "star": "star.fill",
+        "globe": "globe.americas.fill",
+        "map": "map.fill",
     ]
 }
 

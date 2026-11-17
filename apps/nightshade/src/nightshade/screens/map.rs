@@ -27,6 +27,17 @@ impl NightshadeApp {
                     "lat_delta": latitude_delta,
                     "lng_delta": longitude_delta,
                     "markers": self.markers(),
+                    "native_props": serde_json::json!({
+                        "mapType": if self.satellite { "satellite" } else { "standard" },
+                    })
+                    .to_string(),
+                },
+                // Top right, under the status bar; shows the mode it
+                // switches to.
+                "map_button": {
+                    "top": self.host.safe_top.max(20.0) + 8.0,
+                    "left": context.viewport.width - MAP_BUTTON_SIZE - 16.0,
+                    "icon": if self.satellite { "map" } else { "globe" },
                 },
                 "carousel": carousel,
                 "sheet": self.sheet_model(context),
@@ -74,8 +85,11 @@ impl NightshadeApp {
         // screen than a degree of longitude is wide.
         let mid_lat = (min_lat + max_lat) / 2.0;
         let cos = mid_lat.to_radians().cos().max(0.1);
-        let lat_span = (max_lat - min_lat).max(0.004);
-        let lng_span = (max_lng - min_lng).max(0.004);
+        // One pin (a focused card) zooms in to its street; several keep a
+        // neighbourhood-wide minimum so close pins don't crowd.
+        let min_span = if shown.len() == 1 { FOCUS_MIN_SPAN } else { OVERVIEW_MIN_SPAN };
+        let lat_span = (max_lat - min_lat).max(min_span);
+        let lng_span = (max_lng - min_lng).max(min_span);
         // Degrees of latitude per screen point for the pins to fit the band
         // (with a margin), and for their width to fit the screen.
         let per_point = (lat_span * 1.2 / band).max(lng_span * cos * 1.2 / (width - 48.0));

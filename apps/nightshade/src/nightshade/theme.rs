@@ -13,3 +13,10 @@ pub(crate) const SEARCH_BOTTOM_GAP: f32 = 4.0;
 pub(crate) const KEYBOARD_GAP: f32 = 8.0;
 /// Before a search: grabber, heading, suggestion chips, search bar.
 pub(crate) const IDLE_SHEET_HEIGHT: f32 = 320.0;
+
+/// Smallest span, in degrees, the map fits pins into: a focused card's single
+/// pin (~130 m, street level), and several pins (~440 m).
+pub(crate) const MAP_BUTTON_SIZE: f32 = 38.0;
+
+pub(crate) const FOCUS_MIN_SPAN: f32 = 0.0012;
+pub(crate) const OVERVIEW_MIN_SPAN: f32 = 0.004;

@@ -503,6 +503,9 @@ fn result_pins_sit_between_the_status_bar_and_the_cards() {
 
     app.focused = true;
     check(&app, true);
+    // A focused card zooms to street level: under ~1 km of map on screen.
+    let (_, _, focused_delta, _) = app.region(width, height);
+    assert!(focused_delta < 0.009, "focused span {focused_delta} too wide");
 }
 
 #[test]
@@ -664,4 +667,20 @@ fn dragging_the_sheet_down_collapses_it() {
     assert!(!app.expanded);
     // The search field remounts, dropping the keyboard.
     assert_eq!(app.field_mount, mount + 1);
+}
+
+#[test]
+fn the_map_button_switches_to_satellite_and_back() {
+    let mut app = NightshadeApp::new(false);
+    let map_type = |app: &NightshadeApp| {
+        let map = find(&render(app), "map").expect("map").props.native_props.clone().unwrap();
+        serde_json::from_str::<serde_json::Value>(&map).unwrap()["mapType"].clone()
+    };
+    assert_eq!(map_type(&app), "standard");
+    assert!(find(&render(&app), "map:type").is_some(), "button shown");
+
+    click(&mut app, "map:type");
+    assert_eq!(map_type(&app), "satellite");
+    click(&mut app, "map:type");
+    assert_eq!(map_type(&app), "standard");
 }

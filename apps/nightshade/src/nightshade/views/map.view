@@ -1,7 +1,11 @@
 # The map screen: map with markers, result cards, and the search sheet.
 component MapScreen
   column width=-1 height=-1 bg=BG
-    map key="map" width=-1 height=-1 bg="#101826" test_id="nightshade-map" map_latitude=region.lat map_longitude=region.lng map_latitude_delta=region.lat_delta map_longitude_delta=region.lng_delta map_markers=region.markers map_dark=true map_shows_user=true
+    map key="map" width=-1 height=-1 bg="#101826" test_id="nightshade-map" map_latitude=region.lat map_longitude=region.lng map_latitude_delta=region.lat_delta map_longitude_delta=region.lng_delta map_markers=region.markers map_dark=true map_shows_user=true native_props=region.native_props
+    # Street map / satellite toggle; GlassIcon is Liquid Glass on iOS 26 and
+    # a blur before.
+    row absolute=true top=map_button.top left=map_button.left width=38 height=38
+      use GlassIcon icon=map_button.icon key="map:type"
     if carousel
       use Carousel carousel=carousel
     use Sheet sheet=sheet
