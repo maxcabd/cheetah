@@ -34,7 +34,7 @@ impl ApiKey {
         })
     }
 
-    /// A token valid for 20 minutes (Apple's maximum).
+    /// A token valid for 15 minutes (Apple allows at most 20).
     pub fn token(&self) -> String {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -44,7 +44,8 @@ impl ApiKey {
         let claims = json!({
             "iss": self.issuer_id,
             "iat": now,
-            "exp": now + 20 * 60,
+            // Apple rejects tokens living longer than 20 minutes; stay under.
+            "exp": now + 15 * 60,
             "aud": "appstoreconnect-v1",
         });
         let encode = |value: &Value| URL_SAFE_NO_PAD.encode(value.to_string());
@@ -89,7 +90,11 @@ impl Client {
             .args(["-sS", "-X", method, "-w", "\n%{http_code}", "-H"])
             .arg(format!("@{}", header.display()))
             .args(["-H", "Content-Type: application/json"])
-            .arg(format!("{BASE}{path}"))
+            // CHEETAH_ASC_BASE points at a local server, for testing.
+            .arg(format!(
+                "{}{path}",
+                std::env::var("CHEETAH_ASC_BASE").unwrap_or_else(|_| BASE.to_string())
+            ))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         if body.is_some() {
@@ -155,8 +160,12 @@ pub fn api_error(status: u16, body: &Value) -> String {
                 .collect()
         })
         .unwrap_or_default();
+    let agreement = details.iter().any(|detail| detail.contains("agreement"));
     let hint = match status {
         401 => " (check the key ID and issuer ID; a revoked key also gives this)",
+        403 if agreement => {
+            " (accept the latest agreements as the Account Holder: developer.apple.com/account              and App Store Connect > Business)"
+        }
         403 => " (the key needs the Admin role: the build signs with cloud-managed certificates)",
         _ => "",
     };
@@ -202,7 +211,7 @@ mod tests {
         assert_eq!(claims["iss"], "issuer-uuid");
         assert_eq!(
             claims["exp"].as_u64().unwrap() - claims["iat"].as_u64().unwrap(),
-            1200
+            900
         );
         let signature = URL_SAFE_NO_PAD.decode(parts[2]).unwrap();
         assert_eq!(signature.len(), 64, "raw r||s");
