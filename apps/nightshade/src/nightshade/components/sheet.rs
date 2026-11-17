@@ -15,7 +15,7 @@ impl NightshadeApp {
         } else if self.has_results() {
             RESULT_SHEET_HEIGHT
         } else {
-            (context.viewport.height * 0.52).max(390.0)
+            IDLE_SHEET_HEIGHT
         }
     }
 
@@ -47,6 +47,10 @@ impl NightshadeApp {
             "draft": self.draft,
             "can_send": !self.draft.trim().is_empty(),
             "results": results,
+            // iOS 26: let the system's Liquid Glass sheet and search bar show
+            // instead of painting over them.
+            "glass": self.host.glass,
+            "bg": if self.host.glass { "#00000000" } else { "#171717" },
         })
     }
 

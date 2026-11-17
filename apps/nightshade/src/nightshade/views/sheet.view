@@ -1,7 +1,7 @@
 # Bottom sheet: grabber, body, search bar.
 
 component Sheet
-  sheet key="search-panel" absolute=true bottom=0 left=0 width=-1 height=sheet.height radius=54 clip=true bg=SHEET_BG
+  sheet key="search-panel" absolute=true bottom=0 left=0 width=-1 height=sheet.height radius=54 clip=true bg=sheet.bg
     column width=-1 height=sheet.height
       row key="sheet:toggle" pressable=true width=-1 height=24 .center
         row width=30 height=6 bg="#404040" radius=3
@@ -14,25 +14,34 @@ component Sheet
           use SearchingBody query=sheet.query
         if sheet.body == "empty"
           use EmptyBody suggestions=sheet.suggestions
-      use SearchBar placeholder=sheet.placeholder draft=sheet.draft can_send=sheet.can_send results=sheet.results
+      use SearchBar placeholder=sheet.placeholder draft=sheet.draft can_send=sheet.can_send results=sheet.results glass=sheet.glass
       column width=-1 height=SEARCH_BOTTOM_GAP
 
 component SearchBar
   column width=-1 height=SEARCH_HEIGHT pad_h=24 justify="end" test_id="cheetah-search-bar"
     row width=-1 height=SEARCH_HEIGHT gap=12 align_items="center"
-      row weight=1 height=SEARCH_HEIGHT bg=CHIP_BG border=1 border_color="#2d2d2d" radius=36 align_items="center"
-        input placeholder draft key="search" weight=1 height=64 size=16 font="satoshi-medium" color="#ffffff" placeholder_color="#737373" pad_h=32 align="start"
-        if can_send
-          use ActionButton icon="arrow-up" key="search:send" bg="#dc2626" size=40 radius=20
+      # Liquid Glass field on iOS 26; a solid pill elsewhere.
+      if glass
+        glass weight=1 height=SEARCH_HEIGHT radius=36 glass_style="regular" glass_interactive=true align_items="center"
+          use SearchField placeholder=placeholder draft=draft can_send=can_send
+      else
+        row weight=1 height=SEARCH_HEIGHT bg=CHIP_BG border=1 border_color="#2d2d2d" radius=36 align_items="center"
+          use SearchField placeholder=placeholder draft=draft can_send=can_send
       if results
         use ActionButton icon="xmark" key="search:clear" bg=CHIP_BG size=48 radius=24 label="Clear"
+
+component SearchField
+  row weight=1 height=SEARCH_HEIGHT align_items="center"
+    input placeholder draft key="search" weight=1 height=64 size=16 font="satoshi-medium" color="#ffffff" placeholder_color="#a3a3a3" pad_h=32 align="start"
+    if can_send
+      use ActionButton icon="arrow-up" key="search:send" bg="#dc2626" size=40 radius=20
 
 # No search yet: heading and suggestion chips.
 component EmptyBody
   column .sheet_body gap=14
     text "Ready to discover?" .heading
-    hscroll width=-1 height=260 content_width=600
-      column width=600 height=260
+    hscroll width=-1 height=200 content_width=600
+      column width=600 height=200
         row width=600 wrap=true gap=10 align_items="center"
           for chip in suggestions
             use Chip label=chip.label key=chip.key width=chip.width

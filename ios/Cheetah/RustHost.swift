@@ -209,6 +209,8 @@ final class RustHost: NSObject {
     private var scrollScheduled: Set<ObjectIdentifier> = []
     private var viewPool: [String: [UIView]] = [:]
     private var sheetController: UIViewController?
+    /// Height of the native sheet's detent, from the Rust layout.
+    private var sheetHeight: CGFloat = 230
     private lazy var nativeApis = NativeApis(
         emit: { [weak self] kind, payload in
             self?.event(id: 0, kind: kind, payload: payload)
@@ -750,6 +752,8 @@ final class RustHost: NSObject {
             return
         }
         if tags[id]?.isSheet == true {
+            // The native sheet's height follows the Rust layout.
+            updateSheetHeight(number(op["height"]))
             return
         }
 
@@ -850,6 +854,19 @@ final class RustHost: NSObject {
         }
     }
 
+    private func updateSheetHeight(_ height: CGFloat) {
+        guard height > 0, abs(height - sheetHeight) > 0.5 else {
+            return
+        }
+        sheetHeight = height
+        guard let sheet = sheetController?.sheetPresentationController else {
+            return
+        }
+        sheet.animateChanges {
+            sheet.invalidateDetents()
+        }
+    }
+
     private func presentSheetIfNeeded(_ view: UIView) {
         guard sheetController == nil else {
             return
@@ -865,7 +882,12 @@ final class RustHost: NSObject {
         }
 
         let controller = UIViewController()
-        controller.view.backgroundColor = UIColor(hex: "#171717")
+        if #available(iOS 26.0, *) {
+            // Leave the system's Liquid Glass sheet visible.
+            controller.view.backgroundColor = .clear
+        } else {
+            controller.view.backgroundColor = UIColor(hex: "#171717")
+        }
         controller.isModalInPresentation = true
         view.translatesAutoresizingMaskIntoConstraints = false
         controller.view.addSubview(view)
@@ -879,8 +901,8 @@ final class RustHost: NSObject {
         controller.modalPresentationStyle = .pageSheet
         if let sheet = controller.sheetPresentationController {
             let identifier = UISheetPresentationController.Detent.Identifier("cheetah-search")
-            let detent = UISheetPresentationController.Detent.custom(identifier: identifier) { _ in
-                230
+            let detent = UISheetPresentationController.Detent.custom(identifier: identifier) { [weak self] context in
+                min(self?.sheetHeight ?? 230, context.maximumDetentValue)
             }
             sheet.detents = [detent]
             sheet.selectedDetentIdentifier = identifier
