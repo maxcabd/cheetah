@@ -29,7 +29,8 @@ component Card
       column absolute=true top=0 left=0 width=width height=22 align_items="center"
         use CardHandle place=place pill="#ffffff47"
       row absolute=true top=16 left=16 width=controls height=38 justify="space-between" align_items="center"
-        use GlassIcon icon="chevron-up" key="card:up"
+        # Opens the place's page, like tapping the card.
+        use GlassIcon icon="chevron-up" key="card:up:{place.id}"
         row height=38 gap=8 align_items="center"
           use GlassIcon icon="bookmark" key="card:bookmark"
           use GlassIcon icon="share" key="card:share"

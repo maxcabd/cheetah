@@ -316,6 +316,11 @@ impl App for NightshadeApp {
                     self.send_draft();
                 } else if key == "search:clear" {
                     self.clear_search();
+                } else if let Some(id) = key.strip_prefix("card:up:") {
+                    // The card's up arrow: its page, growing out of the card.
+                    if self.router.push(&format!("/restaurant/{id}"), "zoom", Some(format!("card-{id}"))) {
+                        self.haptic("light");
+                    }
                 } else if key == "page:back" {
                     self.router.back();
                 } else if key == "map:locate" {

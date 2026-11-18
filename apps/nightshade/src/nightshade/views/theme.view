@@ -21,6 +21,12 @@ const CARD_HEADER = 148
 const CARD_BODY = 132
 # The photo gallery at the top of a place's page.
 const PAGE_PHOTO = 320
+# Where a page's photo meets the page (CARD_BG): a blur fading in from
+# clear, and over it a light colour fade.
+const PAGE_BLUR = 150
+const PAGE_BLUR_STYLE = "{{\"style\":\"dark\",\"fade\":\"top\"}}"
+const PAGE_FADE = 90
+const PAGE_FADE_COLORS = "{{\"colors\":[\"#1f1f1f00\",\"#1f1f1f40\",\"#1f1f1fa6\"],\"locations\":[0,0.6,1],\"startY\":0,\"endY\":1}}"
 
 # Shared attribute sets: `.name` on an element; later attributes override.
 style center = align_items="center" justify="center"

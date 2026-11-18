@@ -182,6 +182,8 @@ private enum NativeModuleRegistry {
             return IconNativeModule()
         case "gradient":
             return GradientNativeModule()
+        case "blur":
+            return BlurNativeModule()
         case "shape":
             return ShapeNativeModule()
         case "photo":
@@ -993,6 +995,81 @@ private final class PhotoPagerNativeModule: CheetahNativeModule {
                 count: (config["pages"] as? NSNumber)?.intValue ?? 5
             )
         }
+    }
+}
+
+/// `native "blur"`: blurs what is behind it. native_props:
+///   style: "dark" (default), "light", "regular", or a material: "thin",
+///     "thick", "ultraThin", "chrome" (dark variants).
+///   fade: "top" fades the blur in from clear at the top to full at the
+///     bottom (a soft edge, like a photo blurring into a page); "bottom" the
+///     reverse; absent: even blur.
+private final class BlurNativeModule: CheetahNativeModule {
+    private let blurView = BlurView()
+
+    var nativeView: UIView {
+        blurView
+    }
+
+    func apply(props: [String: Any]) {
+        var config: [String: Any] = [:]
+        if let raw = props["nativeProps"] as? String,
+           let data = raw.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            config = parsed
+        }
+        blurView.configure(style: config["style"] as? String ?? "dark", fade: config["fade"] as? String)
+    }
+}
+
+private final class BlurView: UIView {
+    private let effectView = UIVisualEffectView(effect: nil)
+    private let maskView = UIView()
+    private let maskGradient = CAGradientLayer()
+    private var fade: String?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+        isUserInteractionEnabled = false
+        addSubview(effectView)
+        maskView.layer.addSublayer(maskGradient)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    func configure(style: String, fade: String?) {
+        let blurStyle: UIBlurEffect.Style
+        switch style {
+        case "light": blurStyle = .light
+        case "regular": blurStyle = .regular
+        case "thin": blurStyle = .systemThinMaterialDark
+        case "thick": blurStyle = .systemThickMaterialDark
+        case "ultraThin": blurStyle = .systemUltraThinMaterialDark
+        case "chrome": blurStyle = .systemChromeMaterialDark
+        default: blurStyle = .dark
+        }
+        effectView.effect = UIBlurEffect(style: blurStyle)
+        self.fade = fade
+        // An alpha mask: clear lets the photo through, opaque is full blur.
+        maskGradient.colors = [UIColor.clear.cgColor, UIColor.black.cgColor]
+        maskGradient.startPoint = CGPoint(x: 0.5, y: fade == "bottom" ? 1 : 0)
+        maskGradient.endPoint = CGPoint(x: 0.5, y: fade == "bottom" ? 0 : 1)
+        effectView.mask = fade == nil ? nil : maskView
+        setNeedsLayout()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        effectView.frame = bounds
+        maskView.frame = bounds
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        maskGradient.frame = bounds
+        CATransaction.commit()
     }
 }
 

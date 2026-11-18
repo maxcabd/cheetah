@@ -1052,3 +1052,14 @@ fn a_restaurant_page_for_a_place_not_in_the_results_says_so() {
     let tree = render(&app);
     assert!(format!("{tree:?}").contains("isn't in your results"));
 }
+
+#[test]
+fn a_cards_up_arrow_opens_its_page() {
+    let mut app = NightshadeApp::new(true);
+    assert!(find(&render(&app), "card:up:java").is_some());
+    click(&mut app, "card:up:java");
+    let page = app.router.current();
+    assert_eq!(page.path, "/restaurant/java");
+    assert_eq!(page.transition, "zoom");
+    assert_eq!(page.source.as_deref(), Some("card-java"), "grows out of the card, not the button");
+}

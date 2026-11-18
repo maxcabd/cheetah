@@ -2,7 +2,7 @@
 # transition="zoom", so on iOS 18+ the page grows out of the card and drags
 # back into it. `place` comes from the loader (screens/restaurant.rs).
 component RestaurantPage
-  column width=-1 height=-1 bg=BG
+  column width=-1 height=-1 bg=CARD_BG
     if place.found
       use RestaurantDetails place=place
     else
@@ -15,7 +15,12 @@ component RestaurantPage
 
 component RestaurantDetails
   column width=-1 height=-1
-    native "photo" key="page-photo:{place.id}" width=-1 height=PAGE_PHOTO native_props=place.photo_props
+    # The photo's bottom blurs into the page (a blur fading in from clear),
+    # under a light colour fade; same background as the card.
+    column width=-1 height=PAGE_PHOTO
+      native "photo" key="page-photo:{place.id}" absolute=true top=0 left=0 width=-1 height=PAGE_PHOTO native_props=place.photo_props
+      native "blur" absolute=true bottom=0 left=0 width=-1 height=PAGE_BLUR native_props=PAGE_BLUR_STYLE
+      native "gradient" absolute=true bottom=0 left=0 width=-1 height=PAGE_FADE native_props=PAGE_FADE_COLORS
     column width=-1 pad_h=20 pad_v=18 gap=10
       text place.name size=26 font="brice-bold" color=TEXT lines=2
       text place.summary .label color=MUTED lines=1 width=place.inner
