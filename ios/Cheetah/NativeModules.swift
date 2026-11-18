@@ -1025,7 +1025,7 @@ private final class BlurNativeModule: CheetahNativeModule {
 
 private final class BlurView: UIView {
     private let effectView = UIVisualEffectView(effect: nil)
-    private let maskView = UIView()
+    private let fadeMaskView = UIView()
     private let maskGradient = CAGradientLayer()
     private var fade: String?
 
@@ -1034,7 +1034,7 @@ private final class BlurView: UIView {
         backgroundColor = .clear
         isUserInteractionEnabled = false
         addSubview(effectView)
-        maskView.layer.addSublayer(maskGradient)
+        fadeMaskView.layer.addSublayer(maskGradient)
     }
 
     required init?(coder: NSCoder) {
@@ -1058,14 +1058,14 @@ private final class BlurView: UIView {
         maskGradient.colors = [UIColor.clear.cgColor, UIColor.black.cgColor]
         maskGradient.startPoint = CGPoint(x: 0.5, y: fade == "bottom" ? 1 : 0)
         maskGradient.endPoint = CGPoint(x: 0.5, y: fade == "bottom" ? 0 : 1)
-        effectView.mask = fade == nil ? nil : maskView
+        effectView.mask = fade == nil ? nil : fadeMaskView
         setNeedsLayout()
     }
 
     override func layoutSubviews() {
         super.layoutSubviews()
         effectView.frame = bounds
-        maskView.frame = bounds
+        fadeMaskView.frame = bounds
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         maskGradient.frame = bounds
