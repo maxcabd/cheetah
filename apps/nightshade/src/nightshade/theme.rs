@@ -8,6 +8,8 @@ pub(crate) const RESULT_SHEET_HEIGHT: f32 = 120.0;
 /// (CAROUSEL_BOTTOM and CARD_HEIGHT in `views/theme.view`).
 pub(crate) const CAROUSEL_BOTTOM: f32 = 224.0;
 pub(crate) const CARD_HEIGHT: f32 = 320.0;
+/// A minimized card (MINI_CARD_HEIGHT in `views/theme.view`).
+pub(crate) const MINI_CARD_HEIGHT: f32 = 72.0;
 pub(crate) const SEARCH_BOTTOM_GAP: f32 = 4.0;
 /// Before a search: grabber, heading, suggestion chips, search bar.
 pub(crate) const IDLE_SHEET_HEIGHT: f32 = 320.0;

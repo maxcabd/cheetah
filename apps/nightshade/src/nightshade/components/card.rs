@@ -39,17 +39,57 @@ impl NightshadeApp {
         })
     }
 
+    /// Height of the result cards: full or minimized.
+    pub(crate) fn card_height(&self) -> f32 {
+        if self.cards_minimized {
+            MINI_CARD_HEIGHT
+        } else {
+            CARD_HEIGHT
+        }
+    }
+
     pub(crate) fn carousel_model(&self, context: &ViewContext, places: &[Place]) -> Value {
         let width = context.viewport.width.max(320.0);
         let card_width = width * 0.90;
         json!({
             "width": width,
+            // The page fits the card plus room for its scale-down.
+            "height": self.card_height() + 20.0,
+            "minimized": self.cards_minimized,
             "content_width": width * places.len() as f32,
             "scroll_x": self.selected as f32 * width,
             "card_width": card_width,
             "card_inner": card_width - 40.0,
             "card_controls": card_width - 32.0,
-            "places": places.iter().map(Self::card_model).collect::<Vec<_>>(),
+            "places": places
+                .iter()
+                .map(|place| {
+                    let mut card = Self::card_model(place);
+                    // The photo's dominant color, once it has loaded.
+                    if let Some(color) = self.photo_colors.get(&place.id) {
+                        card["color"] = color.as_str().into();
+                        card["light"] = is_light(color).into();
+                    }
+                    card
+                })
+                .collect::<Vec<_>>(),
         })
     }
+}
+
+/// Whether text on `color` ("#rrggbb") reads better dark: its relative
+/// luminance (sRGB, WCAG) is above the midpoint between black and white text.
+pub(crate) fn is_light(color: &str) -> bool {
+    let hex = color.trim_start_matches('#');
+    let channel = |index: usize| {
+        let value = u8::from_str_radix(hex.get(index..index + 2).unwrap_or("00"), 16).unwrap_or(0);
+        let value = value as f32 / 255.0;
+        if value <= 0.04045 {
+            value / 12.92
+        } else {
+            ((value + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let luminance = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+    luminance > 0.179
 }

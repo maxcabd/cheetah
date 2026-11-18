@@ -2,4 +2,6 @@
 
 mod card;
 mod sheet;
-mod widgets;
+
+#[cfg(test)]
+pub(crate) use card::is_light;

@@ -17,6 +17,9 @@ mod diff {
 mod element {
     pub use runtime::element::*;
 }
+mod gesture {
+    pub use runtime::gesture::*;
+}
 mod http {
     pub use runtime::http::*;
 }

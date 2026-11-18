@@ -70,7 +70,8 @@ impl NightshadeApp {
         // A pin's balloon stands above its coordinate, so the band's top
         // leaves room for it under the status bar.
         let band_top = self.host.safe_top.max(20.0) + PIN_HEIGHT + 8.0;
-        let band_bottom = (height - CAROUSEL_BOTTOM - CARD_HEIGHT - 12.0).max(band_top + 40.0);
+        // Minimized cards leave more map for the pins.
+        let band_bottom = (height - CAROUSEL_BOTTOM - self.card_height() - 12.0).max(band_top + 40.0);
         let band = band_bottom - band_top;
 
         // Mercator: a degree of latitude is 1/cos(lat) times taller on

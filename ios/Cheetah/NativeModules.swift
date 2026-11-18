@@ -154,7 +154,7 @@ private enum NativeModuleRegistry {
         case "shape":
             return ShapeNativeModule()
         case "photo":
-            return PhotoPagerNativeModule()
+            return PhotoPagerNativeModule(owner: owner)
         default:
             return ModuleRegistry.views[name].map { $0.init(owner: owner) }
         }
@@ -801,11 +801,27 @@ private final class IconNativeModule: CheetahNativeModule {
     ]
 }
 
+/// `native "photo"`: a paged photo. Once the first image loads it reports
+/// a `load` event, `{"index": 0, "color": "#rrggbb"}`: the image's dominant
+/// color, for views that match it (a card shrunk to its color).
 private final class PhotoPagerNativeModule: CheetahNativeModule {
     private let pager = PhotoPagerView()
 
     var nativeView: UIView {
         pager
+    }
+
+    init(owner: NativeModuleHostView) {
+        pager.onDominantColor = { [weak owner] color in
+            let payload = ["index": 0, "color": color] as [String: Any]
+            guard
+                let data = try? JSONSerialization.data(withJSONObject: payload),
+                let text = String(data: data, encoding: .utf8)
+            else {
+                return
+            }
+            owner?.event("load", text)
+        }
     }
 
     func apply(props: [String: Any]) {

@@ -312,12 +312,9 @@ fn views_render_the_empty_sheet() {
         chip.props.text.as_deref(),
         Some("Nearby spots that open late night")
     );
-    assert_eq!(
-        chip.props.width,
-        Some(NightshadeApp::chip_width(
-            "Nearby spots that open late night"
-        ))
-    );
+    // Sized by its measured text, never a guessed width that cuts it off.
+    assert_eq!(chip.props.width, None);
+    assert_eq!(chip.props.align.as_deref(), Some("center"));
 }
 
 #[test]
@@ -790,4 +787,63 @@ fn show_on_map_collapses_the_sheet_and_drops_the_keyboard() {
     click(&mut app, "show-on-map");
     assert!(!app.expanded);
     assert_eq!(app.field_mount, mount + 1);
+}
+
+#[test]
+fn swiping_a_card_handle_minimizes_and_restores_the_cards() {
+    let mut app = NightshadeApp::new(true);
+    let swipe = |app: &mut NightshadeApp, direction: &str| {
+        app.update(Event {
+            id: 0,
+            key: Some("handle:java".into()),
+            kind: "gesture".into(),
+            payload: format!(r#"{{"type":"swipe","state":"ended","direction":"{direction}"}}"#),
+        })
+    };
+    let card = |app: &NightshadeApp| {
+        let tree = render(app);
+        find(&tree, "place-java").expect("card").props.height
+    };
+    assert_eq!(card(&app), Some(320.0));
+    assert!(find(&render(&app), "handle:java").is_some(), "the card has a handle");
+
+    swipe(&mut app, "down");
+    assert!(app.cards_minimized);
+    assert_eq!(card(&app), Some(72.0), "same card, shrunk");
+    // The map gets the room the cards gave up.
+    let (_, _, minimized_span, _) = app.region(393.0, 852.0);
+
+    swipe(&mut app, "up");
+    assert!(!app.cards_minimized);
+    assert_eq!(card(&app), Some(320.0));
+    let (_, _, full_span, _) = app.region(393.0, 852.0);
+    assert!(minimized_span <= full_span);
+
+    // A tap on the handle toggles; a tap on a small card restores.
+    click(&mut app, "handle:java");
+    assert!(app.cards_minimized);
+    click(&mut app, "place-java");
+    assert!(!app.cards_minimized);
+}
+
+#[test]
+fn a_minimized_card_takes_its_photos_dominant_color() {
+    let mut app = NightshadeApp::new(true);
+    app.cards_minimized = true;
+    let card = |app: &NightshadeApp| {
+        let tree = render(app);
+        find(&tree, "place-java").expect("card").props.bg.clone()
+    };
+    assert_eq!(card(&app).as_deref(), Some("#1f1f1f"), "before the photo loads");
+
+    app.update(Event {
+        id: 0,
+        key: Some("photo:java".into()),
+        kind: "load".into(),
+        payload: r##"{"index":0,"color":"#2b3454"}"##.into(),
+    });
+    assert_eq!(card(&app).as_deref(), Some("#2b3454"));
+
+    assert!(!super::components::is_light("#2b3454"), "navy takes white text");
+    assert!(super::components::is_light("#f5e6c8"), "cream takes dark text");
 }

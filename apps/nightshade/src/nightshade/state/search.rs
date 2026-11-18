@@ -60,9 +60,18 @@ impl NightshadeApp {
         });
     }
 
+    pub(crate) fn minimize_cards(&mut self, minimized: bool) {
+        if self.cards_minimized != minimized {
+            self.cards_minimized = minimized;
+            self.haptic("selection");
+        }
+    }
+
     pub(crate) fn finish_search(&mut self, result: Result<SearchResponse, String>) {
         match result {
             Ok(response) => {
+                // New results start with full cards.
+                self.cards_minimized = false;
                 self.search = Resource::Ready(response);
                 self.selected = 0;
                 self.focused = false;

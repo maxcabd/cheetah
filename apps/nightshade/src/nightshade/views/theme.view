@@ -15,6 +15,8 @@ const SEARCH_BOTTOM_GAP = 4
 # step with theme.rs, which fits the map's pins above them.
 const CAROUSEL_BOTTOM = 224
 const CARD_HEIGHT = 320
+# A minimized card (theme.rs MINI_CARD_HEIGHT).
+const MINI_CARD_HEIGHT = 72
 const CARD_HEADER = 180
 const CARD_BODY = 140
 

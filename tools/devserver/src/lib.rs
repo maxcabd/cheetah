@@ -427,6 +427,9 @@ fn watch_live_edits(dirs: Vec<PathBuf>) {
 // ---------------------------------------------------------------------------
 
 /// Host that forwards ops to the connected device and asks it to measure.
+/// How often an idle connection is pinged (see `keepalive`).
+const KEEPALIVE: Duration = Duration::from_secs(25);
+
 struct WsHost {
     out: UnboundedSender<Message>,
     seq: AtomicU64,
@@ -711,6 +714,23 @@ async fn serve(
         }
     });
 
+    // Tunnels and proxies (Cloudflare closes WebSockets idle for 100 s) drop
+    // a quiet connection, and every reconnect starts a fresh app. A ping
+    // every 25 s keeps it open; the device answers pings by itself.
+    let keepalive = {
+        let host = Arc::clone(&host);
+        tokio::spawn(async move {
+            let mut tick = tokio::time::interval(KEEPALIVE);
+            tick.tick().await;
+            loop {
+                tick.tick().await;
+                if host.out.send(Message::Ping(Default::default())).is_err() {
+                    break;
+                }
+            }
+        })
+    };
+
     let dyn_host = Arc::clone(&host) as Arc<dyn Host>;
     let runtime = match source {
         AppSource::Named(app) => DevRuntime::spawn(dyn_host, store_path, GATEWAY_URL, app),
@@ -741,6 +761,7 @@ async fn serve(
         CURRENT.lock().unwrap().take();
     }
     host.close();
+    keepalive.abort();
     writer.abort();
     // Joining the actor thread blocks; keep it off the async workers.
     let _ = tokio::task::spawn_blocking(move || drop(runtime)).await;

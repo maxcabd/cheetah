@@ -10,6 +10,8 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
     private var source = ""
     private var pages = 5
     private var image: UIImage?
+    /// The first image's dominant color ("#rrggbb"), once per image.
+    var onDominantColor: ((String) -> Void)?
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -41,8 +43,22 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
             image = UIImage(named: name)
                 ?? UIImage(named: (name as NSString).deletingPathExtension)
                 ?? UIImage(contentsOfFile: name)
+            reportDominantColor()
         }
         rebuild()
+    }
+
+    /// Off the main thread: shrinking and counting colors costs a few ms.
+    private func reportDominantColor() {
+        guard let image else { return }
+        let source = self.source
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let color = image.dominantColorHex() else { return }
+            DispatchQueue.main.async {
+                guard let self, self.source == source else { return }
+                self.onDominantColor?(color)
+            }
+        }
     }
 
     override func layoutSubviews() {

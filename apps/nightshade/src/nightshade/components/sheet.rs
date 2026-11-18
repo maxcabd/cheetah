@@ -94,7 +94,6 @@ impl NightshadeApp {
                 json!({
                     "label": label,
                     "key": format!("{prefix}:{index}"),
-                    "width": Self::chip_width(label),
                 })
             })
             .collect()

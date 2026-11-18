@@ -58,6 +58,11 @@ pub struct NightshadeApp {
     center: Option<(f32, f32)>,
     /// Satellite imagery instead of the street map (top-right map button).
     satellite: bool,
+    /// Result cards shrunk to small bars (swipe a card's handle down).
+    cards_minimized: bool,
+    /// Each place's photo's dominant color ("#rrggbb"), reported by the
+    /// card's `photo` once its first image loads.
+    photo_colors: std::collections::HashMap<String, String>,
     /// Where state is saved for the next launch (`with_state_file`).
     state_file: Option<std::path::PathBuf>,
     calls: Vec<NativeCall>,
@@ -94,6 +99,8 @@ impl NightshadeApp {
             field_mount: 0,
             center: None,
             satellite: false,
+            cards_minimized: false,
+            photo_colors: std::collections::HashMap::new(),
             state_file: None,
             calls: vec![NativeCall::new("location", "request", "{}")],
             actions: Vec::new(),
@@ -223,6 +230,28 @@ impl App for NightshadeApp {
             "marker" => {
                 self.select_place(&event.payload);
             }
+            // A card photo loaded: remember its dominant color.
+            "load" if key.starts_with("photo:") => {
+                let id = &key["photo:".len()..];
+                let color = serde_json::from_str::<serde_json::Value>(&event.payload)
+                    .ok()
+                    .and_then(|data| data["color"].as_str().map(str::to_string));
+                if let Some(color) = color {
+                    self.photo_colors.insert(id.to_string(), color);
+                }
+            }
+            // A card's handle: swipe down to minimize the cards, up to restore.
+            "gesture" if key.starts_with("handle:") => {
+                if let Some(gesture) = crate::gesture::Gesture::parse(&event) {
+                    if gesture.kind == "swipe" {
+                        match gesture.direction.as_str() {
+                            "down" => self.minimize_cards(true),
+                            "up" => self.minimize_cards(false),
+                            _ => {}
+                        }
+                    }
+                }
+            }
             "page" if key == "places" => {
                 if let Ok(index) = event.payload.parse::<usize>() {
                     if self
@@ -268,6 +297,11 @@ impl App for NightshadeApp {
                     self.field_mount += 1;
                 } else if let Some(id) = key.strip_prefix("place:") {
                     self.select_place(id);
+                } else if key.starts_with("handle:") {
+                    self.minimize_cards(!self.cards_minimized);
+                } else if key.starts_with("place-") && self.cards_minimized {
+                    // Tapping a small card brings the cards back.
+                    self.minimize_cards(false);
                 } else if key.starts_with("card:") {
                     // Card actions are visual for now.
                 }

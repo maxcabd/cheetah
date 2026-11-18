@@ -1,15 +1,30 @@
 # Place cards in a paged carousel above the sheet.
 
+# Swiping a card's handle down minimizes every card to a small bar (same
+# color, name and hours); swiping up, or tapping the handle or a small card,
+# brings them back. The carousel shrinks with them so the map stays usable.
 component Carousel
-  hscroll key="places" absolute=true bottom=CAROUSEL_BOTTOM left=0 width=carousel.width height=340 paged=true page_scale=0.85 scroll_x=carousel.scroll_x content_width=carousel.content_width
+  hscroll key="places" absolute=true bottom=CAROUSEL_BOTTOM left=0 width=carousel.width height=carousel.height animate=true transition_ms=380 spring=true paged=true page_scale=0.85 scroll_x=carousel.scroll_x content_width=carousel.content_width
     for place in carousel.places
-      column width=carousel.width height=340 align_items="center" justify="end"
-        use Card place=place width=carousel.card_width inner=carousel.card_inner controls=carousel.card_controls
+      column width=carousel.width height=carousel.height align_items="center" justify="end"
+        if carousel.minimized
+          use MiniCard place=place width=carousel.card_width inner=carousel.card_inner
+        else
+          use Card place=place width=carousel.card_width inner=carousel.card_inner controls=carousel.card_controls
+
+# The grab handle at the top of a card: swipe it down to minimize, up to
+# restore; a tap toggles. Only the handle takes swipes, so swiping the rest
+# of the card still pages the carousel.
+component CardHandle
+  row key="handle:{place.id}" pressable=true gestures="swipe" width=120 height=22 .center
+    row width=36 height=5 radius=2.5 bg=pill
 
 component Card
   column key="place-{place.id}" pressable=true animate=true width=width height=CARD_HEIGHT bg=CARD_BG radius=28 clip=true border=2 border_color="#ffffff08"
     column width=width height=CARD_HEADER justify="end" pad_bottom=12
-      native "photo" absolute=true top=0 left=0 width=width height=CARD_HEADER native_props="{{\"src\":\"asset://second-cup-card-full.jpeg\",\"pages\":5}}"
+      native "photo" key="photo:{place.id}" absolute=true top=0 left=0 width=width height=CARD_HEADER native_props="{{\"src\":\"asset://second-cup-card-full.jpeg\",\"pages\":5}}"
+      column absolute=true top=0 left=0 width=width height=22 align_items="center"
+        use CardHandle place=place pill="#ffffff47"
       row absolute=true top=16 left=16 width=controls height=38 justify="space-between" align_items="center"
         use GlassIcon icon="chevron-up" key="card:up"
         row height=38 gap=8 align_items="center"
@@ -22,12 +37,23 @@ component Card
         text place.address .label color="#fffffff2" width=120 lines=1
         use Icon name="car" size=14 color="#ffffff"
         text "{place.distance} • {place.drive_minutes} min • {place.price}" .label color="#fffffff2"
-      use Hours place=place inner=inner
+      use Hours place=place inner=inner fg="#ffffff" muted="#ffffffb3"
       if place.has_rating
         row width=150 height=30 pad_h=12 gap=8 radius=15 border=1 border_color="#404040" align_items="center"
           row width=16 height=16 radius=8 bg="#ffffff" .center
             use Icon name="google" size=9 color="#4285F4"
           text place.rating size=12 font="satoshi-medium" color="#ffffff" width=80 height=16
+
+# A minimized card: the same card, shrunk to its handle, name and hours, in
+# its photo's dominant color (`place.color`, once the photo has loaded; dark
+# text on light colors). Same key as Card, so it shrinks in place.
+component MiniCard
+  column key="place-{place.id}" pressable=true animate=true width=width height=MINI_CARD_HEIGHT bg=place.color ? place.color : CARD_BG radius=24 clip=true border=2 border_color="#ffffff14"
+    column width=width height=22 align_items="center"
+      use CardHandle place=place pill=place.light ? "#0000002e" : "#ffffff47"
+    column width=width height=50 pad_h=20 gap=4
+      text place.name size=16 font="brice-bold" color=place.light ? "#111111" : "#ffffff" lines=1 height=20
+      use Hours place=place inner=inner fg=place.light ? "#111111" : "#ffffff" muted=place.light ? "#111111a6" : "#ffffffb3"
 
 # Open / closed line. `place.opens` is "8:00 AM" today (`opens_today`), else
 # "tomorrow at 9:00 AM" / "Fri at 8:00 AM".
@@ -35,13 +61,13 @@ component Hours
   if place.status == "open"
     row width=inner .line
       text "Open" .label font="satoshi-bold" color=GREEN width=38
-      text "·" .label width=10
-      text place.closes ? "Closes at {place.closes}" : "" .label width=130
+      text "·" .label color=fg width=10
+      text place.closes ? "Closes at {place.closes}" : "" .label color=fg width=130
   if place.status == "closed"
     row width=inner .line
       text "Closed" .label font="satoshi-bold" color=RED width=48
-      text "·" .label width=10
-      text place.opens_today ? "Opens at {place.opens}" : "Opens {place.opens}" .label color="#ffffffb3" width=130
+      text "·" .label color=fg width=10
+      text place.opens_today ? "Opens at {place.opens}" : "Opens {place.opens}" .label color=muted width=130
   if place.status == "unknown"
     row width=inner height=18
-      text "Hours unavailable" .label color="#ffffffb3" width=160
+      text "Hours unavailable" .label color=muted width=160
