@@ -28,6 +28,7 @@ impl NightshadeApp {
                     "lat_delta": latitude_delta,
                     "lng_delta": longitude_delta,
                     "satellite": self.satellite,
+                    "locating": self.locating,
                     "pins": self.pins(),
                     "safe_top": self.host.safe_top.max(20.0),
                 },
@@ -47,52 +48,102 @@ impl NightshadeApp {
     /// pins fit the band between the status bar and the cards, so the cards
     /// never cover them.
     pub(crate) fn region(&self, width: f32, height: f32) -> (f32, f32, f32, f32) {
+        let (latitude, longitude, latitude_delta, longitude_delta) =
+            self.fitted_region(width, height);
+        // The native map skips a region it already shows, so after the user
+        // pans by hand, locating again would change nothing: each tap nudges
+        // the zoom by 0.01% (invisible) to make it a new region.
+        // TODO: a "recenter" field in the map's native_props would say this
+        // directly (needs a build).
+        let nudge = 1.0 + 1e-4 * (self.locate_taps % 2) as f32;
+        (latitude, longitude, latitude_delta * nudge, longitude_delta * nudge)
+    }
+
+    /// The points the map fits: the user (when locating) and the places.
+    fn region_points(&self) -> Vec<(f32, f32)> {
+        let user = self.center.filter(|_| self.locating);
         if !self.has_results() {
+            return user.into_iter().collect();
+        }
+        let places = self.visible_places();
+        if let Some(user) = user {
+            // You and the three places nearest you.
+            let mut nearest: Vec<&Place> = places.iter().collect();
+            nearest.sort_by(|a, b| {
+                distance_km(user, (a.lat, a.lng)).total_cmp(&distance_km(user, (b.lat, b.lng)))
+            });
+            return std::iter::once(user)
+                .chain(nearest.iter().take(3).map(|p| (p.lat, p.lng)))
+                .collect();
+        }
+        if self.focused || places.len() == 1 {
+            places
+                .get(self.selected)
+                .or(places.first())
+                .map(|p| vec![(p.lat, p.lng)])
+                .unwrap_or_default()
+        } else {
+            places.iter().map(|p| (p.lat, p.lng)).collect()
+        }
+    }
+
+    fn fitted_region(&self, width: f32, height: f32) -> (f32, f32, f32, f32) {
+        let points = self.region_points();
+        if points.is_empty() {
             let (latitude, longitude) = self.center.unwrap_or((INITIAL_LAT, INITIAL_LNG));
             return (latitude, longitude, 0.025, 0.025);
         }
-
-        let places = self.visible_places();
-        let Some(first) = places.first() else {
-            return (INITIAL_LAT, INITIAL_LNG, 0.025, 0.025);
-        };
-        let shown: Vec<&Place> = if self.focused || places.len() == 1 {
-            vec![places.get(self.selected).unwrap_or(first)]
-        } else {
-            places.iter().collect()
-        };
-        let min_lat = shown.iter().map(|p| p.lat).fold(f32::MAX, f32::min);
-        let max_lat = shown.iter().map(|p| p.lat).fold(f32::MIN, f32::max);
-        let min_lng = shown.iter().map(|p| p.lng).fold(f32::MAX, f32::min);
-        let max_lng = shown.iter().map(|p| p.lng).fold(f32::MIN, f32::max);
+        let min_lat = points.iter().map(|p| p.0).fold(f32::MAX, f32::min);
+        let max_lat = points.iter().map(|p| p.0).fold(f32::MIN, f32::max);
+        let min_lng = points.iter().map(|p| p.1).fold(f32::MAX, f32::min);
+        let max_lng = points.iter().map(|p| p.1).fold(f32::MIN, f32::max);
 
         let (width, height) = (width.max(1.0), height.max(1.0));
         // A pin's balloon stands above its coordinate, so the band's top
         // leaves room for it under the status bar.
         let band_top = self.host.safe_top.max(20.0) + PIN_HEIGHT + 8.0;
-        // Minimized cards leave more map for the pins.
-        let band_bottom = (height - CAROUSEL_BOTTOM - self.card_height() - 12.0).max(band_top + 40.0);
+        // Minimized cards leave more map for the pins; with no results the
+        // band runs down to the sheet.
+        let bottom_edge = if self.has_results() {
+            CAROUSEL_BOTTOM + self.card_height() + 12.0
+        } else {
+            IDLE_SHEET_HEIGHT + 12.0
+        };
+        let band_bottom = (height - bottom_edge).max(band_top + 40.0);
         let band = band_bottom - band_top;
 
         // Mercator: a degree of latitude is 1/cos(lat) times taller on
         // screen than a degree of longitude is wide.
         let mid_lat = (min_lat + max_lat) / 2.0;
         let cos = mid_lat.to_radians().cos().max(0.1);
-        // One pin (a focused card) zooms in to its street; several keep a
-        // neighbourhood-wide minimum so close pins don't crowd.
-        let min_span = if shown.len() == 1 { FOCUS_MIN_SPAN } else { OVERVIEW_MIN_SPAN };
+        // One point (a focused card, or you) zooms in to its street; several
+        // keep a neighbourhood-wide minimum so close pins don't crowd.
+        let min_span = if points.len() == 1 { FOCUS_MIN_SPAN } else { OVERVIEW_MIN_SPAN };
         let lat_span = (max_lat - min_lat).max(min_span);
         let lng_span = (max_lng - min_lng).max(min_span);
-        // Degrees of latitude per screen point for the pins to fit the band
-        // (with a margin), and for their width to fit the screen.
+        // Degrees of latitude per screen point for the points to fit the
+        // band (with a margin), and for their width to fit the screen.
         let per_point = (lat_span * 1.2 / band).max(lng_span * cos * 1.2 / (width - 48.0));
         let latitude_delta = per_point * height;
         let longitude_delta = latitude_delta / cos * width / height;
-        // Put the pins' midpoint at the band's middle, above screen center.
+        // Put the points' midpoint at the band's middle, above screen center.
         let band_mid = (band_top + band_bottom) / 2.0;
         let latitude = mid_lat - (height / 2.0 - band_mid) * per_point;
         let longitude = (min_lng + max_lng) / 2.0;
         (latitude, longitude, latitude_delta, longitude_delta)
+    }
+
+    /// The locate button: center on the user (with the nearest results).
+    /// Without a location yet, ask for one again.
+    pub(crate) fn locate(&mut self) {
+        if self.center.is_none() {
+            self.calls.push(NativeCall::new("location", "request", "{}"));
+            return;
+        }
+        self.locating = true;
+        self.focused = false;
+        self.locate_taps += 1;
+        self.haptic("selection");
     }
 
     /// Map pins as data; `views/map.view` (MapPin) decides how they look.

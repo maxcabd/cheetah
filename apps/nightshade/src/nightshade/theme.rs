@@ -8,6 +8,11 @@ pub(crate) const RESULT_SHEET_HEIGHT: f32 = 120.0;
 /// (CAROUSEL_BOTTOM and CARD_HEIGHT in `views/theme.view`).
 pub(crate) const CAROUSEL_BOTTOM: f32 = 224.0;
 pub(crate) const CARD_HEIGHT: f32 = 320.0;
+/// Card width as a fraction of the screen; the rest shows the neighbouring
+/// cards peeking in.
+pub(crate) const CARD_WIDTH_FRACTION: f32 = 0.78;
+/// Space between cards in the carousel.
+pub(crate) const CARD_GAP: f32 = 10.0;
 /// A minimized card (MINI_CARD_HEIGHT in `views/theme.view`).
 pub(crate) const MINI_CARD_HEIGHT: f32 = 72.0;
 pub(crate) const SEARCH_BOTTOM_GAP: f32 = 4.0;

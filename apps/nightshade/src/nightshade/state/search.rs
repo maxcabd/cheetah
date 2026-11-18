@@ -70,8 +70,9 @@ impl NightshadeApp {
     pub(crate) fn finish_search(&mut self, result: Result<SearchResponse, String>) {
         match result {
             Ok(response) => {
-                // New results start with full cards.
+                // New results start with full cards, framed on the map.
                 self.cards_minimized = false;
+                self.locating = false;
                 self.search = Resource::Ready(response);
                 self.selected = 0;
                 self.focused = false;
@@ -108,6 +109,7 @@ impl NightshadeApp {
         if let Some(index) = response.places.iter().position(|place| place.id == id) {
             self.selected = index;
             self.focused = true;
+            self.locating = false;
             self.haptic("selection");
         }
     }

@@ -1237,9 +1237,10 @@ final class RustHost: NSObject {
         view.layer.cornerRadius = radius
         view.layer.cornerCurve = .continuous
         if let scroll = view as? UIScrollView {
-            // Rows include overscan outside the viewport. UIScrollView must
-            // clip even when it has no corner radius.
-            scroll.clipsToBounds = true
+            // Rows include overscan outside the viewport, so scroll views clip
+            // even without a corner radius, unless the view says `clip=false`
+            // (a carousel whose neighbouring pages peek in).
+            scroll.clipsToBounds = (props["clip"] as? Bool) ?? true
         } else if let glass = view as? GlassView {
             glass.updateShape(radius: radius)
         } else {

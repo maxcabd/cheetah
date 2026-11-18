@@ -50,14 +50,20 @@ impl NightshadeApp {
 
     pub(crate) fn carousel_model(&self, context: &ViewContext, places: &[Place]) -> Value {
         let width = context.viewport.width.max(320.0);
-        let card_width = width * 0.90;
+        // Cards narrower than the screen, one per page: the carousel is one
+        // page wide and centered, and doesn't clip, so the neighbouring
+        // cards peek in at the edges to show there are more results.
+        let card_width = width * CARD_WIDTH_FRACTION;
+        let page = card_width + CARD_GAP;
         json!({
             "width": width,
+            "page": page,
+            "left": (width - page) / 2.0,
             // The page fits the card plus room for its scale-down.
             "height": self.card_height() + 20.0,
             "minimized": self.cards_minimized,
-            "content_width": width * places.len() as f32,
-            "scroll_x": self.selected as f32 * width,
+            "content_width": page * places.len() as f32,
+            "scroll_x": self.selected as f32 * page,
             "card_width": card_width,
             "card_inner": card_width - 40.0,
             "card_controls": card_width - 32.0,

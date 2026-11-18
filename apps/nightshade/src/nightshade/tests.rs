@@ -759,7 +759,7 @@ fn the_view_styles_the_native_sheet_and_carousel() {
     assert_eq!(sheet_style(&app)["cornerRadius"], 54);
 
     let tree = render(&app);
-    assert_eq!(find(&tree, "places").expect("carousel").props.page_scale, Some(0.85));
+    assert_eq!(find(&tree, "places").expect("carousel").props.page_scale, Some(0.9));
 }
 
 #[test]
@@ -846,4 +846,50 @@ fn a_minimized_card_takes_its_photos_dominant_color() {
 
     assert!(!super::components::is_light("#2b3454"), "navy takes white text");
     assert!(super::components::is_light("#f5e6c8"), "cream takes dark text");
+}
+
+#[test]
+fn the_locate_button_centers_on_the_user_until_a_card_takes_over() {
+    let mut app = NightshadeApp::new(true);
+    let (width, height) = (393.0, 852.0);
+    // No location yet: the button asks for one again.
+    app.center = None;
+    app.take_native_calls();
+    click(&mut app, "map:locate");
+    assert!(!app.locating);
+    assert!(app.take_native_calls().iter().any(|call| call.module == "location"));
+
+    app.center = Some((37.7700, -122.4150));
+    let results = app.region(width, height);
+    click(&mut app, "map:locate");
+    assert!(app.locating);
+    let located = app.region(width, height);
+    assert_ne!(located, results, "the map moves to you");
+    let tree = render(&app);
+    let button = find(&tree, "map:locate").expect("locate button");
+    assert!(format!("{:?}", button.children).contains("location.fill"), "filled while following");
+
+    // Tapping again after panning by hand still moves the map.
+    click(&mut app, "map:locate");
+    assert_ne!(app.region(width, height), located);
+
+    // Picking a card hands the map back to the results.
+    app.update(Event { id: 0, key: Some("places".into()), kind: "page".into(), payload: "1".into() });
+    assert!(!app.locating);
+}
+
+#[test]
+fn neighbouring_cards_peek_in_at_the_edges() {
+    let mut app = NightshadeApp::new(true);
+    app.selected = 1;
+    let tree = render(&app);
+    let carousel = find(&tree, "places").expect("carousel");
+    let page = carousel.props.width.unwrap();
+    let card = find(&tree, "place-java").unwrap().props.width.unwrap();
+    // One card per page, narrower than the screen, centered, unclipped.
+    assert!(page < 393.0 * 0.85 && card < page);
+    assert_eq!(carousel.props.clip, Some(false));
+    assert!((carousel.props.left.unwrap() - (393.0 - page) / 2.0).abs() < 0.01);
+    // Paging moves one card at a time.
+    assert!((carousel.props.scroll_x.unwrap() - page).abs() < 0.01);
 }

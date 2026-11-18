@@ -4,17 +4,22 @@ component MapScreen
     map key="map" width=-1 height=-1 bg="#101826" test_id="nightshade-map" map_latitude=region.lat map_longitude=region.lng map_latitude_delta=region.lat_delta map_longitude_delta=region.lng_delta map_dark=true map_shows_user=true native_props=region.satellite ? "{{\"mapType\":\"hybrid\"}}" : "{{\"mapType\":\"muted\"}}"
       for pin in region.pins
         use MapPin pin=pin
-    # Street map / satellite toggle, 36pt under the status bar, showing the
-    # mode it switches to. Liquid Glass on iOS 26, a blur before.
-    column absolute=true top=region.safe_top right=16 width=48 height=84 justify="end"
-      glass key="map:type" pressable=true width=48 height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true .center
-        use Icon name=region.satellite ? "map.fill" : "globe.americas.fill" size=24 color="#ffffff"
+    # Map controls, top right from 36pt under the status bar: street map /
+    # satellite (showing the mode it switches to), then locate me (filled
+    # while the map follows you). Liquid Glass on iOS 26, a blur before.
+    column absolute=true top=region.safe_top right=16 width=48 height=140 gap=8 justify="end"
+      use MapButton key="map:type" icon=region.satellite ? "map.fill" : "globe.americas.fill"
+      use MapButton key="map:locate" icon=region.locating ? "location.fill" : "location"
     if carousel
       use Carousel carousel=carousel
     use Sheet sheet=sheet
 
 # A map pin: any child of `map` with map_latitude/map_longitude is placed at
 # that coordinate. Glass is Liquid Glass on iOS 26 and a blur before.
+component MapButton
+  glass key=key pressable=true width=48 height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true .center
+    use Icon name=icon size=22 color="#ffffff"
+
 component MapPin
   if pin.state == "selected"
     use TeardropMarker pin=pin w=40 h=48 outer=96 icon_size=17 look=MARKER_RED

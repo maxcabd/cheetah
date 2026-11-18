@@ -58,6 +58,11 @@ pub struct NightshadeApp {
     center: Option<(f32, f32)>,
     /// Satellite imagery instead of the street map (top-right map button).
     satellite: bool,
+    /// The map centers on the user (locate button) until a card, pin or
+    /// search takes it back.
+    locating: bool,
+    /// Locate taps, so each one moves the map even if it hasn't changed.
+    locate_taps: u32,
     /// Result cards shrunk to small bars (swipe a card's handle down).
     cards_minimized: bool,
     /// Each place's photo's dominant color ("#rrggbb"), reported by the
@@ -99,6 +104,8 @@ impl NightshadeApp {
             field_mount: 0,
             center: None,
             satellite: false,
+            locating: false,
+            locate_taps: 0,
             cards_minimized: false,
             photo_colors: std::collections::HashMap::new(),
             state_file: None,
@@ -260,6 +267,7 @@ impl App for NightshadeApp {
                     {
                         self.selected = index;
                         self.focused = true;
+                        self.locating = false;
                         self.haptic("selection");
                     }
                 }
@@ -288,6 +296,8 @@ impl App for NightshadeApp {
                     self.send_draft();
                 } else if key == "search:clear" {
                     self.clear_search();
+                } else if key == "map:locate" {
+                    self.locate();
                 } else if key == "map:type" {
                     self.satellite = !self.satellite;
                     self.haptic("selection");

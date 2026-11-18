@@ -3,10 +3,12 @@
 # Swiping a card's handle down minimizes every card to a small bar (same
 # color, name and hours); swiping up, or tapping the handle or a small card,
 # brings them back. The carousel shrinks with them so the map stays usable.
+# Pages are one card wide and the carousel doesn't clip, so the cards on
+# either side peek in (smaller: page_scale) to show there are more results.
 component Carousel
-  hscroll key="places" absolute=true bottom=CAROUSEL_BOTTOM left=0 width=carousel.width height=carousel.height animate=true transition_ms=380 spring=true paged=true page_scale=0.85 scroll_x=carousel.scroll_x content_width=carousel.content_width
+  hscroll key="places" absolute=true bottom=CAROUSEL_BOTTOM left=carousel.left width=carousel.page height=carousel.height clip=false animate=true transition_ms=380 spring=true paged=true page_scale=0.9 scroll_x=carousel.scroll_x content_width=carousel.content_width
     for place in carousel.places
-      column width=carousel.width height=carousel.height align_items="center" justify="end"
+      column width=carousel.page height=carousel.height align_items="center" justify="end"
         if carousel.minimized
           use MiniCard place=place width=carousel.card_width inner=carousel.card_inner
         else
