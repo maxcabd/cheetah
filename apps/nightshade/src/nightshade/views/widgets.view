@@ -15,6 +15,11 @@ component ActionButton
 # A pressable suggestion pill, as wide as its label: no width, so the
 # layout measures the text. `bold` makes the measurement use bold text,
 # close to Satoshi Bold (measuring ignores `font`); the padding absorbs the
-# rest, so the label is never cut off. Text centered both ways.
+# rest, so the label is never cut off. Text centered both ways. Liquid Glass
+# on iOS 26 (`glass`), a solid pill before.
 component Chip
-  text label key=key pressable=true size=14 font="satoshi-bold" bold=true color="#ffffff" .chip_frame pad_h=16 height=42 lines=1 align="center" radius=18
+  if glass
+    glass key=key pressable=true height=42 pad_h=16 radius=18 glass_style="regular" glass_interactive=true .center
+      text label size=14 font="satoshi-bold" bold=true color="#ffffff" lines=1 align="center"
+  else
+    text label key=key pressable=true size=14 font="satoshi-bold" bold=true color="#ffffff" .chip_frame pad_h=16 height=42 lines=1 align="center" radius=18

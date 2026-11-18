@@ -7,7 +7,7 @@ pub(crate) const RESULT_SHEET_HEIGHT: f32 = 120.0;
 /// Result cards: their bottom edge above the screen bottom, and height
 /// (CAROUSEL_BOTTOM and CARD_HEIGHT in `views/theme.view`).
 pub(crate) const CAROUSEL_BOTTOM: f32 = 224.0;
-pub(crate) const CARD_HEIGHT: f32 = 320.0;
+pub(crate) const CARD_HEIGHT: f32 = 280.0;
 /// Card width as a fraction of the screen; the rest shows the neighbouring
 /// cards peeking in.
 pub(crate) const CARD_WIDTH_FRACTION: f32 = 0.78;

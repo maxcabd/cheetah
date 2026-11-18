@@ -15,11 +15,11 @@ component Sheet
         if sheet.body == "collapsed"
           column width=-1 height=sheet.body_height
         if sheet.body == "results"
-          use ResultsBody query=sheet.query followups=sheet.followups show_followups=sheet.show_followups
+          use ResultsBody query=sheet.query notice=sheet.notice followups=sheet.followups show_followups=sheet.show_followups glass=sheet.glass
         if sheet.body == "searching"
           use SearchingBody query=sheet.query emoji=sheet.searching_emoji
         if sheet.body == "empty"
-          use EmptyBody suggestions=sheet.suggestions
+          use EmptyBody suggestions=sheet.suggestions glass=sheet.glass
       use SearchBar placeholder=sheet.placeholder draft=sheet.draft can_send=sheet.can_send results=sheet.results glass=sheet.glass field_key=sheet.field_key
       column width=-1 height=sheet.bottom_gap
 
@@ -35,8 +35,13 @@ component SearchBar
       else
         row weight=1 height=SEARCH_HEIGHT bg=CHIP_BG border=1 border_color="#2d2d2d" radius=26 align_items="center"
           use SearchField placeholder=placeholder draft=draft can_send=can_send field_key=field_key
+      # Clear: Liquid Glass beside the glass field on iOS 26, solid before.
       if results
-        use ActionButton icon="xmark" key="search:clear" bg=CHIP_BG size=44 radius=22 label="Clear"
+        if glass
+          glass key="search:clear" pressable=true width=44 height=44 radius=22 glass_style="regular" glass_interactive=true label="Clear" .center
+            use Icon name="xmark" size=16 color="#ffffff"
+        else
+          use ActionButton icon="xmark" key="search:clear" bg=CHIP_BG size=44 radius=22 label="Clear"
 
 # Full width: inside glass (a centered column) `weight` only sets height,
 # and the row would shrink to its icon, leaving no room for text.
@@ -63,19 +68,34 @@ component EmptyBody
       column width=648 height=200 pad_h=24 justify="center"
         row width=600 wrap=true gap=10 align_items="center"
           for chip in suggestions
-            use Chip label=chip.label key=chip.key
+            use Chip label=chip.label key=chip.key glass=glass
 
 component ResultsBody
   column .sheet_body gap=8
     text query .heading
-    text "Alright, here's what I'd check out if I were you." size=16 font="satoshi-medium" line_height=20 color=MUTED height=20
-    row key="show-on-map" pressable=true width=154 height=40 pad_h=16 gap=10 radius=18 .chip_frame align_items="center"
-      text "Show on map" .label width=96
-      use Icon name="chevron-right" size=12 color="#ffffff"
+    # The backend's notice when the results don't fully match (a relaxed
+    # dietary filter), else the usual line.
+    text notice ? notice : "Alright, here's what I'd check out if I were you." size=16 font="satoshi-medium" line_height=20 color=MUTED lines=2 height=notice ? 40 : 20
+    # Sized by its label (one line, measured: no fixed width to spill out of),
+    # with even padding, so label and chevron sit centered. The outer row
+    # keeps the column from stretching the chip to full width. Liquid Glass
+    # on iOS 26, a solid pill before.
+    row width=-1 height=40
+      if glass
+        glass key="show-on-map" pressable=true height=40 pad_h=18 radius=18 glass_style="regular" glass_interactive=true .center
+          row height=40 gap=8 align_items="center"
+            use ShowOnMapLabel
+      else
+        row key="show-on-map" pressable=true height=40 pad_h=18 gap=8 radius=18 .chip_frame align_items="center" justify="center"
+          use ShowOnMapLabel
     if show_followups
       row width=-1 wrap=true gap=10
         for chip in followups
-          use Chip label=chip.label key=chip.key
+          use Chip label=chip.label key=chip.key glass=glass
+
+component ShowOnMapLabel
+  text "Show on map" .label bold=true lines=1 align="center"
+  use Icon name="chevron-right" size=12 color="#ffffff"
 
 component SearchingBody
   column .sheet_body gap=10

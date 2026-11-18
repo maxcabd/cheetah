@@ -71,6 +71,7 @@ impl NightshadeApp {
             "bottom_gap": self.search_bottom_gap(),
             "body": body,
             "query": self.query,
+            "notice": self.response().and_then(|response| response.notice.clone()),
             "searching_emoji": SEARCHING_EMOJIS[self.searching_frame % SEARCHING_EMOJIS.len()],
             "followups": followups,
             "show_followups": self.expanded && self.response().is_some(),

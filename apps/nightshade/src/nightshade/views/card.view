@@ -21,10 +21,11 @@ component CardHandle
   row key="handle:{place.id}" pressable=true gestures="swipe" width=120 height=22 .center
     row width=36 height=5 radius=2.5 bg=pill
 
+# Tapping a card opens its page, growing out of the card (test_id).
 component Card
-  column key="place-{place.id}" pressable=true animate=true width=width height=CARD_HEIGHT bg=CARD_BG radius=28 clip=true border=2 border_color="#ffffff08"
+  column key="place-{place.id}" pressable=true link="/restaurant/{place.id}" transition="zoom" test_id="card-{place.id}" animate=true width=width height=CARD_HEIGHT bg=CARD_BG radius=28 clip=true border=2 border_color="#ffffff08"
     column width=width height=CARD_HEADER justify="end" pad_bottom=12
-      native "photo" key="photo:{place.id}" absolute=true top=0 left=0 width=width height=CARD_HEADER native_props="{{\"src\":\"asset://second-cup-card-full.jpeg\",\"pages\":5}}"
+      native "photo" key="photo:{place.id}" absolute=true top=0 left=0 width=width height=CARD_HEADER native_props=place.photo_props
       column absolute=true top=0 left=0 width=width height=22 align_items="center"
         use CardHandle place=place pill="#ffffff47"
       row absolute=true top=16 left=16 width=controls height=38 justify="space-between" align_items="center"
@@ -33,7 +34,7 @@ component Card
           use GlassIcon icon="bookmark" key="card:bookmark"
           use GlassIcon icon="share" key="card:share"
           use GlassIcon icon="plus" key="card:plus"
-    column width=width height=CARD_BODY bg=CARD_BG pad_h=20 pad_v=12 pad_bottom=20 gap=6
+    column width=width height=CARD_BODY bg=CARD_BG pad_h=20 pad_v=12 pad_bottom=12 gap=6
       text place.name size=18 font="brice-bold" color="#ffffff" lines=1 height=22
       row width=inner .line gap=6
         text place.address .label color="#fffffff2" width=120 lines=1

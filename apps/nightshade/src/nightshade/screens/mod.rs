@@ -1,3 +1,5 @@
-//! Screens. Nightshade has one: the map with its search sheet.
+//! Screens: the map with its search sheet (the root, `/`), and the pages
+//! the router opens over it (`views/pages/`, e.g. `/restaurant/[id]`).
 
 mod map;
+mod restaurant;

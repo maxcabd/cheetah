@@ -32,6 +32,9 @@ mod native_api {
 mod resource {
     pub use runtime::resource::*;
 }
+mod router {
+    pub use runtime::router::*;
+}
 mod updates {
     pub use runtime::updates::*;
 }

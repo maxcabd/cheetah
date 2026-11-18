@@ -804,7 +804,7 @@ fn swiping_a_card_handle_minimizes_and_restores_the_cards() {
         let tree = render(app);
         find(&tree, "place-java").expect("card").props.height
     };
-    assert_eq!(card(&app), Some(320.0));
+    assert_eq!(card(&app), Some(280.0));
     assert!(find(&render(&app), "handle:java").is_some(), "the card has a handle");
 
     swipe(&mut app, "down");
@@ -815,7 +815,7 @@ fn swiping_a_card_handle_minimizes_and_restores_the_cards() {
 
     swipe(&mut app, "up");
     assert!(!app.cards_minimized);
-    assert_eq!(card(&app), Some(320.0));
+    assert_eq!(card(&app), Some(280.0));
     let (_, _, full_span, _) = app.region(393.0, 852.0);
     assert!(minimized_span <= full_span);
 
@@ -892,4 +892,163 @@ fn neighbouring_cards_peek_in_at_the_edges() {
     assert!((carousel.props.left.unwrap() - (393.0 - page) / 2.0).abs() < 0.01);
     // Paging moves one card at a time.
     assert!((carousel.props.scroll_x.unwrap() - page).abs() < 0.01);
+}
+
+#[test]
+fn the_clear_button_is_glass_on_ios_26() {
+    for glass in [false, true] {
+        let mut app = NightshadeApp::new(true);
+        app.host.glass = glass;
+        let tree = render(&app);
+        let clear = find(&tree, "search:clear").expect("clear button");
+        assert_eq!(clear.kind == crate::element::Kind::Glass, glass);
+    }
+}
+
+#[test]
+fn show_on_map_fits_its_label() {
+    let mut app = NightshadeApp::new(true);
+    click(&mut app, "sheet:toggle");
+    let tree = render(&app);
+    let chip = find(&tree, "show-on-map").expect("chip in the expanded sheet");
+    assert_eq!(chip.props.width, None, "sized by its label");
+    let label = &chip.children[0];
+    assert_eq!(label.props.width, None);
+    assert_eq!(label.props.lines, Some(1), "never wraps out of the chip");
+
+    // Laid out, it hugs its label rather than spanning the sheet.
+    let mut runtime = crate::app::Runtime::new(app);
+    let ops = runtime.render(Viewport { width: 393.0, height: 852.0 });
+    let widths: Vec<f32> = ops
+        .iter()
+        .filter_map(|op| match op {
+            Op::Layout { width, height, .. } if (*height - 40.0).abs() < 0.01 => Some(*width),
+            _ => None,
+        })
+        .collect();
+    assert!(widths.iter().any(|w| *w < 200.0), "a 40pt-tall chip narrower than the sheet: {widths:?}");
+}
+
+#[test]
+fn chips_are_glass_on_ios_26() {
+    for glass in [false, true] {
+        let mut app = NightshadeApp::new(true);
+        app.host.glass = glass;
+        click(&mut app, "sheet:toggle");
+        let tree = render(&app);
+        let chip = find(&tree, "followup:0").expect("follow-up chip");
+        assert_eq!(chip.kind == crate::element::Kind::Glass, glass);
+        let map_chip = find(&tree, "show-on-map").expect("show on map");
+        assert_eq!(map_chip.kind == crate::element::Kind::Glass, glass);
+        let label = if glass { &chip.children[0] } else { chip };
+        assert_eq!(label.props.text.as_deref(), Some("Cafes within 12 min walk"));
+        assert_eq!(label.props.width, None);
+    }
+}
+
+#[test]
+fn results_collapse_the_sheet_and_drop_the_keyboard() {
+    let mut app = remote_app();
+    app.update(Event { id: 0, key: Some("search".into()), kind: "focus".into(), payload: String::new() });
+    assert!(app.expanded);
+    submit(&mut app, "sushi");
+    let id = request_id(&mut app);
+    let mount = app.field_mount;
+    http_response(
+        &mut app,
+        serde_json::json!({"id": id, "ok": true, "status": 200, "body": "{\"cards\":[]}"}),
+    );
+    assert!(!app.expanded);
+    // iOS won't shrink a sheet while the keyboard is up.
+    assert_eq!(app.field_mount, mount + 1);
+}
+
+#[test]
+fn a_backend_notice_replaces_the_results_line() {
+    let mut app = remote_app();
+    submit(&mut app, "halal tacos");
+    let id = request_id(&mut app);
+    let notice = "No taco spots nearby are labelled halal, so here are taco places. Check before you go.";
+    let body = serde_json::json!({"cards": [], "notice": notice});
+    http_response(
+        &mut app,
+        serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}),
+    );
+    assert_eq!(app.response().unwrap().notice.as_deref(), Some(notice));
+    click(&mut app, "sheet:toggle");
+    let tree = render(&app);
+    assert!(format!("{tree:?}").contains("labelled halal"), "shown in the sheet");
+}
+
+#[test]
+fn cards_page_through_the_places_photos() {
+    let mut app = remote_app();
+    submit(&mut app, "dairy queen");
+    let id = request_id(&mut app);
+    let body = serde_json::json!({"cards": [{
+        "place_id": "dq", "name": "Dairy Queen", "lat": 45.4, "lng": -75.7, "distance_m": 10,
+        "photos": ["/photos/dairy-queen.jpg", "https://example.com/menu.jpg"]
+    }, {
+        "place_id": "plain", "name": "Plain", "lat": 45.41, "lng": -75.71, "distance_m": 20
+    }]});
+    http_response(
+        &mut app,
+        serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}),
+    );
+    let tree = render(&app);
+    let props = |id: &str| -> serde_json::Value {
+        let photo = find(&tree, &format!("photo:{id}")).expect("photo");
+        serde_json::from_str(photo.props.native_props.as_deref().unwrap()).unwrap()
+    };
+    let dq = props("dq");
+    let photos = dq["photos"].as_array().unwrap();
+    assert!(photos[0].as_str().unwrap().ends_with("/photos/dairy-queen.jpg"), "hero first");
+    assert_eq!(photos[1], "https://example.com/menu.jpg");
+    assert_eq!(props("plain")["pages"], 5, "no photos: the placeholder");
+}
+
+#[test]
+fn tapping_a_card_opens_its_page_and_back_closes_it() {
+    let mut runtime = Runtime::new(NightshadeApp::new(true));
+    let viewport = Viewport { width: 393.0, height: 852.0 };
+    let ops = runtime.render(viewport);
+    // The card's node, by its test_id.
+    let card = ops
+        .iter()
+        .find_map(|op| match op {
+            Op::Create { id, props, .. } if props.test_id.as_deref() == Some("card-java") => Some(*id),
+            _ => None,
+        })
+        .expect("java's card");
+    let ops = runtime.event(card, "click", "");
+
+    // The page opens: a native page that zooms out of the card.
+    let page = ops.iter().find_map(|op| match op {
+        Op::Create { props, .. } if props.native.as_deref() == Some("page") => props.native_props.clone(),
+        _ => None,
+    });
+    let page: serde_json::Value = serde_json::from_str(&page.expect("page shown")).unwrap();
+    assert_eq!(page["transition"], "zoom");
+    assert_eq!(page["source"], "card-java");
+    assert!(ops.iter().any(|op| matches!(op, Op::Create { props, .. } if props.text.as_deref() == Some("Java Haven"))));
+    assert!(ops.iter().any(|op| matches!(op, Op::Invoke { module, method, .. } if module == "navigation" && method == "setCanGoBack")));
+
+    // Dragged down by the user: back to the map.
+    let page_id = ops
+        .iter()
+        .find_map(|op| match op {
+            Op::Create { id, props, .. } if props.native.as_deref() == Some("page") => Some(*id),
+            _ => None,
+        })
+        .unwrap();
+    let ops = runtime.event(page_id, "dismiss", "");
+    assert!(ops.iter().any(|op| matches!(op, Op::Remove { id } if *id == page_id)));
+}
+
+#[test]
+fn a_restaurant_page_for_a_place_not_in_the_results_says_so() {
+    let mut app = NightshadeApp::new(true);
+    assert!(app.router.push("/restaurant/gone", "push", None));
+    let tree = render(&app);
+    assert!(format!("{tree:?}").contains("isn't in your results"));
 }

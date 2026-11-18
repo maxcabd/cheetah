@@ -1,0 +1,59 @@
+# /restaurant/[id]: a place's page. Its card links here with
+# transition="zoom", so on iOS 18+ the page grows out of the card and drags
+# back into it. `place` comes from the loader (screens/restaurant.rs).
+component RestaurantPage
+  column width=-1 height=-1 bg=BG
+    if place.found
+      use RestaurantDetails place=place
+    else
+      column width=-1 height=-1 .center gap=8
+        text "This place isn't in your results anymore." size=16 font="satoshi-medium" color=MUTED align="center" width=280 lines=2 height=40
+    # Close: back to the card (the page shrinks into it).
+    column absolute=true top=place.safe_top left=16 width=44 height=52 justify="end"
+      glass key="page:back" pressable=true width=44 height=44 radius=22 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Close" .center
+        use Icon name="chevron.down" size=18 color="#ffffff"
+
+component RestaurantDetails
+  column width=-1 height=-1
+    native "photo" key="page-photo:{place.id}" width=-1 height=PAGE_PHOTO native_props=place.photo_props
+    column width=-1 pad_h=20 pad_v=18 gap=10
+      text place.name size=26 font="brice-bold" color=TEXT lines=2
+      text place.summary .label color=MUTED lines=1 width=place.inner
+      use Hours place=place inner=place.inner fg="#ffffff" muted="#ffffffb3"
+      # In a full-width row, so the column doesn't stretch the pill.
+      if place.has_rating
+        row width=-1 height=30
+          row height=30 pad_h=12 gap=8 radius=15 border=1 border_color="#404040" align_items="center"
+            row width=16 height=16 radius=8 bg="#ffffff" .center
+              use Icon name="google" size=9 color="#4285F4"
+            text place.rating size=12 font="satoshi-medium" color="#ffffff" bold=true lines=1
+      if place.address
+        row width=place.inner gap=8 align_items="center" height=20
+          use Icon name="mappin.and.ellipse" size=14 color=MUTED
+          text place.address .label color=TEXT lines=1
+      if place.amenities
+        row width=place.inner wrap=true gap=8
+          for amenity in place.amenities
+            use Amenity id=amenity
+
+# One amenity as a small pill: icon and label from its id.
+component Amenity
+  row height=32 pad_h=12 gap=6 radius=16 .chip_frame align_items="center"
+    if id == "dine_in"
+      use AmenityLabel icon="fork.knife" label="Dine-in"
+    if id == "takeout"
+      use AmenityLabel icon="bag" label="Takeout"
+    if id == "delivery"
+      use AmenityLabel icon="bicycle" label="Delivery"
+    if id == "outdoor_seating"
+      use AmenityLabel icon="sun.max" label="Patio"
+    if id == "wifi"
+      use AmenityLabel icon="wifi" label="Wi-Fi"
+    if id == "washroom"
+      use AmenityLabel icon="toilet" label="Washroom"
+    if id == "wheelchair_accessible"
+      use AmenityLabel icon="figure.roll" label="Accessible"
+
+component AmenityLabel
+  use Icon name=icon size=13 color="#ffffff"
+  text label size=13 font="satoshi-medium" color="#ffffff" bold=true lines=1

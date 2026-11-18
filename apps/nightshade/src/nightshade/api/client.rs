@@ -68,6 +68,7 @@ pub(crate) struct ApiSearchResponse {
     pub(crate) cards: Vec<ApiCard>,
     pub(crate) followups: Vec<String>,
     pub(crate) plan: ApiPlan,
+    pub(crate) notice: Option<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -109,6 +110,9 @@ pub(crate) struct ApiCard {
     pub(crate) user_rating_count: Option<u32>,
     /// Weekly hours keyed `mon` .. `sun`; days without an entry are closed.
     pub(crate) hours: Option<std::collections::HashMap<String, Vec<ApiInterval>>>,
+    /// The card's photos, hero first; paths starting with "/" are on the API.
+    pub(crate) photos: Vec<String>,
+    pub(crate) amenities: Vec<String>,
 }
 
 const DAYS: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -222,6 +226,8 @@ impl ApiCard {
             cuisine: String::new(),
             icon: "utensils".into(),
             icon_color: "#ffffff".into(),
+            photos: self.photos.iter().map(|photo| resolve_url(photo)).collect(),
+            amenities: self.amenities,
         }
     }
 }
@@ -273,5 +279,14 @@ pub(crate) fn parse_search(response: &HttpResponse) -> Result<SearchResponse, St
         places: body.cards.into_iter().map(|card| card.into_place(now)).collect(),
         followups: body.followups,
         plan,
+        notice: body.notice.filter(|notice| !notice.trim().is_empty()),
     })
+}
+
+/// A URL from the API, absolute: "/photos/x.jpg" -> "<API_URL>/photos/x.jpg".
+pub(crate) fn resolve_url(url: &str) -> String {
+    match API_URL {
+        Some(base) if url.starts_with('/') => format!("{}{url}", base.trim_end_matches('/')),
+        _ => url.to_string(),
+    }
 }

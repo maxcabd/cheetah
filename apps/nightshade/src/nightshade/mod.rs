@@ -9,6 +9,7 @@ use crate::element::Element;
 use crate::http::{HttpClient, HttpResponse};
 use crate::native_api::{NativeCall, NativeEvent};
 use crate::resource::Resource;
+use crate::router::Router;
 use crate::updates::Updates;
 use serde::Deserialize;
 
@@ -65,6 +66,8 @@ pub struct NightshadeApp {
     locate_taps: u32,
     /// Result cards shrunk to small bars (swipe a card's handle down).
     cards_minimized: bool,
+    /// Pages over the map (`views/pages/`): the restaurant page.
+    router: Router,
     /// Each place's photo's dominant color ("#rrggbb"), reported by the
     /// card's `photo` once its first image loads.
     photo_colors: std::collections::HashMap<String, String>,
@@ -108,6 +111,7 @@ impl NightshadeApp {
             locate_taps: 0,
             cards_minimized: false,
             photo_colors: std::collections::HashMap::new(),
+            router: Router::from_views(&view_files()),
             state_file: None,
             calls: vec![NativeCall::new("location", "request", "{}")],
             actions: Vec::new(),
@@ -130,6 +134,7 @@ impl NightshadeApp {
                     "Best dessert spots near me".into(),
                 ],
                 plan: None,
+                notice: None,
             });
             app.query = "Coffee".into();
         }
@@ -184,6 +189,17 @@ impl App for NightshadeApp {
             return;
         }
 
+        // A pressed `link` (a card): open its page. A minimized card's
+        // tap brings the cards back instead.
+        if event.kind == "navigate" {
+            if self.cards_minimized {
+                self.minimize_cards(false);
+            } else if self.router.handle_event(&event) {
+                self.haptic("light");
+            }
+            return;
+        }
+
         if event.kind == "timer" {
             if event.payload == "searching" {
                 self.searching_tick();
@@ -207,6 +223,10 @@ impl App for NightshadeApp {
             }
             // Dragged down: an expanded sheet goes back to its resting
             // height, taking the keyboard with it.
+            // The user dragged the page down: it is already closed.
+            "dismiss" if key == "page" => {
+                self.router.back();
+            }
             "dismiss" if key == "search-panel" => {
                 if self.expanded {
                     self.expanded = false;
@@ -296,6 +316,8 @@ impl App for NightshadeApp {
                     self.send_draft();
                 } else if key == "search:clear" {
                     self.clear_search();
+                } else if key == "page:back" {
+                    self.router.back();
                 } else if key == "map:locate" {
                     self.locate();
                 } else if key == "map:type" {
@@ -321,7 +343,10 @@ impl App for NightshadeApp {
     }
 
     fn take_native_calls(&mut self) -> Vec<NativeCall> {
-        std::mem::take(&mut self.calls)
+        let mut calls = std::mem::take(&mut self.calls);
+        // The host's back gesture is on while a page is open.
+        calls.extend(self.router.take_sync());
+        calls
     }
 
     fn take_actions(&mut self) -> Vec<Action> {
@@ -333,12 +358,21 @@ impl App for NightshadeApp {
     }
 
     fn views(&self) -> Vec<(&'static str, &'static str)> {
-        vec![
-            ("views/theme.view", include_str!("views/theme.view")),
-            ("views/widgets.view", include_str!("views/widgets.view")),
-            ("views/card.view", include_str!("views/card.view")),
-            ("views/sheet.view", include_str!("views/sheet.view")),
-            ("views/map.view", include_str!("views/map.view")),
-        ]
+        view_files()
     }
+}
+
+/// The app's `.view` files. Files under `views/pages/` are router pages.
+fn view_files() -> Vec<(&'static str, &'static str)> {
+    vec![
+        ("views/theme.view", include_str!("views/theme.view")),
+        ("views/widgets.view", include_str!("views/widgets.view")),
+        ("views/card.view", include_str!("views/card.view")),
+        ("views/sheet.view", include_str!("views/sheet.view")),
+        ("views/map.view", include_str!("views/map.view")),
+        (
+            "views/pages/restaurant/[id].view",
+            include_str!("views/pages/restaurant/[id].view"),
+        ),
+    ]
 }

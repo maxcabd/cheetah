@@ -73,6 +73,11 @@ impl NightshadeApp {
                 // New results start with full cards, framed on the map.
                 self.cards_minimized = false;
                 self.locating = false;
+                // Results collapse the sheet; iOS won't shrink a sheet while
+                // the keyboard is up, so drop it (remounting the field).
+                if self.expanded {
+                    self.field_mount += 1;
+                }
                 self.search = Resource::Ready(response);
                 self.selected = 0;
                 self.focused = false;
@@ -122,6 +127,10 @@ impl NightshadeApp {
         let Some(event) = NativeEvent::parse(payload) else {
             return;
         };
+        // The host's back gesture closes the open page.
+        if self.router.handle_native(&event) {
+            return;
+        }
 
         if let Some(response) = HttpResponse::from_event(&event) {
             let Backend::Remote { pending, .. } = &mut self.backend else {

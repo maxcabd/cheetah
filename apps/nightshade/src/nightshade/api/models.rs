@@ -19,6 +19,13 @@ pub(crate) struct Place {
     pub(crate) cuisine: String,
     pub(crate) icon: String,
     pub(crate) icon_color: String,
+    /// Photos for the card, hero first (asset:// or http(s):// URLs); empty
+    /// shows the placeholder.
+    #[serde(default)]
+    pub(crate) photos: Vec<String>,
+    /// Amenity ids ("wifi", "outdoor_seating"); the page shows them.
+    #[serde(default)]
+    pub(crate) amenities: Vec<String>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -50,6 +57,8 @@ pub(crate) fn sample(
         cuisine: cuisine.into(),
         icon: icon.into(),
         icon_color: icon_color.into(),
+        photos: Vec::new(),
+        amenities: Vec::new(),
     }
 }
 
@@ -114,6 +123,10 @@ pub(crate) struct SearchResponse {
     /// a follow-up refines it instead of starting over.
     #[serde(default)]
     pub(crate) plan: Option<serde_json::Value>,
+    /// Why the results don't fully match ("No taco spots nearby are
+    /// labelled halal, so here are taco places."), shown under the heading.
+    #[serde(default)]
+    pub(crate) notice: Option<String>,
 }
 
 pub(crate) trait PlaceSource {
@@ -158,6 +171,7 @@ impl PlaceSource for LocalPlaceSource {
                 "Nearby spots that open late night".into(),
             ],
             plan: None,
+            notice: None,
         })
     }
 }

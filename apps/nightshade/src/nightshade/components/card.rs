@@ -25,6 +25,14 @@ impl NightshadeApp {
             "distance": distance,
             "drive_minutes": drive_minutes,
             "price": "$".repeat(place.price_tier.min(4) as usize),
+            // The photo pager's settings: the place's photos, or the
+            // placeholder (one bundled photo, five pages) until it has some.
+            "photo_props": if place.photos.is_empty() {
+                json!({"src": "asset://second-cup-card-full.jpeg", "pages": 5})
+            } else {
+                json!({"photos": place.photos})
+            }
+            .to_string(),
             "status": status,
             "closes": place.closes,
             "opens": place.opens,

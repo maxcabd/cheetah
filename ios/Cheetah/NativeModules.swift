@@ -13,6 +13,35 @@ extension CheetahNativeModule {
     func destroy() {}
 }
 
+/// A native module shown in its own presented screen (the sheet, pages):
+/// its host view moves into that screen instead of its parent.
+protocol CheetahPresenting: AnyObject {
+    func presentIfNeeded(owner: NativeModuleHostView)
+}
+
+/// The view with accessibility identifier (`test_id`) `identifier` under
+/// `view`, if any.
+func findView(in view: UIView, identifier: String) -> UIView? {
+    if view.accessibilityIdentifier == identifier {
+        return view
+    }
+    for child in view.subviews {
+        if let match = findView(in: child, identifier: identifier) {
+            return match
+        }
+    }
+    return nil
+}
+
+/// The screen on top: the root, or whatever it presents, all the way up.
+func topmostController(in window: UIWindow?) -> UIViewController? {
+    var top = window?.rootViewController
+    while let presented = top?.presentedViewController, !presented.isBeingDismissed {
+        top = presented
+    }
+    return top
+}
+
 /// A native module that shows its element's children itself, e.g. the map
 /// placing each child at its `map_latitude`/`map_longitude`. The children are
 /// ordinary views built from `.view` templates; only placement is native.
@@ -54,10 +83,10 @@ final class NativeModuleHostView: UIView {
             return
         }
         module?.apply(props: props)
-        if let sheet = module as? SheetNativeModule {
+        if let presenting = module as? CheetahPresenting {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                sheet.presentIfNeeded(owner: self)
+                presenting.presentIfNeeded(owner: self)
             }
         }
         setNeedsLayout()
@@ -66,17 +95,17 @@ final class NativeModuleHostView: UIView {
     private func materialize(name: String, props: [String: Any]) {
         let created = NativeModuleRegistry.make(name: name, owner: self)
         module = created
-        if name != "sheet", let native = created?.nativeView {
+        if !(created is CheetahPresenting), let native = created?.nativeView {
             addSubview(native)
         }
         created?.apply(props: props)
         if !hostedChildren.isEmpty {
             (created as? CheetahChildHosting)?.setChildren(hostedChildren)
         }
-        if let sheet = created as? SheetNativeModule {
+        if let presenting = created as? CheetahPresenting {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                sheet.presentIfNeeded(owner: self)
+                presenting.presentIfNeeded(owner: self)
             }
         }
         pendingName = nil
@@ -145,6 +174,8 @@ private enum NativeModuleRegistry {
             return MapNativeModule(owner: owner)
         case "sheet":
             return SheetNativeModule(owner: owner)
+        case "page":
+            return PageNativeModule(owner: owner)
         case "menu":
             return MenuNativeModule(owner: owner)
         case "icon":
@@ -410,6 +441,117 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
     }
 }
 
+/// `native "page"`: a full-screen page over the app, its content the
+/// element's children (a router page). native_props:
+///   transition: "zoom" grows it out of the element whose test_id is
+///     `source` (iOS 18+; drag down shrinks it back), else it slides up.
+///   source: that element's test_id.
+///   background: color behind the content (default "#0b0b0f").
+/// Closed by the user (drag down), it reports `dismiss`; removed by the app
+/// (router back), it closes itself, zooming back into its source.
+private final class PageNativeModule: NSObject, CheetahNativeModule, CheetahPresenting {
+    private weak var owner: NativeModuleHostView?
+    private var controller: PageController?
+    private let placeholder = UIView()
+    private var style: [String: Any] = [:]
+
+    var nativeView: UIView {
+        placeholder
+    }
+
+    init(owner: NativeModuleHostView) {
+        self.owner = owner
+        super.init()
+    }
+
+    func apply(props: [String: Any]) {
+        if let raw = props["nativeProps"] as? String,
+           let data = raw.data(using: .utf8),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            style = parsed
+        }
+        controller?.view.backgroundColor = background
+    }
+
+    private var background: UIColor {
+        UIColor(hex: style["background"] as? String ?? "#0b0b0f")
+    }
+
+    func presentIfNeeded(owner: NativeModuleHostView) {
+        guard controller == nil else {
+            return
+        }
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }?
+            .keyWindow
+        // Present over whatever is on top (the sheet), once it is settled.
+        guard
+            let presenter = topmostController(in: window),
+            presenter.viewIfLoaded?.window != nil,
+            !presenter.isBeingPresented,
+            !presenter.isBeingDismissed
+        else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self, weak owner] in
+                guard let self, let owner else { return }
+                self.presentIfNeeded(owner: owner)
+            }
+            return
+        }
+
+        let controller = PageController()
+        controller.view.backgroundColor = background
+        owner.translatesAutoresizingMaskIntoConstraints = false
+        controller.view.addSubview(owner)
+        NSLayoutConstraint.activate([
+            owner.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor),
+            owner.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor),
+            owner.topAnchor.constraint(equalTo: controller.view.topAnchor),
+            owner.bottomAnchor.constraint(equalTo: controller.view.bottomAnchor),
+        ])
+        controller.modalPresentationStyle = .fullScreen
+        controller.modalTransitionStyle = .coverVertical
+
+        let zoom = style["transition"] as? String == "zoom"
+        if zoom, #available(iOS 18.0, *), let source = style["source"] as? String {
+            // Looked up each time: the source may have moved or been redrawn
+            // by the time the page closes.
+            controller.preferredTransition = .zoom { [weak window] _ in
+                guard let window else { return nil }
+                return findView(in: window, identifier: source)
+            }
+        }
+        controller.onDismissedByUser = { [weak self] in
+            self?.owner?.event("dismiss", "")
+        }
+        presenter.present(controller, animated: true)
+        self.controller = controller
+    }
+
+    func destroy() {
+        guard let controller else { return }
+        self.controller = nil
+        controller.onDismissedByUser = nil
+        if controller.presentingViewController != nil, !controller.isBeingDismissed {
+            controller.dismiss(animated: true)
+        }
+    }
+}
+
+/// A page's screen; tells when the user closed it (not the app).
+private final class PageController: UIViewController {
+    var onDismissedByUser: (() -> Void)?
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if isBeingDismissed {
+            onDismissedByUser?()
+            onDismissedByUser = nil
+        }
+    }
+}
+
 /// The native bottom sheet (`sheet` in .view files), configured by
 /// `native_props`:
 ///   detents: [{"id": "rest", "height": 120}, {"id": "expanded", ...}]: the
@@ -424,7 +566,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
 ///   cornerRadius: (default: the element's `radius`)
 /// A drag below the lowest detent reports `dismiss`: the sheet can't close,
 /// so the app decides what it means.
-private final class SheetNativeModule: NSObject, CheetahNativeModule, UISheetPresentationControllerDelegate {
+private final class SheetNativeModule: NSObject, CheetahNativeModule, CheetahPresenting, UISheetPresentationControllerDelegate {
     private weak var owner: NativeModuleHostView?
     private var style: [String: Any] = [:]
     private var detentIDs: [String] = []
@@ -560,6 +702,18 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, UISheetPre
             self?.keyboardTop = 0
             self?.updateKeyboardOffset()
         })
+        // iOS holds a sheet at its largest detent while the keyboard is up
+        // and ignores a smaller `selected` meanwhile: apply it once the
+        // keyboard is gone.
+        keyboardObservers.append(center.addObserver(
+            forName: UIResponder.keyboardDidHideNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self, let sheet = self.controller?.sheetPresentationController else { return }
+            self.appliedDetentKey = nil
+            self.applyDetents(sheet, animated: true)
+        })
     }
 
     private func readKeyboard(_ note: Notification) {
@@ -589,7 +743,7 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, UISheetPre
             return
         }
         if searchBar?.window == nil || searchBar?.accessibilityIdentifier != identifier {
-            searchBar = findView(owner, identifier: identifier)
+            searchBar = findView(in: owner, identifier: identifier)
         }
         guard let bar = searchBar, bar.window != nil else { return }
         let options = UIView.AnimationOptions(rawValue: keyboardCurve << 16)
@@ -617,18 +771,6 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, UISheetPre
         }
     }
 
-    private func findView(_ view: UIView, identifier: String) -> UIView? {
-        if view.accessibilityIdentifier == identifier {
-            return view
-        }
-        for child in view.subviews {
-            if let match = findView(child, identifier: identifier) {
-                return match
-            }
-        }
-        return nil
-    }
-
     private func applyStyle(_ controller: UIViewController) {
         controller.view.backgroundColor = UIColor(hex: style["background"] as? String ?? "#171717")
         if let sheet = controller.sheetPresentationController {
@@ -646,10 +788,20 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, UISheetPre
         guard controller == nil else {
             return
         }
+        // The sheet's own view isn't on screen until it is presented, so
+        // present from the active window's root screen, once that screen is
+        // on screen and free: after a dev reconnect or link the previous
+        // sheet may still be dismissing, and presenting then fails, leaving
+        // no sheet at all.
         let scene = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .first { $0.activationState == .foregroundActive }
-        guard let presenter = scene?.keyWindow?.rootViewController else {
+        guard
+            let presenter = scene?.keyWindow?.rootViewController,
+            presenter.viewIfLoaded?.window != nil,
+            presenter.presentedViewController == nil,
+            !presenter.isBeingDismissed
+        else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { [weak self, weak owner] in
                 guard let self, let owner else {
                     return
@@ -831,10 +983,16 @@ private final class PhotoPagerNativeModule: CheetahNativeModule {
         else {
             return
         }
-        pager.configure(
-            src: config["src"] as? String ?? "asset://second-cup-card-full.jpeg",
-            count: (config["pages"] as? NSNumber)?.intValue ?? 5
-        )
+        // `photos`: a page per photo (asset:// or http(s)://); else one
+        // `src` repeated over `pages`.
+        if let photos = config["photos"] as? [String], !photos.isEmpty {
+            pager.configure(photos: photos)
+        } else {
+            pager.configure(
+                src: config["src"] as? String ?? "asset://second-cup-card-full.jpeg",
+                count: (config["pages"] as? NSNumber)?.intValue ?? 5
+            )
+        }
     }
 }
 

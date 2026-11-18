@@ -136,8 +136,10 @@ private final class NodeTag {
     /// `page_scale`: scale of a page one page from center (1: none).
     var pageScale: CGFloat = 1
 
+    /// Shown in its own presented screen, not inside its parent: the sheet,
+    /// and pages (`native "page"`).
     var isSheet: Bool {
-        kind == "sheet" || native == "sheet"
+        kind == "sheet" || native == "sheet" || native == "page"
     }
 
     init(id: UInt32, kind: String, view: UIView) {

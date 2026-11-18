@@ -13,6 +13,8 @@ component MapScreen
     if carousel
       use Carousel carousel=carousel
     use Sheet sheet=sheet
+    if page
+      use PageHost page=page
 
 # A map pin: any child of `map` with map_latitude/map_longitude is placed at
 # that coordinate. Glass is Liquid Glass on iOS 26 and a blur before.
@@ -47,3 +49,11 @@ component TeardropMarker
       native "shape" absolute=true top=0 left=0 width=w height=h native_props=look
       row absolute=true top=0 left=0 width=w height=w .center
         use Icon name="fork.knife" size=icon_size color="#ffffff"
+
+# The router's open page (views/pages/), shown natively over the map and
+# sheet: it grows out of its card for transition "zoom", and dragging it
+# down closes it (`dismiss`).
+component PageHost
+  native "page" key="page" absolute=true top=0 left=0 width=-1 height=-1 native_props=page.props
+    if page.page == "RestaurantPage"
+      use RestaurantPage place=page.restaurant

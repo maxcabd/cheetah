@@ -7,10 +7,11 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
     private let scroll = UIScrollView()
     private let overlay = PagerOverlayView()
     private var imageViews: [UIImageView] = []
-    private var source = ""
+    /// One source per page: asset://name or an http(s) URL.
+    private var sources: [String] = []
     private var pages = 5
-    private var image: UIImage?
-    /// The first image's dominant color ("#rrggbb"), once per image.
+    private static let cache = NSCache<NSString, UIImage>()
+    /// The first photo's dominant color ("#rrggbb"), once it has loaded.
     var onDominantColor: ((String) -> Void)?
 
     override init(frame: CGRect) {
@@ -31,31 +32,65 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// One bundled photo repeated over `count` pages (the placeholder).
     func configure(src: String, count: Int) {
-        if src == source, count == pages, image != nil {
+        configure(photos: Array(repeating: src, count: max(count, 1)))
+    }
+
+    /// A page per photo, loaded as needed: bundled (asset://) or from the
+    /// web, cached by URL.
+    func configure(photos: [String]) {
+        let photos = photos.isEmpty ? [""] : photos
+        guard photos != sources else { return }
+        sources = photos
+        pages = photos.count
+        rebuild()
+        for (index, source) in photos.enumerated() where !source.isEmpty {
+            load(source, page: index)
+        }
+    }
+
+    private func load(_ source: String, page: Int) {
+        if let cached = Self.cache.object(forKey: source as NSString) {
+            show(cached, page: page, source: source)
             return
         }
-        let sourceChanged = src != source
-        source = src
-        pages = max(count, 1)
-        if image == nil || sourceChanged {
-            let name = src.replacingOccurrences(of: "asset://", with: "")
-            image = UIImage(named: name)
-                ?? UIImage(named: (name as NSString).deletingPathExtension)
-                ?? UIImage(contentsOfFile: name)
-            reportDominantColor()
+        if source.hasPrefix("http://") || source.hasPrefix("https://"), let url = URL(string: source) {
+            URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+                guard let data, let image = UIImage(data: data) else { return }
+                Self.cache.setObject(image, forKey: source as NSString)
+                DispatchQueue.main.async {
+                    self?.show(image, page: page, source: source)
+                }
+            }.resume()
+            return
         }
-        rebuild()
+        let name = source.replacingOccurrences(of: "asset://", with: "")
+        guard let image = UIImage(named: name)
+            ?? UIImage(named: (name as NSString).deletingPathExtension)
+            ?? UIImage(contentsOfFile: name)
+        else {
+            return
+        }
+        Self.cache.setObject(image, forKey: source as NSString)
+        show(image, page: page, source: source)
+    }
+
+    /// Put a loaded photo on its page, unless the photos changed meanwhile.
+    private func show(_ image: UIImage, page: Int, source: String) {
+        guard page < sources.count, sources[page] == source, page < imageViews.count else { return }
+        imageViews[page].image = image
+        if page == 0 {
+            reportDominantColor(image, source: source)
+        }
     }
 
     /// Off the main thread: shrinking and counting colors costs a few ms.
-    private func reportDominantColor() {
-        guard let image else { return }
-        let source = self.source
+    private func reportDominantColor(_ image: UIImage, source: String) {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let color = image.dominantColorHex() else { return }
             DispatchQueue.main.async {
-                guard let self, self.source == source else { return }
+                guard let self, self.sources.first == source else { return }
                 self.onDominantColor?(color)
             }
         }
@@ -88,7 +123,7 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
         imageViews.forEach { $0.removeFromSuperview() }
         imageViews.removeAll(keepingCapacity: true)
         for _ in 0..<pages {
-            let imageView = UIImageView(image: image)
+            let imageView = UIImageView()
             imageView.contentMode = .scaleAspectFill
             imageView.clipsToBounds = true
             imageView.isUserInteractionEnabled = false
