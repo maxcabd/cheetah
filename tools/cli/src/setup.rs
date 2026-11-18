@@ -6,7 +6,9 @@
 //! download), and creating the App Store Connect app (it opens the page with
 //! the values to use, then waits for the app to appear). Everything else is
 //! automatic: app IDs and capabilities from cheetah.toml, a TestFlight group
-//! for the team, and the GitHub secrets the build workflow signs with.
+//! for the team, one distribution certificate and App Store profiles that
+//! every build reuses (`signing`), and the GitHub secrets the build workflow
+//! signs with.
 
 use crate::apple::{key_id_from_file_name, query, ApiKey, Client};
 use crate::{output_in, Args, Out};
@@ -31,6 +33,9 @@ struct Saved {
     issuer_id: Option<String>,
     team_id: Option<String>,
     key_file: Option<PathBuf>,
+    /// The reused distribution certificate (its key is next to this file).
+    distribution_certificate_id: Option<String>,
+    distribution_password: Option<String>,
 }
 
 fn home() -> PathBuf {
@@ -109,6 +114,7 @@ pub(crate) fn ios(args: &Args, out: &Out) -> ExitCode {
         "--no-secrets",
         "--no-wait",
         "--build",
+        "--new-certificate",
     ];
     if let Some(flag) = args.unknown_flags(&known) {
         return out.fail("setup", &format!("unknown option {flag}"));
@@ -196,8 +202,10 @@ fn run(args: &Args, out: &Out) -> Result<Value, String> {
         (config.ios_bundle_id.clone(), app_id_name(&config.name)),
         (dev_id.clone(), app_id_name(&format!("{} Dev", config.name))),
     ];
+    let mut bundle_ids = Vec::new();
     for (identifier, name) in &identifiers {
         let (id, seed, created) = ensure_bundle_id(&client, identifier, name)?;
+        bundle_ids.push((identifier.clone(), id.clone()));
         out.say(format!(
             "ok  app ID {identifier}{}",
             if created { " (registered)" } else { "" }
@@ -249,15 +257,48 @@ fn run(args: &Args, out: &Out) -> Result<Value, String> {
         apps.push(json!({"bundle": bundle, "id": id}));
     }
 
-    // 5. GitHub secrets for the TestFlight workflow.
+    // 5. One distribution certificate and App Store profiles, reused by
+    // every build so CI never asks Apple for another certificate.
+    let saved_certificate = saved
+        .distribution_certificate_id
+        .as_deref()
+        .zip(saved.distribution_password.as_deref());
+    let credentials = crate::signing::ensure(
+        &client,
+        &crate::signing::dir(&saved_path()),
+        saved_certificate,
+        &bundle_ids,
+        args.flag("--new-certificate"),
+    )?;
+    out.say(format!(
+        "ok  distribution certificate {}{}",
+        credentials.certificate_id,
+        if credentials.certificate_created { " (created)" } else { " (reused)" }
+    ));
+    for (identifier, _, created) in &credentials.profiles {
+        out.say(format!(
+            "ok  App Store profile for {identifier}{}",
+            if *created { " (created)" } else { " (reused)" }
+        ));
+    }
+    saved.distribution_certificate_id = Some(credentials.certificate_id.clone());
+    saved.distribution_password = Some(credentials.password.clone());
+    saved.store()?;
+
+    // 6. GitHub secrets for the TestFlight workflow.
     let mut secrets = Vec::new();
     if !args.flag("--no-secrets") {
-        let values = [
+        let mut values = vec![
             ("APPLE_TEAM_ID", team_id.clone()),
             ("APP_STORE_CONNECT_KEY_ID", key_id.clone()),
             ("APP_STORE_CONNECT_ISSUER_ID", issuer_id.clone()),
             ("APP_STORE_CONNECT_PRIVATE_KEY", pem.clone()),
+            ("IOS_DISTRIBUTION_P12", credentials.p12.clone()),
+            ("IOS_DISTRIBUTION_PASSWORD", credentials.password.clone()),
         ];
+        for (identifier, profile, _) in &credentials.profiles {
+            values.push((crate::signing::profile_secret(identifier), profile.clone()));
+        }
         for (name, value) in values {
             set_secret(&root, name, &value)?;
             secrets.push(name);

@@ -11,6 +11,7 @@
 
 mod apple;
 mod setup;
+mod signing;
 
 use cheetah_cli::config::AppConfig;
 use cheetah_cli::{dev_link, fingerprint, lan_ip, prebuild, repo_root};
@@ -36,11 +37,15 @@ cheetah: develop and ship Cheetah apps
       build; --check only reports what would change.
   cheetah setup ios [--app NAME] [--issuer ID] [--key FILE] [--team ID]
                     [--release] [--build] [--no-secrets] [--no-wait]
+                    [--new-certificate]
       Connect an Apple developer account through the App Store Connect API:
       picks up the API key download, registers app IDs and capabilities from
       cheetah.toml, waits for the App Store Connect app, adds the team as
-      TestFlight testers, and stores the GitHub secrets for the build.
-      --build continues with `cheetah build ios --dev`.
+      TestFlight testers, makes one distribution certificate and App Store
+      profiles that every build reuses (like EAS credentials), and stores the
+      GitHub secrets for the build. Reruns reuse the certificate;
+      --new-certificate replaces it. --build continues with
+      `cheetah build ios --dev`.
   cheetah publish [--app NAME] [--runtime VERSION] [--out DIR]
       Bundle the app's .view files for over-the-air updates
       (runtime::updates). Host the file and point Updates at its URL; it

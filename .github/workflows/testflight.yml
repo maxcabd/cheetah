@@ -1,8 +1,11 @@
 name: TestFlight
 
 # Builds a signed iOS release and uploads it to TestFlight. Run it from the
-# Actions tab. Signing is automatic through the App Store Connect API key
-# (cloud-managed certificates), so no certificates or profiles are stored here.
+# Actions tab. Builds sign with one reused distribution certificate and an
+# App Store profile from `cheetah setup ios` (secrets IOS_DISTRIBUTION_P12,
+# IOS_DISTRIBUTION_PASSWORD, IOS_PROFILE_DEV, IOS_PROFILE_RELEASE), like EAS
+# credentials. Without them signing falls back to automatic, which makes a new
+# certificate per run until Apple's certificate limit stops builds.
 #
 # Required repository secrets:
 #   APPLE_TEAM_ID                    Developer team ID (10 characters)
@@ -127,6 +130,58 @@ jobs:
           printf '%s\n' "$PRIVATE_KEY" > "$RUNNER_TEMP/AuthKey.p8"
           chmod 600 "$RUNNER_TEMP/AuthKey.p8"
 
+      - name: Install signing credentials
+        shell: bash
+        env:
+          P12: ${{ secrets.IOS_DISTRIBUTION_P12 }}
+          P12_PASSWORD: ${{ secrets.IOS_DISTRIBUTION_PASSWORD }}
+          PROFILE_DEV: ${{ secrets.IOS_PROFILE_DEV }}
+          PROFILE_RELEASE: ${{ secrets.IOS_PROFILE_RELEASE }}
+        run: |
+          set -euo pipefail
+          if [ -z "$P12" ]; then
+            echo "::warning title=Automatic signing::No reused certificate: run cheetah setup ios, or each build makes a new certificate until Apple's limit stops builds."
+            echo "SIGNING=automatic" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          case "$BUNDLE_ID" in
+            *.dev) PROFILE="$PROFILE_DEV" ;;
+            *) PROFILE="$PROFILE_RELEASE" ;;
+          esac
+          if [ -z "$PROFILE" ]; then
+            echo "::error title=Missing profile::No App Store profile for $BUNDLE_ID: run cheetah setup ios"
+            exit 1
+          fi
+
+          # The certificate, in a keychain of its own for this run.
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          printf '%s' "$P12" | base64 --decode > "$RUNNER_TEMP/distribution.p12"
+          security import "$RUNNER_TEMP/distribution.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security
+          rm "$RUNNER_TEMP/distribution.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+          # The profile, where Xcode looks for it (both locations: Xcode 16+
+          # reads the second).
+          printf '%s' "$PROFILE" | base64 --decode > "$RUNNER_TEMP/app.mobileprovision"
+          security cms -D -i "$RUNNER_TEMP/app.mobileprovision" > "$RUNNER_TEMP/profile.plist"
+          UUID=$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")
+          NAME=$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")
+          for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" \
+                     "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$dir"
+            cp "$RUNNER_TEMP/app.mobileprovision" "$dir/$UUID.mobileprovision"
+          done
+          echo "SIGNING=manual" >> "$GITHUB_ENV"
+          echo "PROFILE_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "Signing with the reused certificate and profile \"$NAME\""
+
       - name: Archive
         shell: bash
         env:
@@ -134,18 +189,24 @@ jobs:
           KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
+          if [ "$SIGNING" = manual ]; then
+            signing=(CODE_SIGN_STYLE=Manual "CODE_SIGN_IDENTITY=Apple Distribution" \
+              "PROVISIONING_PROFILE_SPECIFIER=$PROFILE_NAME")
+          else
+            signing=(-allowProvisioningUpdates \
+              -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
+              -authenticationKeyID "$KEY_ID" \
+              -authenticationKeyIssuerID "$ISSUER_ID" \
+              CODE_SIGN_STYLE=Automatic)
+          fi
           xcodebuild archive \
             -project ios/Cheetah.xcodeproj \
             -scheme Cheetah \
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Cheetah.xcarchive" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
-            -authenticationKeyID "$KEY_ID" \
-            -authenticationKeyIssuerID "$ISSUER_ID" \
+            "${signing[@]}" \
             DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
-            CODE_SIGN_STYLE=Automatic \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
             CHEETAH_DEFAULT_APP="$CHEETAH_APP" \
             CHEETAH_NATIVE_FINGERPRINT="$NATIVE_FINGERPRINT" \
@@ -162,6 +223,15 @@ jobs:
           ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
         run: |
           set -o pipefail
+          if [ "$SIGNING" = manual ]; then
+            SIGNING_OPTIONS="<key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key><dict><key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string></dict>"
+            provisioning=()
+          else
+            SIGNING_OPTIONS="<key>signingStyle</key><string>automatic</string>"
+            provisioning=(-allowProvisioningUpdates)
+          fi
           cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -170,17 +240,18 @@ jobs:
             <key>method</key><string>app-store-connect</string>
             <key>destination</key><string>upload</string>
             <key>teamID</key><string>${APPLE_TEAM_ID}</string>
-            <key>signingStyle</key><string>automatic</string>
+            ${SIGNING_OPTIONS}
             <key>uploadSymbols</key><true/>
             <key>manageAppVersionAndBuildNumber</key><false/>
           </dict>
           </plist>
           PLIST
+          # The upload authenticates with the API key either way.
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Cheetah.xcarchive" \
             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
             -exportPath "$RUNNER_TEMP/export" \
-            -allowProvisioningUpdates \
+            "${provisioning[@]}" \
             -authenticationKeyPath "$RUNNER_TEMP/AuthKey.p8" \
             -authenticationKeyID "$KEY_ID" \
             -authenticationKeyIssuerID "$ISSUER_ID" \
