@@ -145,6 +145,14 @@ pub struct Props {
     /// so it never reaches the native host.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub right: Option<f32>,
+    /// A route to open when pressed (`link="/restaurant/{id}"`): the runtime
+    /// turns the click into a `navigate` event (see `router`). Rust only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link: Option<String>,
+    /// How a `link` opens: "push" (default) or "zoom" (the page grows out
+    /// of this element, found by its `test_id`). Rust only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transition: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub map_latitude: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -271,6 +279,8 @@ impl Props {
         changed_field!(content_inset_bottom);
         changed_field!(bottom);
         changed_field!(right);
+        changed_field!(link);
+        changed_field!(transition);
         changed_field!(map_latitude);
         changed_field!(map_longitude);
         changed_field!(map_latitude_delta);

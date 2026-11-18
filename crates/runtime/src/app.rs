@@ -341,11 +341,28 @@ impl Runtime {
     }
 
     pub fn apply_event(&mut self, id: u32, kind: &str, payload: &str) {
-        let key = self
-            .previous
-            .as_ref()
-            .and_then(|tree| tree.get(&id))
-            .and_then(|node| node.key.clone());
+        let node = self.previous.as_ref().and_then(|tree| tree.get(&id));
+        let key = node.and_then(|node| node.key.clone());
+
+        // A pressed `link` navigates: the app gets `navigate` with the path,
+        // how to open it, and the element to grow from (its test_id).
+        if kind == "click" {
+            if let Some(path) = node.and_then(|node| node.props.link.clone()) {
+                let props = &node.expect("a link comes from a node").props;
+                self.app.update(Event {
+                    id,
+                    key,
+                    kind: "navigate".into(),
+                    payload: serde_json::json!({
+                        "path": path,
+                        "transition": props.transition.as_deref().unwrap_or("push"),
+                        "source": props.test_id,
+                    })
+                    .to_string(),
+                });
+                return;
+            }
+        }
 
         self.app.update(Event {
             id,

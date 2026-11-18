@@ -36,6 +36,7 @@ pub mod platform;
 #[path = "../../../apps/nightshade/src/nightshade/mod.rs"]
 pub mod nightshade;
 pub mod resource;
+pub mod router;
 pub mod secure_store;
 pub mod store;
 pub mod tree;

@@ -99,6 +99,12 @@ pub fn set(props: &mut Props, name: &str, arg: usize, value: &DynValue) -> Optio
         ("left", 0) => set!(left, num),
         ("bottom", 0) => set!(bottom, num),
         ("right", 0) => set!(right, num),
+        // A link is pressable.
+        ("link", 0) => {
+            props.pressable.get_or_insert(true);
+            set!(link, string)
+        }
+        ("transition", 0) => set!(transition, string),
         ("glass_style", 0) => set!(glass_style, string),
         ("glass_tint", 0) => set!(glass_tint, string),
         ("glass_interactive", 0) => set!(glass_interactive, boolean),
