@@ -30,6 +30,7 @@ const VIEWS_URL: Option<&str> = option_env!("NIGHTSHADE_VIEWS_URL");
 /// This build's runtime: `version+build` from cheetah.toml (a test checks).
 const RUNTIME_VERSION: &str = "1.0.0+1";
 
+/// Suggestions when there is nothing better (no history, backend offline).
 const SUGGESTIONS: [&str; 6] = [
     "Cafes within 12 min walk",
     "Best dessert spots near me",
@@ -66,8 +67,20 @@ pub struct NightshadeApp {
     locate_taps: u32,
     /// Result cards shrunk to small bars (swipe a card's handle down).
     cards_minimized: bool,
+    /// Bookmarked place ids (the bookmark button), kept across launches.
+    saved_places: std::collections::BTreeSet<String>,
+    /// The user's own searches, newest first, kept across launches.
+    recent_searches: Vec<String>,
+    /// From the backend: trending searches and ones for the time of day.
+    trending: Vec<String>,
+    time_of_day: Vec<String>,
+    /// The suggestions request in flight.
+    suggestions_request: Option<u64>,
     /// Pages over the map (`views/pages/`): the restaurant page.
     router: Router,
+    /// Pages opened so far: each gets a fresh native page (`page:<n>`), so
+    /// a page iOS closed without telling us can't block the next one.
+    page_opens: u32,
     /// Each place's photo's dominant color ("#rrggbb"), reported by the
     /// card's `photo` once its first image loads.
     photo_colors: std::collections::HashMap<String, String>,
@@ -110,8 +123,14 @@ impl NightshadeApp {
             locating: false,
             locate_taps: 0,
             cards_minimized: false,
+            saved_places: Default::default(),
+            recent_searches: Vec::new(),
+            trending: Vec::new(),
+            time_of_day: Vec::new(),
+            suggestions_request: None,
             photo_colors: std::collections::HashMap::new(),
             router: Router::from_views(&view_files()),
+            page_opens: 0,
             state_file: None,
             calls: vec![NativeCall::new("location", "request", "{}")],
             actions: Vec::new(),
@@ -125,6 +144,8 @@ impl NightshadeApp {
             app.calls.extend(updates.start());
             app.updates = Some(updates);
         }
+
+        app.load_suggestions();
 
         if demo {
             app.search = Resource::Ready(SearchResponse {
@@ -185,6 +206,9 @@ impl App for NightshadeApp {
         if event.kind == "lifecycle" {
             if event.payload == "background" {
                 self.save_state();
+            } else if event.payload == "active" {
+                // The time of day may have moved on.
+                self.load_suggestions();
             }
             return;
         }
@@ -194,8 +218,8 @@ impl App for NightshadeApp {
         if event.kind == "navigate" {
             if self.cards_minimized {
                 self.minimize_cards(false);
-            } else if self.router.handle_event(&event) {
-                self.haptic("light");
+            } else {
+                self.open_page(|router| router.handle_event(&event));
             }
             return;
         }
@@ -224,7 +248,7 @@ impl App for NightshadeApp {
             // Dragged down: an expanded sheet goes back to its resting
             // height, taking the keyboard with it.
             // The user dragged the page down: it is already closed.
-            "dismiss" if key == "page" => {
+            "dismiss" if key.starts_with("page:") => {
                 self.router.back();
             }
             "dismiss" if key == "search-panel" => {
@@ -295,8 +319,8 @@ impl App for NightshadeApp {
             "click" => {
                 if let Some(index) = key.strip_prefix("suggest:") {
                     if let Ok(index) = index.parse::<usize>() {
-                        if let Some(suggestion) = SUGGESTIONS.get(index) {
-                            self.run_search(suggestion);
+                        if let Some(suggestion) = self.suggestions().get(index).cloned() {
+                            self.run_search(&suggestion);
                         }
                     }
                 } else if let Some(index) = key.strip_prefix("followup:") {
@@ -316,11 +340,23 @@ impl App for NightshadeApp {
                     self.send_draft();
                 } else if key == "search:clear" {
                     self.clear_search();
+                } else if let Some(id) = key.strip_prefix("card:share:") {
+                    self.share_place(&id.to_string());
+                } else if let Some(id) = key.strip_prefix("card:directions:") {
+                    self.directions(&id.to_string());
+                } else if let Some(id) = key.strip_prefix("card:bookmark:") {
+                    self.toggle_saved(&id.to_string());
+                } else if let Some(id) = self.open_place_id().filter(|_| key == "page:share") {
+                    self.share_place(&id);
+                } else if let Some(id) = self.open_place_id().filter(|_| key == "page:bookmark") {
+                    self.toggle_saved(&id);
+                } else if let Some(id) = self.open_place_id().filter(|_| key == "page:directions") {
+                    self.directions(&id);
                 } else if let Some(id) = key.strip_prefix("card:up:") {
                     // The card's up arrow: its page, growing out of the card.
-                    if self.router.push(&format!("/restaurant/{id}"), "zoom", Some(format!("card-{id}"))) {
-                        self.haptic("light");
-                    }
+                    let path = format!("/restaurant/{}", crate::router::encode_segment(id));
+                    let source = format!("card-{id}");
+                    self.open_page(|router| router.push(&path, "zoom", Some(source)));
                 } else if key == "page:back" {
                     self.router.back();
                 } else if key == "map:locate" {
@@ -366,6 +402,209 @@ impl App for NightshadeApp {
         view_files()
     }
 }
+
+impl NightshadeApp {
+    /// Open a page from the map. A page still open here was closed by the
+    /// user without its `dismiss` arriving (you can only tap a card when no
+    /// page covers it): close it first, so the stack doesn't grow.
+    pub(crate) fn open_page(&mut self, open: impl FnOnce(&mut Router) -> bool) {
+        if self.router.current().page.is_some() {
+            self.router.back();
+        }
+        if open(&mut self.router) {
+            self.page_opens += 1;
+            self.haptic("light");
+            if let Some(id) = self.open_place_id() {
+                self.report("open", &id);
+            }
+        }
+    }
+}
+
+impl NightshadeApp {
+    /// The place whose page is open, if any.
+    fn open_place_id(&self) -> Option<String> {
+        let location = self.router.current();
+        (location.page.as_deref() == Some("RestaurantPage"))
+            .then(|| location.params.get("id").cloned())
+            .flatten()
+    }
+
+    fn place(&self, id: &str) -> Option<&Place> {
+        self.visible_places().iter().find(|place| place.id == id)
+    }
+
+    /// The system share sheet with the place's name, address and a map link.
+    fn share_place(&mut self, id: &str) {
+        let Some(place) = self.place(id) else { return };
+        let mut text = place.name.clone();
+        if !place.address.is_empty() {
+            text.push_str(&format!(", {}", place.address));
+        }
+        text.push_str(&format!("\n{}", maps_link(place, false)));
+        self.calls.push(NativeCall::new(
+            "system",
+            "share",
+            &serde_json::json!({"text": text}).to_string(),
+        ));
+        self.haptic("light");
+        self.report("share", id);
+    }
+
+    /// Directions to the place: ask which maps app (an action sheet), then
+    /// open it (`directions_chosen`).
+    fn directions(&mut self, id: &str) {
+        if self.place(id).is_none() {
+            return;
+        }
+        self.calls.push(NativeCall::new(
+            "dialog",
+            "actionSheet",
+            &serde_json::json!({
+                "id": format!("directions:{id}"),
+                "title": "Directions",
+                "options": MAPS_APPS,
+            })
+            .to_string(),
+        ));
+        self.haptic("light");
+    }
+
+    /// The maps app picked for directions: 0 Apple Maps, 1 Google Maps,
+    /// -1 cancelled.
+    pub(crate) fn directions_chosen(&mut self, id: &str, choice: i64) {
+        let Some(place) = self.place(id) else { return };
+        let url = match choice {
+            0 => maps_link(place, true),
+            // Google's universal link opens the Google Maps app when it's
+            // installed, else the website.
+            1 => format!(
+                "https://www.google.com/maps/dir/?api=1&destination={},{}",
+                place.lat, place.lng
+            ),
+            _ => return,
+        };
+        self.calls.push(NativeCall::new(
+            "system",
+            "openUrl",
+            &serde_json::json!({"url": url}).to_string(),
+        ));
+        self.report("directions", id);
+    }
+
+    /// Bookmark or un-bookmark a place.
+    fn toggle_saved(&mut self, id: &str) {
+        if !self.saved_places.remove(id) {
+            self.saved_places.insert(id.to_string());
+            self.report("save", id);
+        }
+        self.haptic("selection");
+    }
+
+    /// Tell the backend what the user did with a result (open, directions,
+    /// save, share) for the search that showed it, so ranking can learn.
+    /// Only for places in the current results; no reply is awaited.
+    fn report(&mut self, action: &str, id: &str) {
+        let Some(response) = self.response() else { return };
+        let Some(position) = response.places.iter().position(|place| place.id == id) else {
+            return;
+        };
+        // The plan's query_text includes follow-ups: what ranked this list.
+        let query = response
+            .plan
+            .as_ref()
+            .and_then(|plan| plan["query_text"].as_str())
+            .map(str::to_string)
+            .unwrap_or_else(|| self.query.clone());
+        let Backend::Remote { client, .. } = &mut self.backend else { return };
+        let request = client.post("/v1/search/feedback").json(&serde_json::json!({
+            "query": query,
+            "place_id": id,
+            "action": action,
+            "position": position,
+        }));
+        self.calls.push(request.into_call());
+    }
+
+    pub(crate) fn is_saved(&self, id: &str) -> bool {
+        self.saved_places.contains(id)
+    }
+}
+
+/// The maps apps directions can open in, in action sheet order.
+const MAPS_APPS: [&str; 2] = ["Apple Maps", "Google Maps"];
+
+/// An Apple Maps link to `place`: its pin, or directions to it.
+fn maps_link(place: &Place, directions: bool) -> String {
+    let name: String = place
+        .name
+        .bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => (byte as char).to_string(),
+            _ => format!("%{byte:02X}"),
+        })
+        .collect();
+    let at = format!("{},{}", place.lat, place.lng);
+    if directions {
+        format!("https://maps.apple.com/?daddr={at}&q={name}")
+    } else {
+        format!("https://maps.apple.com/?ll={at}&q={name}")
+    }
+}
+
+impl NightshadeApp {
+    /// Ask the backend for trending and time-of-day suggestions.
+    pub(crate) fn load_suggestions(&mut self) {
+        let Backend::Remote { client, .. } = &mut self.backend else {
+            return;
+        };
+        let request = client.get("/v1/search/suggestions");
+        self.suggestions_request = Some(request.id);
+        self.calls.push(request.into_call());
+    }
+
+    /// The suggestion chips: up to two of the user's recent searches, two
+    /// trending, two for the time of day; topped up from the fixed list.
+    pub(crate) fn suggestions(&self) -> Vec<String> {
+        let mut picked: Vec<String> = Vec::new();
+        let add = |text: &str, picked: &mut Vec<String>| {
+            if picked.len() < 6 && !picked.iter().any(|p| p.eq_ignore_ascii_case(text)) {
+                picked.push(text.to_string());
+            }
+        };
+        for (source, take) in [
+            (&self.recent_searches, 2),
+            (&self.trending, 2),
+            (&self.time_of_day, 2),
+        ] {
+            for text in source.iter().take(take) {
+                add(text, &mut picked);
+            }
+        }
+        // Fill up: more of each, then the fixed list.
+        for text in self.time_of_day.iter().chain(&self.trending).chain(&self.recent_searches) {
+            add(text, &mut picked);
+        }
+        for text in SUGGESTIONS {
+            add(text, &mut picked);
+        }
+        picked
+    }
+
+    /// Remember a new search the user made (not follow-ups).
+    pub(crate) fn remember_search(&mut self, query: &str) {
+        let query = query.trim();
+        if query.is_empty() {
+            return;
+        }
+        self.recent_searches.retain(|q| !q.eq_ignore_ascii_case(query));
+        self.recent_searches.insert(0, query.to_string());
+        self.recent_searches.truncate(RECENT_SEARCHES);
+    }
+}
+
+/// How many of the user's searches are kept.
+const RECENT_SEARCHES: usize = 10;
 
 /// The app's `.view` files. Files under `views/pages/` are router pages.
 fn view_files() -> Vec<(&'static str, &'static str)> {

@@ -113,6 +113,8 @@ pub(crate) struct ApiCard {
     /// The card's photos, hero first; paths starting with "/" are on the API.
     pub(crate) photos: Vec<String>,
     pub(crate) amenities: Vec<String>,
+    /// Open only through the drive-through (the dining room is closed).
+    pub(crate) drive_thru_only: bool,
 }
 
 const DAYS: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -212,6 +214,7 @@ impl ApiCard {
             distance_m: self.distance_m.unwrap_or(0.0),
             price_tier: self.price_tier.unwrap_or(0),
             open: self.open_now,
+            drive_thru_only: self.drive_thru_only && self.open_now == Some(true),
             closes,
             opens,
             rating: self

@@ -536,10 +536,15 @@ fn result_pins_sit_between_the_status_bar_and_the_cards() {
             assert!((0.0..=width).contains(&x), "{} at x {x} off screen", place.name);
         }
     };
-    check(&app, false);
-
-    app.focused = true;
+    // Results open zoomed in on the first place.
+    assert!(app.focused);
+    assert_eq!(app.selected, 0);
     check(&app, true);
+
+    // The overview of every pin (focus dropped) fits them all too.
+    app.focused = false;
+    check(&app, false);
+    app.focused = true;
     // A focused card zooms to street level: under ~1 km of map on screen.
     let (_, _, focused_delta, _) = app.region(width, height);
     assert!(focused_delta < 0.009, "focused span {focused_delta} too wide");
@@ -647,7 +652,11 @@ fn follow_ups_send_the_previous_plan() {
     click(&mut app, "search:clear");
     submit(&mut app, "sushi");
     let calls = app.take_native_calls();
-    let call = calls.iter().find(|call| call.module == "http" && call.method == "request").unwrap();
+    // The search, not the suggestions refresh that clearing also sends.
+    let call = calls
+        .iter()
+        .find(|call| call.module == "http" && call.method == "request" && call.args.contains("\"POST\""))
+        .unwrap();
     let args: serde_json::Value = serde_json::from_str(&call.args).unwrap();
     assert!(!args["body"].as_str().unwrap().contains("previous_plan"));
 }
@@ -869,9 +878,17 @@ fn the_locate_button_centers_on_the_user_until_a_card_takes_over() {
     let button = find(&tree, "map:locate").expect("locate button");
     assert!(format!("{:?}", button.children).contains("location.fill"), "filled while following");
 
-    // Tapping again after panning by hand still moves the map.
+    // Tapping again after panning by hand moves the map back: the region is
+    // the same, so the map's `recenter` changes.
+    let recenter = |app: &NightshadeApp| -> serde_json::Value {
+        let tree = render(app);
+        let raw = find(&tree, "map").unwrap().props.native_props.clone().unwrap();
+        serde_json::from_str::<serde_json::Value>(&raw).unwrap()["recenter"].clone()
+    };
+    let before = recenter(&app);
     click(&mut app, "map:locate");
-    assert_ne!(app.region(width, height), located);
+    assert_eq!(app.region(width, height), located);
+    assert_ne!(recenter(&app), before);
 
     // Picking a card hands the map back to the results.
     app.update(Event { id: 0, key: Some("places".into()), kind: "page".into(), payload: "1".into() });
@@ -1046,6 +1063,21 @@ fn tapping_a_card_opens_its_page_and_back_closes_it() {
 }
 
 #[test]
+fn a_page_closed_without_its_dismiss_does_not_block_the_next() {
+    let mut app = NightshadeApp::new(true);
+    click(&mut app, "card:up:java");
+    let first = find(&render(&app), "page:1").is_some();
+    assert!(first, "the first page");
+    // iOS closed it but the app never heard; the user taps another card.
+    click(&mut app, "card:up:pizza");
+    let tree = render(&app);
+    assert!(find(&tree, "page:2").is_some(), "a fresh native page");
+    assert!(find(&tree, "page:1").is_none());
+    assert_eq!(app.router.stack().len(), 2, "the stale page was closed, not stacked");
+    assert_eq!(app.router.current().path, "/restaurant/pizza");
+}
+
+#[test]
 fn a_restaurant_page_for_a_place_not_in_the_results_says_so() {
     let mut app = NightshadeApp::new(true);
     assert!(app.router.push("/restaurant/gone", "push", None));
@@ -1062,4 +1094,184 @@ fn a_cards_up_arrow_opens_its_page() {
     assert_eq!(page.path, "/restaurant/java");
     assert_eq!(page.transition, "zoom");
     assert_eq!(page.source.as_deref(), Some("card-java"), "grows out of the card, not the button");
+}
+
+#[test]
+fn places_with_a_slash_in_their_id_open_too() {
+    let mut app = remote_app();
+    submit(&mut app, "shawarma");
+    let id = request_id(&mut app);
+    let body = serde_json::json!({"cards": [{
+        "place_id": "osm:node/4269823295", "name": "Shawarma House", "lat": 45.4, "lng": -75.7, "distance_m": 10
+    }]});
+    http_response(
+        &mut app,
+        serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}),
+    );
+    click(&mut app, "card:up:osm:node/4269823295");
+    assert_eq!(app.router.current().params["id"], "osm:node/4269823295");
+    let tree = render(&app);
+    assert!(format!("{tree:?}").contains("Shawarma House"), "the page found the place");
+    assert!(!format!("{tree:?}").contains("isn't in your results"));
+}
+
+#[test]
+fn satellite_and_minimized_cards_survive_a_relaunch() {
+    let file = std::env::temp_dir().join(format!("nightshade-choices-{}.redb", std::process::id()));
+    let _ = std::fs::remove_file(&file);
+    let background = Event { id: 0, key: None, kind: "lifecycle".into(), payload: "background".into() };
+
+    let mut app = NightshadeApp::new(true).with_state_file(&file);
+    click(&mut app, "map:type");
+    click(&mut app, "handle:java");
+    assert!(app.satellite && app.cards_minimized);
+    app.update(background);
+
+    let reopened = NightshadeApp::new(true).with_state_file(&file);
+    assert!(reopened.satellite, "satellite mode is remembered");
+    assert!(reopened.cards_minimized, "minimized cards are remembered");
+    let _ = std::fs::remove_file(&file);
+}
+
+#[test]
+fn card_and_page_buttons_share_save_and_route() {
+    let mut app = NightshadeApp::new(true);
+    app.take_native_calls();
+
+    click(&mut app, "card:share:java");
+    let calls = app.take_native_calls();
+    let share = calls.iter().find(|call| call.module == "system" && call.method == "share").expect("share sheet");
+    let args: serde_json::Value = serde_json::from_str(&share.args).unwrap();
+    assert!(args["text"].as_str().unwrap().starts_with("Java Haven"));
+    assert!(args["text"].as_str().unwrap().contains("maps.apple.com"));
+
+    click(&mut app, "card:bookmark:java");
+    assert!(app.is_saved("java"));
+    let tree = render(&app);
+    assert!(format!("{:?}", find(&tree, "card:bookmark:java").unwrap()).contains("bookmark.fill"));
+    click(&mut app, "card:bookmark:java");
+    assert!(!app.is_saved("java"), "a second tap un-saves");
+
+    click(&mut app, "card:up:java");
+    app.take_native_calls();
+    click(&mut app, "page:directions");
+    let calls = app.take_native_calls();
+    let sheet = calls.iter().find(|call| call.module == "dialog" && call.method == "actionSheet").expect("asks");
+    assert!(sheet.args.contains("Apple Maps") && sheet.args.contains("Google Maps"));
+
+    let choose = |app: &mut NightshadeApp, index: i64| {
+        app.update(Event {
+            id: 0,
+            key: None,
+            kind: "native".into(),
+            payload: format!(r#"{{"module":"dialog","method":"result","id":"directions:java","index":{index}}}"#),
+        });
+        app.take_native_calls()
+    };
+    let apple = choose(&mut app, 0);
+    assert!(apple.iter().any(|call| call.method == "openUrl" && call.args.contains("maps.apple.com/?daddr=")));
+    let google = choose(&mut app, 1);
+    assert!(google.iter().any(|call| call.method == "openUrl" && call.args.contains("google.com/maps/dir/")));
+    assert!(choose(&mut app, -1).iter().all(|call| call.method != "openUrl"), "cancel opens nothing");
+
+    // The card's directions button asks the same way.
+    click(&mut app, "card:directions:pizza");
+    assert!(app.take_native_calls().iter().any(|call| call.method == "actionSheet"));
+    click(&mut app, "page:bookmark");
+    assert!(app.is_saved("java"));
+}
+
+#[test]
+fn bookmarks_survive_a_relaunch() {
+    let file = std::env::temp_dir().join(format!("nightshade-saved-{}.redb", std::process::id()));
+    let _ = std::fs::remove_file(&file);
+    let mut app = NightshadeApp::new(true).with_state_file(&file);
+    click(&mut app, "card:bookmark:pizza");
+    app.update(Event { id: 0, key: None, kind: "lifecycle".into(), payload: "background".into() });
+    assert!(NightshadeApp::new(true).with_state_file(&file).is_saved("pizza"));
+    let _ = std::fs::remove_file(&file);
+}
+
+#[test]
+fn suggestions_mix_your_searches_trending_and_the_time_of_day() {
+    let mut app = remote_app();
+    // Launch asked the backend; answer it.
+    let mut app2 = NightshadeApp::with_backend(false, Backend::remote("http://api.test"));
+    let calls = app2.take_native_calls();
+    let call = calls.iter().find(|c| c.module == "http" && c.args.contains("/v1/search/suggestions")).expect("asks at launch");
+    let id = serde_json::from_str::<serde_json::Value>(&call.args).unwrap()["id"].as_u64().unwrap();
+    let body = serde_json::json!({"trending": ["Shawarma", "Bubble tea"], "time_of_day": ["Open now", "24 hour food"]});
+    http_response(&mut app2, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}));
+    assert_eq!(app2.suggestions()[..4], ["Shawarma", "Bubble tea", "Open now", "24 hour food"]);
+
+    // Your own searches come first.
+    app2.remember_search("halal tacos");
+    app2.remember_search("dairy queen");
+    let chips = app2.suggestions();
+    assert_eq!(chips[0], "dairy queen");
+    assert_eq!(chips[1], "halal tacos");
+    assert_eq!(chips.len(), 6);
+
+    // Tapping a chip searches what it says.
+    click(&mut app2, "suggest:2");
+    assert_eq!(app2.query, "Shawarma");
+
+    // Offline / no data: the fixed list.
+    assert_eq!(app.suggestions().len(), 6);
+    app.remember_search("  ");
+    assert!(app.recent_searches.is_empty());
+}
+
+#[test]
+fn a_place_open_only_through_its_drive_thru_says_so() {
+    let card: super::ApiCard = serde_json::from_value(serde_json::json!({
+        "place_id": "osm:way/1", "name": "McDonald's", "lat": 45.38, "lng": -75.64,
+        "open_now": true, "closes_at_local": "00:00", "drive_thru_only": true
+    }))
+    .unwrap();
+    let place = card.into_place(None);
+    assert!(place.drive_thru_only);
+    assert_eq!(place.open, Some(true));
+
+    // Without the flag (older backends), it's just open.
+    let card: super::ApiCard = serde_json::from_value(serde_json::json!({
+        "place_id": "osm:way/2", "name": "Elgin Street Diner", "lat": 45.4, "lng": -75.69, "open_now": true
+    }))
+    .unwrap();
+    assert!(!card.into_place(None).drive_thru_only);
+}
+
+#[test]
+fn acting_on_a_result_reports_it_for_ranking() {
+    let mut app = remote_app();
+    submit(&mut app, "study spots");
+    let calls = app.take_native_calls();
+    let call = calls.iter().find(|c| c.module == "http" && c.args.contains("/v1/search\"")).unwrap();
+    let id = serde_json::from_str::<serde_json::Value>(&call.args).unwrap()["id"].as_u64().unwrap();
+    let body = serde_json::json!({
+        "title": "Study", "plan": {"query_text": "study spots"}, "followups": [], "pins": [], "mode": "x",
+        "warnings": [], "cards": [
+            {"place_id": "a", "name": "A", "lat": 45.0, "lng": -75.0},
+            {"place_id": "b", "name": "B", "lat": 45.01, "lng": -75.0}
+        ]
+    });
+    http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}));
+    app.take_native_calls();
+
+    click(&mut app, "card:bookmark:b");
+    let calls = app.take_native_calls();
+    let report = calls
+        .iter()
+        .find(|c| c.module == "http" && c.args.contains("/v1/search/feedback"))
+        .expect("saving reports it");
+    let args: serde_json::Value = serde_json::from_str(&report.args).unwrap();
+    let sent: serde_json::Value = serde_json::from_str(args["body"].as_str().unwrap()).unwrap();
+    assert_eq!(sent["query"], "study spots");
+    assert_eq!(sent["place_id"], "b");
+    assert_eq!(sent["action"], "save");
+    assert_eq!(sent["position"], 1);
+
+    // Unsaving says nothing.
+    click(&mut app, "card:bookmark:b");
+    assert!(!app.take_native_calls().iter().any(|c| c.args.contains("/v1/search/feedback")));
 }

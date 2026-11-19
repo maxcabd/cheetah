@@ -29,6 +29,7 @@ impl NightshadeApp {
                     "lng_delta": longitude_delta,
                     "satellite": self.satellite,
                     "locating": self.locating,
+                    "recenter": self.locate_taps,
                     "pins": self.pins(),
                     "safe_top": self.host.safe_top.max(20.0),
                 },
@@ -49,15 +50,9 @@ impl NightshadeApp {
     /// pins fit the band between the status bar and the cards, so the cards
     /// never cover them.
     pub(crate) fn region(&self, width: f32, height: f32) -> (f32, f32, f32, f32) {
-        let (latitude, longitude, latitude_delta, longitude_delta) =
-            self.fitted_region(width, height);
-        // The native map skips a region it already shows, so after the user
-        // pans by hand, locating again would change nothing: each tap nudges
-        // the zoom by 0.01% (invisible) to make it a new region.
-        // TODO: a "recenter" field in the map's native_props would say this
-        // directly (needs a build).
-        let nudge = 1.0 + 1e-4 * (self.locate_taps % 2) as f32;
-        (latitude, longitude, latitude_delta * nudge, longitude_delta * nudge)
+        // After the user pans by hand the region is unchanged, so locating
+        // again also bumps the map's `recenter` (see map_screen).
+        self.fitted_region(width, height)
     }
 
     /// The points the map fits: the user (when locating) and the places.

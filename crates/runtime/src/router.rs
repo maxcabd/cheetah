@@ -150,6 +150,17 @@ impl Router {
     }
 }
 
+/// A value made safe for one path segment: `/` and `%` are escaped, so an
+/// id like `osm:node/42` stays one segment (`/restaurant/osm:node%2F42`).
+/// The router decodes params, so the page sees `osm:node/42` again.
+pub fn encode_segment(value: &str) -> String {
+    value.replace('%', "%25").replace('/', "%2F")
+}
+
+fn decode_segment(value: &str) -> String {
+    value.replace("%2F", "/").replace("%2f", "/").replace("%25", "%")
+}
+
 /// A match's specificity (higher wins) and params, or None.
 fn match_route(segments: &[String], parts: &[&str]) -> Option<(u32, BTreeMap<String, String>)> {
     let mut params = BTreeMap::new();
@@ -159,12 +170,13 @@ fn match_route(segments: &[String], parts: &[&str]) -> Option<(u32, BTreeMap<Str
             if index >= parts.len() {
                 return None;
             }
-            params.insert(name.to_string(), parts[index..].join("/"));
+            let rest: Vec<String> = parts[index..].iter().map(|part| decode_segment(part)).collect();
+            params.insert(name.to_string(), rest.join("/"));
             return Some((score, params));
         }
         let part = parts.get(index)?;
         if let Some(name) = segment.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
-            params.insert(name.to_string(), (*part).to_string());
+            params.insert(name.to_string(), decode_segment(part));
             score += 1;
         } else if segment == part {
             score += 2;
@@ -199,6 +211,16 @@ mod tests {
         assert_eq!(router.resolve("/menu/drinks/hot").unwrap().1["items"], "drinks/hot");
         assert!(router.resolve("/nowhere").is_none());
         assert!(router.resolve("/restaurant").is_none());
+    }
+
+    #[test]
+    fn ids_with_slashes_stay_one_segment() {
+        let path = format!("/restaurant/{}", encode_segment("osm:node/4269823295"));
+        assert_eq!(path, "/restaurant/osm:node%2F4269823295");
+        let (page, params) = router().resolve(&path).unwrap();
+        assert_eq!(page, "RestaurantPage");
+        assert_eq!(params["id"], "osm:node/4269823295");
+        assert_eq!(router().resolve("/restaurant/100%25").unwrap().1["id"], "100%");
     }
 
     #[test]

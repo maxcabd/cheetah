@@ -1,7 +1,7 @@
 # The map screen: map with markers, result cards, and the search sheet.
 component MapScreen
   column width=-1 height=-1 bg=BG
-    map key="map" width=-1 height=-1 bg="#101826" test_id="nightshade-map" map_latitude=region.lat map_longitude=region.lng map_latitude_delta=region.lat_delta map_longitude_delta=region.lng_delta map_dark=true map_shows_user=true native_props=region.satellite ? "{{\"mapType\":\"hybrid\"}}" : "{{\"mapType\":\"muted\"}}"
+    map key="map" width=-1 height=-1 bg="#101826" test_id="nightshade-map" map_latitude=region.lat map_longitude=region.lng map_latitude_delta=region.lat_delta map_longitude_delta=region.lng_delta map_dark=true map_shows_user=true native_props=region.satellite ? "{{\"mapType\":\"hybrid\",\"recenter\":{region.recenter}}}" : "{{\"mapType\":\"muted\",\"recenter\":{region.recenter}}}"
       for pin in region.pins
         use MapPin pin=pin
     # Map controls, top right from 36pt under the status bar: street map /
@@ -54,6 +54,6 @@ component TeardropMarker
 # sheet: it grows out of its card for transition "zoom", and dragging it
 # down closes it (`dismiss`).
 component PageHost
-  native "page" key="page" absolute=true top=0 left=0 width=-1 height=-1 native_props=page.props
+  native "page" key=page.key absolute=true top=0 left=0 width=-1 height=-1 native_props=page.props
     if page.page == "RestaurantPage"
       use RestaurantPage place=page.restaurant

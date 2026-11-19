@@ -11,6 +11,9 @@ pub(crate) struct Place {
     pub(crate) price_tier: u8,
     /// `None` when the backend does not know the hours.
     pub(crate) open: Option<bool>,
+    /// Open only through the drive-through (the dining room is closed).
+    #[serde(default)]
+    pub(crate) drive_thru_only: bool,
     pub(crate) closes: String,
     pub(crate) opens: String,
     /// Empty when there is no rating to show.
@@ -50,6 +53,7 @@ pub(crate) fn sample(
         distance_m,
         price_tier,
         open: Some(open),
+        drive_thru_only: false,
         closes: closes.into(),
         opens: opens.into(),
         rating: "4.3".into(),

@@ -249,6 +249,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
     private var lastDark: Bool?
     private var lastShowUser: Bool?
     private var lastMapType: String?
+    private var lastRecenter: Int?
     private var childAnnotations: [ObjectIdentifier: ViewAnnotation] = [:]
     private var nextRegionAnimated = false
 
@@ -292,6 +293,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
 
         // The map's look, from `native_props`:
         //   mapType: "muted" (default), "standard", "satellite", "hybrid"
+        //   recenter: a counter; changing it re-applies the region
         //   pointsOfInterest, buildings: false by default
         var config: [String: Any] = [:]
         if let raw = props["nativeProps"] as? String,
@@ -300,6 +302,14 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
         {
             config = parsed
         }
+        // `recenter`: a counter; a new value moves the map back to its region
+        // even if the region didn't change (the user panned away by hand).
+        let recenter = (config["recenter"] as? NSNumber)?.intValue ?? 0
+        if let lastRecenter, recenter != lastRecenter, lastRegionKey != nil {
+            lastRegionKey = "recenter"
+        }
+        lastRecenter = recenter
+
         let type = config["mapType"] as? String ?? "muted"
         if type != lastMapType {
             lastMapType = type
@@ -451,7 +461,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
 ///   background: color behind the content (default "#0b0b0f").
 /// Closed by the user (drag down), it reports `dismiss`; removed by the app
 /// (router back), it closes itself, zooming back into its source.
-private final class PageNativeModule: NSObject, CheetahNativeModule, CheetahPresenting {
+private final class PageNativeModule: NSObject, CheetahNativeModule, CheetahPresenting, UIAdaptivePresentationControllerDelegate {
     private weak var owner: NativeModuleHostView?
     private var controller: PageController?
     private let placeholder = UIView()
@@ -481,6 +491,10 @@ private final class PageNativeModule: NSObject, CheetahNativeModule, CheetahPres
     }
 
     func presentIfNeeded(owner: NativeModuleHostView) {
+        // Closed by iOS without us noticing: present it again.
+        if let shown = controller, shown.presentingViewController == nil, !shown.isBeingPresented {
+            controller = nil
+        }
         guard controller == nil else {
             return
         }
@@ -527,8 +541,15 @@ private final class PageNativeModule: NSObject, CheetahNativeModule, CheetahPres
         controller.onDismissedByUser = { [weak self] in
             self?.owner?.event("dismiss", "")
         }
+        // A drag down (with the zoom transition too) ends here.
+        controller.presentationController?.delegate = self
         presenter.present(controller, animated: true)
         self.controller = controller
+    }
+
+    func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        controller?.onDismissedByUser?()
+        controller?.onDismissedByUser = nil
     }
 
     func destroy() {

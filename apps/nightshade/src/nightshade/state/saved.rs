@@ -17,6 +17,15 @@ pub(crate) struct Saved {
     selected: usize,
     focused: bool,
     center: Option<(f32, f32)>,
+    /// Map and card choices; absent in state saved by older versions.
+    #[serde(default)]
+    satellite: bool,
+    #[serde(default)]
+    cards_minimized: bool,
+    #[serde(default)]
+    saved_places: Vec<String>,
+    #[serde(default)]
+    recent_searches: Vec<String>,
 }
 
 impl NightshadeApp {
@@ -47,13 +56,21 @@ impl NightshadeApp {
             selected: self.selected,
             focused: self.focused,
             center: self.center,
+            satellite: self.satellite,
+            cards_minimized: self.cards_minimized,
+            saved_places: self.saved_places.iter().cloned().collect(),
+            recent_searches: self.recent_searches.clone(),
         }
     }
 
     fn restore(&mut self, saved: Saved) {
         self.center = saved.center.or(self.center);
+        self.satellite = saved.satellite;
+        self.saved_places = saved.saved_places.into_iter().collect();
+        self.recent_searches = saved.recent_searches;
         match saved.results {
             Some(results) => {
+                self.cards_minimized = saved.cards_minimized;
                 self.selected = saved.selected.min(results.places.len().saturating_sub(1));
                 self.focused = saved.focused;
                 self.query = saved.query;

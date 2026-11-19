@@ -14,6 +14,7 @@ impl NightshadeApp {
         };
         let mut model = json!({
             "page": page,
+            "key": format!("page:{}", self.page_opens),
             // How the native page appears (a "zoom" grows out of the card).
             "props": json!({
                 "transition": location.transition,
@@ -44,6 +45,7 @@ impl NightshadeApp {
             .collect::<Vec<_>>()
             .join(" · ");
         model["found"] = true.into();
+        model["saved"] = self.is_saved(&place.id).into();
         model["safe_top"] = safe_top.into();
         model["inner"] = (width - 40.0).into();
         model["summary"] = summary.into();

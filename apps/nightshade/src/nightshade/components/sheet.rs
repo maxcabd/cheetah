@@ -75,7 +75,7 @@ impl NightshadeApp {
             "searching_emoji": SEARCHING_EMOJIS[self.searching_frame % SEARCHING_EMOJIS.len()],
             "followups": followups,
             "show_followups": self.expanded && self.response().is_some(),
-            "suggestions": Self::chips(&SUGGESTIONS, "suggest"),
+            "suggestions": Self::chips(&self.suggestions(), "suggest"),
             "placeholder": if results { "Ask a follow up" } else { "What are you in the mood for?" },
             "draft": self.draft,
             "field_key": format!("search-field:{}", self.field_mount),

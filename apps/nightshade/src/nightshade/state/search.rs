@@ -12,6 +12,9 @@ impl NightshadeApp {
         // A search typed or tapped over results is a follow-up: it refines
         // the shown results ("with seating") rather than starting over.
         let previous_plan = self.response().and_then(|response| response.plan.clone());
+        if previous_plan.is_none() {
+            self.remember_search(query);
+        }
         self.search = Resource::Loading;
         self.query = query.into();
         self.draft.clear();
@@ -70,7 +73,8 @@ impl NightshadeApp {
     pub(crate) fn finish_search(&mut self, result: Result<SearchResponse, String>) {
         match result {
             Ok(response) => {
-                // New results start with full cards, framed on the map.
+                // New results start with full cards, the map zoomed in on
+                // the first (as if its card was swiped to).
                 self.cards_minimized = false;
                 self.locating = false;
                 // Results collapse the sheet; iOS won't shrink a sheet while
@@ -80,7 +84,7 @@ impl NightshadeApp {
                 }
                 self.search = Resource::Ready(response);
                 self.selected = 0;
-                self.focused = false;
+                self.focused = true;
                 self.expanded = false;
                 self.haptic("light");
             }
@@ -102,6 +106,8 @@ impl NightshadeApp {
         self.query.clear();
         self.draft.clear();
         self.search = Resource::Idle;
+        // Fresh suggestions for the empty sheet.
+        self.load_suggestions();
         self.selected = 0;
         self.focused = false;
         self.expanded = false;
@@ -131,8 +137,30 @@ impl NightshadeApp {
         if self.router.handle_native(&event) {
             return;
         }
+        // A maps app picked for directions.
+        if event.is("dialog", "result") {
+            if let Some(id) = event.data["id"].as_str().and_then(|id| id.strip_prefix("directions:")) {
+                let choice = event.data["index"].as_i64().unwrap_or(-1);
+                self.directions_chosen(&id.to_string(), choice);
+            }
+            return;
+        }
 
         if let Some(response) = HttpResponse::from_event(&event) {
+            if self.suggestions_request == Some(response.id) {
+                self.suggestions_request = None;
+                if let Ok(data) = response.json::<serde_json::Value>() {
+                    let list = |key: &str| -> Vec<String> {
+                        data[key]
+                            .as_array()
+                            .map(|items| items.iter().filter_map(|i| i.as_str().map(str::to_string)).collect())
+                            .unwrap_or_default()
+                    };
+                    self.trending = list("trending");
+                    self.time_of_day = list("time_of_day");
+                }
+                return;
+            }
             let Backend::Remote { pending, .. } = &mut self.backend else {
                 return;
             };

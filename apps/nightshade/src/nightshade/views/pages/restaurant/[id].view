@@ -40,6 +40,17 @@ component RestaurantDetails
         row width=place.inner wrap=true gap=8
           for amenity in place.amenities
             use Amenity id=amenity
+      # Directions (Apple or Google Maps), share, bookmark: Liquid Glass on
+      # iOS 26, a blur before.
+      row width=place.inner height=48 gap=10 align_items="center"
+        glass key="page:directions" pressable=true weight=1 height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true .center
+          row height=48 gap=8 align_items="center"
+            use Icon name="arrow.triangle.turn.up.right.diamond.fill" size=16 color="#ffffff"
+            text "Directions" size=15 font="satoshi-bold" bold=true color="#ffffff" lines=1
+        glass key="page:share" pressable=true width=48 height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Share" .center
+          use Icon name="square.and.arrow.up" size=17 color="#ffffff"
+        glass key="page:bookmark" pressable=true width=48 height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Save" .center
+          use Icon name=place.saved ? "bookmark.fill" : "bookmark" size=17 color="#ffffff"
 
 # One amenity as a small pill: icon and label from its id.
 component Amenity
@@ -48,6 +59,8 @@ component Amenity
       use AmenityLabel icon="fork.knife" label="Dine-in"
     if id == "takeout"
       use AmenityLabel icon="bag" label="Takeout"
+    if id == "drive_thru"
+      use AmenityLabel icon="car.fill" label="Drive-thru"
     if id == "delivery"
       use AmenityLabel icon="bicycle" label="Delivery"
     if id == "outdoor_seating"

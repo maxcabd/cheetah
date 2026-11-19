@@ -33,8 +33,11 @@ impl NightshadeApp {
                 json!({"photos": place.photos})
             }
             .to_string(),
+            // The place's page; the id may hold a "/" (osm:node/42).
+            "route": format!("/restaurant/{}", crate::router::encode_segment(&place.id)),
             "status": status,
             "closes": place.closes,
+            "drive_thru_only": place.drive_thru_only,
             "opens": place.opens,
             // "8:00 AM" is today; otherwise "tomorrow at …" / "Wed at …".
             "opens_today": place.opens.starts_with(|c: char| c.is_ascii_digit()),
@@ -79,6 +82,7 @@ impl NightshadeApp {
                 .iter()
                 .map(|place| {
                     let mut card = Self::card_model(place);
+                    card["saved"] = self.is_saved(&place.id).into();
                     // The photo's dominant color, once it has loaded.
                     if let Some(color) = self.photo_colors.get(&place.id) {
                         card["color"] = color.as_str().into();
