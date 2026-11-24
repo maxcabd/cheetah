@@ -61,7 +61,7 @@ pub fn diff(old: Option<&FlatTree>, new: &FlatTree) -> Vec<Op> {
             None => creates.push(Op::Create {
                 id: *id,
                 kind: node.kind,
-                props: node.props.clone(),
+                props: (*node.props).clone(),
                 source: node.source.clone(),
                 root: node.parent.is_none(),
             }),
@@ -69,7 +69,7 @@ pub fn diff(old: Option<&FlatTree>, new: &FlatTree) -> Vec<Op> {
                 if previous.kind != node.kind {
                     updates.push(Op::Update {
                         id: *id,
-                        props: node.props.clone(),
+                        props: (*node.props).clone(),
                     });
                 } else if only_text_diff(&previous.props, &node.props) {
                     updates.push(Op::Text {
@@ -81,7 +81,7 @@ pub fn diff(old: Option<&FlatTree>, new: &FlatTree) -> Vec<Op> {
                 } else {
                     updates.push(Op::Update {
                         id: *id,
-                        props: node.props.clone(),
+                        props: (*node.props).clone(),
                     });
                 }
             }

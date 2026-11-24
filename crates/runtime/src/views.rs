@@ -41,10 +41,11 @@
 use crate::dynprops::{self, DynValue};
 use crate::element::{
     button, column, gap_w, glass, hscroll, image, input, list, map, native, row, scroll, sheet,
-    spacer, text, Element,
+    spacer, text, Element, Kind, Props, SourceLocation,
 };
 use serde_json::Value;
-use std::collections::HashMap;
+use std::borrow::Cow;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 const CONSTRUCTORS: &[&str] = &[
@@ -109,6 +110,8 @@ enum Node {
         args: Vec<Expr>,
         attrs: Vec<(String, Expr)>,
         children: Vec<Node>,
+        /// Filled in once everything is parsed (`Views::prepare`).
+        plan: Plan,
     },
     For {
         item: String,
@@ -126,6 +129,31 @@ enum Node {
         args: Vec<(String, Expr)>,
         line: usize,
     },
+}
+
+/// How to set an element's props: start from `base`, which has every value
+/// known when the views were parsed, then apply `sets` in order.
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Plan {
+    base: Props,
+    /// The element itself (kind, source), props aside.
+    shell: Option<Shell>,
+    sets: Vec<Set>,
+    key: Option<Expr>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Shell {
+    kind: Kind,
+    source: Option<SourceLocation>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Set {
+    /// The attribute, or the constructor for its positional argument `arg`.
+    name: String,
+    arg: usize,
+    value: Expr,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -591,6 +619,7 @@ impl<'a> Parser<'a> {
                     args,
                     attrs,
                     children,
+                    plan: Plan::default(),
                 })
             }
             other => Err(self.err(number, format!("unknown element `{other}`"))),
@@ -708,7 +737,26 @@ impl Views {
         for component in views.components.values() {
             views.check_uses(&component.body)?;
         }
+        views.prepare();
         Ok(views)
+    }
+
+    /// Work out each element's `Plan`. Literals, and consts no loop variable
+    /// or component argument is named after, are the same in every render.
+    fn prepare(&mut self) {
+        let mut bound = HashSet::new();
+        for component in self.components.values() {
+            bound_names(&component.body, &mut bound);
+        }
+        let fixed: HashMap<String, Value> = self
+            .consts
+            .iter()
+            .filter(|(name, _)| !bound.contains(*name))
+            .map(|(name, value)| (name.clone(), value.clone()))
+            .collect();
+        for component in self.components.values_mut() {
+            prepare_nodes(&mut component.body, &fixed);
+        }
     }
 
     fn check_uses(&self, nodes: &[Node]) -> Result<(), ViewError> {
@@ -754,7 +802,8 @@ impl Views {
             model,
             frames: Vec::new(),
         };
-        let mut out = scope.nodes(&found.body, 0);
+        let mut out = Vec::new();
+        scope.nodes(&found.body, 0, &mut out);
         if out.len() == 1 {
             out.pop().unwrap()
         } else {
@@ -766,6 +815,146 @@ impl Views {
 // ---------------------------------------------------------------------------
 // Evaluation
 // ---------------------------------------------------------------------------
+
+/// Names loops and component arguments give a value.
+fn bound_names(nodes: &[Node], out: &mut HashSet<String>) {
+    for node in nodes {
+        match node {
+            Node::Element { children, .. } => bound_names(children, out),
+            Node::For {
+                item, index, body, ..
+            } => {
+                out.insert(item.clone());
+                out.extend(index.clone());
+                bound_names(body, out);
+            }
+            Node::If {
+                then, otherwise, ..
+            } => {
+                bound_names(then, out);
+                bound_names(otherwise, out);
+            }
+            Node::Use { args, .. } => out.extend(args.iter().map(|(name, _)| name.clone())),
+        }
+    }
+}
+
+fn prepare_nodes(nodes: &mut [Node], consts: &HashMap<String, Value>) {
+    for node in nodes {
+        match node {
+            Node::Element {
+                ctor,
+                args,
+                attrs,
+                children,
+                plan,
+            } => {
+                *plan = make_plan(ctor, args, attrs, consts);
+                prepare_nodes(children, consts);
+            }
+            Node::For { body, .. } => prepare_nodes(body, consts),
+            Node::If {
+                then, otherwise, ..
+            } => {
+                prepare_nodes(then, consts);
+                prepare_nodes(otherwise, consts);
+            }
+            Node::Use { .. } => {}
+        }
+    }
+}
+
+/// `expr` with const paths replaced by their values.
+fn fold(expr: &Expr, consts: &HashMap<String, Value>) -> Expr {
+    match expr {
+        Expr::Path(path) => match path.as_slice() {
+            [name] => consts
+                .get(name)
+                .and_then(to_dyn)
+                .map_or_else(|| expr.clone(), Expr::Value),
+            _ => expr.clone(),
+        },
+        Expr::Choose(cond, then, otherwise) => Expr::Choose(
+            cond.clone(),
+            Box::new(fold(then, consts)),
+            Box::new(fold(otherwise, consts)),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// Attributes that may write the same prop, so their order matters.
+fn writes(name: &str) -> &str {
+    match name {
+        "border" | "border_width" | "border_color" => "border",
+        "text" | "button" => "text",
+        "image" | "src" => "src",
+        "input" | "placeholder" | "value" => "input",
+        "gap_w" | "width" => "width",
+        "link" | "pressable" => "pressable",
+        "map_region" | "map_latitude" | "map_longitude" | "map_latitude_delta"
+        | "map_longitude_delta" => "map_region",
+        other => other,
+    }
+}
+
+fn make_plan(
+    ctor: &str,
+    args: &[Expr],
+    attrs: &[(String, Expr)],
+    consts: &HashMap<String, Value>,
+) -> Plan {
+    let element = construct(ctor);
+    let mut plan = Plan {
+        shell: Some(Shell {
+            kind: element.kind,
+            source: element.source,
+        }),
+        base: element.props,
+        ..Plan::default()
+    };
+    let positional = args.iter().enumerate().map(|(arg, expr)| (ctor, arg, expr));
+    let named = attrs.iter().map(|(name, expr)| (name.as_str(), 0, expr));
+    for (name, arg, expr) in positional.chain(named) {
+        if name == "key" {
+            plan.key = Some(fold(expr, consts));
+            continue;
+        }
+        match fold(expr, consts) {
+            // Fixed, and nothing before it that changes could be overwritten
+            // out of order.
+            Expr::Value(value) if plan.sets.iter().all(|set| writes(&set.name) != writes(name)) => {
+                let _ = dynprops::set(&mut plan.base, name, arg, &value);
+            }
+            value => plan.sets.push(Set {
+                name: name.to_string(),
+                arg,
+                value,
+            }),
+        }
+    }
+    plan
+}
+
+fn construct(ctor: &str) -> Element {
+    match ctor {
+        "column" => column(),
+        "row" => row(),
+        "text" => text(""),
+        "button" => button(""),
+        "scroll" => scroll(),
+        "list" => list(),
+        "glass" => glass(),
+        "sheet" => sheet(),
+        "map" => map(),
+        "image" => image(""),
+        "hscroll" => hscroll(),
+        "native" => native(""),
+        "input" => input("", ""),
+        "spacer" => spacer(),
+        _ => gap_w(0.0),
+    }
+}
 
 fn to_json(value: &DynValue) -> Value {
     match value {
@@ -807,150 +996,170 @@ fn truthy(value: &Value) -> bool {
     }
 }
 
+/// Loop variables or a component's arguments. Few enough to search.
+type Frame<'a> = Vec<(&'a str, Cow<'a, Value>)>;
+
 struct Scope<'a> {
     views: &'a Views,
     model: &'a Value,
-    frames: Vec<HashMap<String, Value>>,
+    frames: Vec<Frame<'a>>,
 }
 
-impl Scope<'_> {
-    fn lookup(&self, path: &[String]) -> Value {
+/// The value at `path` inside `value`.
+fn walk<'v>(value: &'v Value, path: &[String]) -> Option<&'v Value> {
+    path.iter().try_fold(value, |current, segment| {
+        match segment.parse::<usize>() {
+            Ok(index) => current.get(index),
+            Err(_) => current.get(segment),
+        }
+    })
+}
+
+impl<'a> Scope<'a> {
+    /// Borrowed from the model or views wherever possible: a place passed
+    /// down through components is never copied.
+    fn lookup(&self, path: &[String]) -> Cow<'a, Value> {
+        let null = || Cow::Owned(Value::Null);
         let Some((first, rest)) = path.split_first() else {
-            return Value::Null;
+            return null();
         };
-        let root = self
+        let in_frames = self
             .frames
             .iter()
             .rev()
-            .find_map(|frame| frame.get(first))
-            .or_else(|| self.views.consts.get(first))
-            .or_else(|| self.model.get(first));
-        let mut current = match root {
-            Some(value) => value,
-            None => return Value::Null,
-        };
-        for segment in rest {
-            let next = match segment.parse::<usize>() {
-                Ok(index) => current.get(index),
-                Err(_) => current.get(segment),
-            };
-            match next {
-                Some(value) => current = value,
-                None => return Value::Null,
+            .find_map(|frame| frame.iter().rev().find(|(name, _)| name == first));
+        match in_frames {
+            Some((_, Cow::Borrowed(value))) => walk(value, rest).map_or_else(null, Cow::Borrowed),
+            Some((_, Cow::Owned(value))) => {
+                walk(value, rest).map_or_else(null, |value| Cow::Owned(value.clone()))
             }
+            None => self
+                .views
+                .consts
+                .get(first)
+                .or_else(|| self.model.get(first))
+                .and_then(|value| walk(value, rest))
+                .map_or_else(null, Cow::Borrowed),
         }
-        current.clone()
     }
 
     fn holds(&self, cond: &Cond) -> bool {
         match cond {
             Cond::Truthy { path, negate } => truthy(&self.lookup(path)) != *negate,
-            Cond::Compare { path, equal, value } => (self.lookup(path) == self.eval(value)) == *equal,
+            Cond::Compare { path, equal, value } => {
+                (*self.lookup(path) == *self.eval(value)) == *equal
+            }
         }
     }
 
-    fn eval(&self, expr: &Expr) -> Value {
+    fn eval(&self, expr: &Expr) -> Cow<'a, Value> {
         match expr {
             Expr::Choose(cond, then, otherwise) => {
                 self.eval(if self.holds(cond) { then } else { otherwise })
             }
-            Expr::Value(value) => to_json(value),
+            Expr::Value(value) => Cow::Owned(to_json(value)),
             Expr::Path(path) => self.lookup(path),
-            Expr::Template(parts) => Value::String(
-                parts
-                    .iter()
-                    .map(|part| match part {
-                        Part::Text(text) => text.clone(),
-                        Part::Path(path) => display(&self.lookup(path)),
-                    })
-                    .collect(),
-            ),
+            Expr::Template(parts) => {
+                let mut out = String::new();
+                for part in parts {
+                    match part {
+                        Part::Text(text) => out.push_str(text),
+                        Part::Path(path) => match &*self.lookup(path) {
+                            Value::String(text) => out.push_str(text),
+                            other => out.push_str(&display(other)),
+                        },
+                    }
+                }
+                Cow::Owned(Value::String(out))
+            }
         }
     }
 
-    fn element(
-        &mut self,
-        ctor: &str,
-        args: &[Expr],
-        attrs: &[(String, Expr)],
-        children: &[Node],
-        depth: usize,
-    ) -> Element {
-        let mut element = match ctor {
-            "column" => column(),
-            "row" => row(),
-            "text" => text(""),
-            "button" => button(""),
-            "scroll" => scroll(),
-            "list" => list(),
-            "glass" => glass(),
-            "sheet" => sheet(),
-            "map" => map(),
-            "image" => image(""),
-            "hscroll" => hscroll(),
-            "native" => native(""),
-            "input" => input("", ""),
-            "spacer" => spacer(),
-            _ => gap_w(0.0),
-        };
-        for (position, arg) in args.iter().enumerate() {
-            if let Some(value) = to_dyn(&self.eval(arg)) {
-                let _ = dynprops::set(&mut element.props, ctor, position, &value);
+    /// Numbers for string props (e.g. `text=3`) are formatted by dynprops;
+    /// wrong types are skipped.
+    fn set(&self, props: &mut Props, set: &Set, expr: &Expr) {
+        match expr {
+            Expr::Value(value) => {
+                let _ = dynprops::set(props, &set.name, set.arg, value);
             }
-        }
-        for (name, expr) in attrs {
-            let value = self.eval(expr);
-            if name == "key" {
-                if !value.is_null() {
-                    element.key = Some(display(&value));
+            Expr::Choose(cond, then, otherwise) => {
+                self.set(props, set, if self.holds(cond) { then } else { otherwise })
+            }
+            _ => {
+                let value = match self.eval(expr) {
+                    Cow::Owned(Value::String(text)) => Some(DynValue::Str(text)),
+                    value => to_dyn(&value),
+                };
+                if let Some(value) = value {
+                    let _ = dynprops::set(props, &set.name, set.arg, &value);
                 }
-                continue;
-            }
-            if let Some(value) = to_dyn(&value) {
-                // Numbers for string props (e.g. `text=3`) are formatted by
-                // dynprops; wrong types are skipped.
-                let _ = dynprops::set(&mut element.props, name, 0, &value);
             }
         }
-        let kids = self.nodes(children, depth + 1);
-        element.children.extend(kids);
+    }
+
+    fn element(&mut self, ctor: &str, plan: &'a Plan, children: &'a [Node], depth: usize) -> Element {
+        let mut element = match &plan.shell {
+            Some(shell) => Element {
+                kind: shell.kind,
+                key: None,
+                props: plan.base.clone(),
+                source: shell.source.clone(),
+                children: Vec::with_capacity(children.len()),
+            },
+            None => construct(ctor),
+        };
+        for set in &plan.sets {
+            self.set(&mut element.props, set, &set.value);
+        }
+        if let Some(key) = &plan.key {
+            let key = self.eval(key);
+            if !key.is_null() {
+                element.key = Some(display(&key));
+            }
+        }
+        self.nodes(children, depth + 1, &mut element.children);
         element
     }
 
-    fn nodes(&mut self, nodes: &[Node], depth: usize) -> Vec<Element> {
-        let mut out = Vec::new();
+    fn nodes(&mut self, nodes: &'a [Node], depth: usize, out: &mut Vec<Element>) {
         if depth > MAX_DEPTH {
             out.push(text("view nesting too deep").color("#ff5555"));
-            return out;
+            return;
         }
         for node in nodes {
             match node {
                 Node::Element {
                     ctor,
-                    args,
-                    attrs,
                     children,
-                } => out.push(self.element(ctor, args, attrs, children, depth)),
+                    plan,
+                    ..
+                } => {
+                    let element = self.element(ctor, plan, children, depth);
+                    out.push(element);
+                }
                 Node::For {
                     item,
                     index,
                     list,
                     body,
                 } => {
-                    let items = match self.lookup(list) {
-                        Value::Array(items) => items,
+                    let items: Vec<Cow<'a, Value>> = match self.lookup(list) {
+                        Cow::Borrowed(Value::Array(items)) => {
+                            items.iter().map(Cow::Borrowed).collect()
+                        }
+                        Cow::Owned(Value::Array(items)) => {
+                            items.into_iter().map(Cow::Owned).collect()
+                        }
                         _ => Vec::new(),
                     };
                     for (position, value) in items.into_iter().enumerate() {
-                        let mut frame = HashMap::new();
-                        frame.insert(item.clone(), value);
+                        let mut frame: Frame<'a> = vec![(item.as_str(), value)];
                         if let Some(index) = index {
-                            frame.insert(index.clone(), Value::from(position));
+                            frame.push((index.as_str(), Cow::Owned(Value::from(position))));
                         }
                         self.frames.push(frame);
-                        let rendered = self.nodes(body, depth + 1);
+                        self.nodes(body, depth + 1, out);
                         self.frames.pop();
-                        out.extend(rendered);
                     }
                 }
                 Node::If {
@@ -958,36 +1167,32 @@ impl Scope<'_> {
                     then,
                     otherwise,
                 } => {
-                    let pass = self.holds(cond);
-                    let branch = if pass { then } else { otherwise };
-                    let rendered = self.nodes(branch, depth + 1);
-                    out.extend(rendered);
+                    let branch = if self.holds(cond) { then } else { otherwise };
+                    self.nodes(branch, depth + 1, out);
                 }
                 Node::Use { name, args, .. } => {
-                    let Some(component) = self.views.components.get(name) else {
+                    let views = self.views;
+                    let Some(component) = views.components.get(name) else {
                         out.push(text(format!("missing view `{name}`")).color("#ff5555"));
                         continue;
                     };
-                    let frame: HashMap<String, Value> = args
+                    let frame: Frame<'a> = args
                         .iter()
-                        .map(|(key, expr)| (key.clone(), self.eval(expr)))
+                        .map(|(key, expr)| (key.as_str(), self.eval(expr)))
                         .collect();
                     // Components see only their arguments, consts, and the model.
                     let outer = std::mem::replace(&mut self.frames, vec![frame]);
-                    let rendered = self.nodes(&component.body, depth + 1);
+                    self.nodes(&component.body, depth + 1, out);
                     self.frames = outer;
-                    out.extend(rendered);
                 }
             }
         }
-        out
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::element::Kind;
     use serde_json::json;
 
     fn parse(source: &str) -> Views {
@@ -1189,6 +1394,45 @@ component Icon
             root.props.native_props.as_deref(),
             Some(r#"{"name":"car"}"#)
         );
+    }
+
+    #[test]
+    fn fixed_values_keep_their_order_with_ones_that_change() {
+        let views = parse(
+            r##"
+const WIDE = 300
+const NAME = "from const"
+
+component A
+  column
+    row width=w width=5 border=1 border_color=tint border_color="#ffffff"
+    row width=5 width=w
+    row bg=dark ? BG : "#fff" width=WIDE
+    use B NAME="from argument"
+    for WIDE in items
+      row width=WIDE
+
+const BG = "#000"
+
+component B
+  text NAME
+"##,
+        );
+        let model = json!({"w": 9, "tint": "#ff0000", "dark": true, "items": [7]});
+        let root = views.render("A", &model);
+        let kids: Vec<&Props> = root.children.iter().map(|child| &child.props).collect();
+        assert_eq!(kids[0].width, Some(5.0));
+        assert_eq!(kids[0].border_color.as_deref(), Some("#ffffff"));
+        assert_eq!(kids[0].border_width, Some(1.0));
+        assert_eq!(kids[1].width, Some(9.0));
+        assert_eq!(kids[2].bg.as_deref(), Some("#000"));
+        // Arguments and loop variables hide a const of the same name.
+        assert_eq!(kids[2].width, Some(300.0));
+        assert_eq!(kids[3].text.as_deref(), Some("from argument"));
+        assert_eq!(kids[4].width, Some(7.0));
+        // A value of the wrong type leaves what was there.
+        let root = views.render("A", &json!({"w": "wide"}));
+        assert_eq!(root.children[1].props.width, Some(5.0));
     }
 
     #[test]

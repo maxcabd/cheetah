@@ -1,12 +1,14 @@
 use crate::element::{Element, Kind, Props, SourceLocation};
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct UiNode {
     pub id: u32,
     pub key: Option<String>,
     pub kind: Kind,
-    pub props: Props,
+    /// Shared between the tree and its flat form.
+    pub props: Rc<Props>,
     pub source: Option<SourceLocation>,
     pub children: Vec<UiNode>,
 }
@@ -16,7 +18,8 @@ pub struct FlatNode {
     pub id: u32,
     pub key: Option<String>,
     pub kind: Kind,
-    pub props: Props,
+    /// Shared between the tree and its flat form.
+    pub props: Rc<Props>,
     pub source: Option<SourceLocation>,
     pub children: Vec<u32>,
     pub parent: Option<u32>,
@@ -107,7 +110,7 @@ fn build_node(element: Element, id: u32, hash: u64, allocator: &mut IdAllocator)
         id,
         key: element.key,
         kind: element.kind,
-        props: element.props,
+        props: Rc::new(element.props),
         source: element.source,
         children,
     }
@@ -126,7 +129,7 @@ fn flatten_node(node: &UiNode, parent: Option<u32>, tree: &mut FlatTree) {
             id: node.id,
             key: node.key.clone(),
             kind: node.kind,
-            props: node.props.clone(),
+            props: Rc::clone(&node.props),
             source: node.source.clone(),
             children: node.children.iter().map(|child| child.id).collect(),
             parent,
