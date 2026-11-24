@@ -1,6 +1,6 @@
 use crate::diff::{diff, Op};
 use crate::element::{Element, Props};
-use crate::layout::{compute, compute_batched, Frame, TextMeasurer};
+use crate::layout::{Frame, LayoutTree, Rough, TextMeasurer};
 use crate::native_api::NativeCall;
 use crate::tree::{build, flatten, FlatTree};
 use serde::Deserialize;
@@ -164,6 +164,8 @@ pub struct Runtime {
     app: Box<dyn App>,
     previous: Option<FlatTree>,
     frames: HashMap<u32, Frame>,
+    /// Kept between frames, so layout only redoes what changed.
+    layout: LayoutTree,
     viewport: Viewport,
     text_measurer: Option<Rc<dyn TextMeasurer>>,
     layout_dirty: bool,
@@ -191,6 +193,7 @@ impl Runtime {
             app: Box::new(app),
             previous: None,
             frames: HashMap::new(),
+            layout: LayoutTree::default(),
             viewport: Viewport::default(),
             text_measurer: None,
             layout_dirty: true,
@@ -318,17 +321,18 @@ impl Runtime {
         self.metrics.text_requests = 0;
         if layout_needed {
             self.viewport = viewport;
-            self.layout_dirty = false;
+            // A new measurer or new code: nothing kept can be trusted.
+            if std::mem::take(&mut self.layout_dirty) {
+                self.layout = LayoutTree::default();
+            }
             let layout_start = Instant::now();
-            let (frames, measured) = match self.text_measurer.as_deref() {
-                Some(measurer) => {
-                    compute_batched(&root, viewport.width, viewport.height, measurer)
-                }
-                None => (
-                    compute(&root, viewport.width, viewport.height, None),
-                    Default::default(),
-                ),
+            let measurer: &dyn TextMeasurer = match self.text_measurer.as_deref() {
+                Some(measurer) => measurer,
+                None => &Rough,
             };
+            let (frames, measured) =
+                self.layout
+                    .compute(&root, viewport.width, viewport.height, measurer);
             self.metrics.text_requests = measured.texts;
             self.metrics.prime_us = measured.time.as_micros() as u64;
             self.metrics.layout_us = layout_start

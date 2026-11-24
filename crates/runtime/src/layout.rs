@@ -1,8 +1,9 @@
 use crate::element::{Kind, Props};
 use crate::tree::UiNode;
 use serde::Serialize;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::rc::Rc;
 use taffy::geometry::Point;
 use taffy::prelude::*;
 use taffy::style::Overflow;
@@ -23,6 +24,7 @@ pub struct TextRequest {
     pub max_width: f32,
 }
 
+#[derive(Clone, Debug, PartialEq)]
 struct MeasureCtx {
     text: Option<String>,
     font_size: f32,
@@ -68,40 +70,12 @@ pub(crate) struct Measured {
     pub time: std::time::Duration,
 }
 
-/// `compute`, asking the host for unknown texts in batches. Each pass lays
-/// out with estimates for them and collects what it asked for, at the widths
-/// it really asked at; a host call per text (a network round trip on the dev
-/// server) would stall layout on every one.
-pub(crate) fn compute_batched(
-    root: &UiNode,
-    width: f32,
-    height: f32,
-    measurer: &dyn TextMeasurer,
-) -> (HashMap<u32, Frame>, Measured) {
-    let mut measured = Measured::default();
-    for _ in 0..MEASURE_PASSES {
-        let collector = Collector {
-            measurer,
-            missing: RefCell::new(Vec::new()),
-        };
-        let frames = compute(root, width, height, Some(&collector));
-        let missing = collector.missing.into_inner();
-        if missing.is_empty() {
-            return (frames, measured);
-        }
-        let start = std::time::Instant::now();
-        measurer.prime(&missing);
-        measured.time += start.elapsed();
-        measured.texts += missing.len();
-    }
-    // Still finding texts: ask for the rest as layout needs them.
-    (compute(root, width, height, Some(measurer)), measured)
-}
-
 /// Known sizes, and estimates (noted as missing) for the rest.
 struct Collector<'a> {
     measurer: &'a dyn TextMeasurer,
     missing: RefCell<Vec<TextRequest>>,
+    /// The last size given was an estimate.
+    estimated: Cell<bool>,
 }
 
 impl TextMeasurer for Collector<'_> {
@@ -109,6 +83,7 @@ impl TextMeasurer for Collector<'_> {
         if let Some(size) = self.measurer.known(text, font_size, bold, max_width) {
             return size;
         }
+        self.estimated.set(true);
         let request = TextRequest {
             text: text.to_string(),
             font_size,
@@ -135,58 +110,235 @@ impl TextMeasurer for Collector<'_> {
     }
 }
 
+/// Lay out `root` from nothing.
 pub fn compute(
     root: &UiNode,
     width: f32,
     height: f32,
     measurer: Option<&dyn TextMeasurer>,
 ) -> HashMap<u32, Frame> {
-    let mut taffy: TaffyTree<MeasureCtx> = TaffyTree::new();
-    let root_node = build_node(&mut taffy, root);
+    let mut tree = LayoutTree::default();
+    match measurer {
+        Some(measurer) => tree.compute(root, width, height, measurer).0,
+        None => tree.compute(root, width, height, &Rough).0,
+    }
+}
 
-    let available = Size {
-        width: AvailableSpace::Definite(width),
-        height: AvailableSpace::Definite(height),
-    };
+/// Sizes without a host's fonts.
+pub(crate) struct Rough;
 
-    taffy
-        .compute_layout_with_measure(
-            root_node,
-            available,
-            |inputs, _node_id, node_context, style| {
-                taffy::compute_leaf_layout(
+impl TextMeasurer for Rough {
+    fn measure(&self, text: &str, font_size: f32, _: bool, max_width: f32) -> (f32, f32) {
+        rough_measure(text, font_size, max_width)
+    }
+}
+
+/// The layout, kept between frames: only nodes whose layout inputs changed,
+/// and the ones around them, are laid out again.
+pub(crate) struct LayoutTree {
+    taffy: TaffyTree<MeasureCtx>,
+    nodes: HashMap<u32, LayoutNode>,
+    generation: u64,
+}
+
+impl Default for LayoutTree {
+    fn default() -> Self {
+        Self {
+            taffy: TaffyTree::new(),
+            nodes: HashMap::new(),
+            generation: 0,
+        }
+    }
+}
+
+struct LayoutNode {
+    node: NodeId,
+    kind: Kind,
+    props: Rc<Props>,
+    children: Vec<u32>,
+    /// The last tree it was in.
+    generation: u64,
+}
+
+impl LayoutTree {
+    /// Lay out `root`, asking the host for unknown texts in batches. Each
+    /// pass lays out with estimates for them and collects what it asked for,
+    /// at the widths it really asked at; a host call per text (a network
+    /// round trip on the dev server) would stall layout on every one.
+    pub fn compute(
+        &mut self,
+        root: &UiNode,
+        width: f32,
+        height: f32,
+        measurer: &dyn TextMeasurer,
+    ) -> (HashMap<u32, Frame>, Measured) {
+        self.generation += 1;
+        let root_node = self.sync(root);
+        self.remove_unseen();
+
+        let mut measured = Measured::default();
+        for _ in 0..MEASURE_PASSES {
+            let collector = Collector {
+                measurer,
+                missing: RefCell::new(Vec::new()),
+                estimated: Cell::new(false),
+            };
+            let mut estimated = Vec::new();
+            self.run(root_node, width, height, &collector, |node| {
+                if collector.estimated.take() {
+                    estimated.push(node);
+                }
+            });
+            let missing = collector.missing.into_inner();
+            if missing.is_empty() {
+                return (self.frames(root_node, root), measured);
+            }
+            let start = std::time::Instant::now();
+            measurer.prime(&missing);
+            measured.time += start.elapsed();
+            measured.texts += missing.len();
+            // Their sizes were made up: don't keep them.
+            for node in estimated {
+                self.taffy.mark_dirty(node).expect("taffy node");
+            }
+        }
+        // Still finding texts: ask for the rest as layout needs them.
+        self.run(root_node, width, height, measurer, |_| {});
+        (self.frames(root_node, root), measured)
+    }
+
+    fn run(
+        &mut self,
+        root: NodeId,
+        width: f32,
+        height: f32,
+        measurer: &dyn TextMeasurer,
+        mut measured: impl FnMut(NodeId),
+    ) {
+        let available = Size {
+            width: AvailableSpace::Definite(width),
+            height: AvailableSpace::Definite(height),
+        };
+        self.taffy
+            .compute_layout_with_measure(root, available, |inputs, node_id, node_context, style| {
+                let output = taffy::compute_leaf_layout(
                     inputs,
                     style,
                     |_, _| 0.0,
                     |known_dimensions, available_space| {
                         measure(known_dimensions, available_space, node_context, measurer)
                     },
-                )
+                );
+                measured(node_id);
+                output
+            })
+            .expect("taffy layout failed");
+    }
+
+    /// Bring the taffy tree up to `node`, changing as little as possible:
+    /// any change throws away the cached layout of the node and everything
+    /// above it.
+    fn sync(&mut self, node: &UiNode) -> NodeId {
+        let generation = self.generation;
+        let children: Vec<NodeId> = node.children.iter().map(|child| self.sync(child)).collect();
+        let is_leaf = children.is_empty();
+
+        // A container that becomes a leaf keeps its list of absolute children
+        // in taffy 0.15, though they're gone; laying it out then panics. Start
+        // such a node over (its parent sees a new child).
+        if let Some(known) = self.nodes.get(&node.id) {
+            if known.children.is_empty() != is_leaf {
+                let stale = known.node;
+                self.nodes.remove(&node.id);
+                self.taffy.remove(stale).expect("taffy node");
+            }
+        }
+
+        let Some(known) = self.nodes.get_mut(&node.id) else {
+            let style = style_for(node.kind, &node.props);
+            let id = if is_leaf {
+                self.taffy
+                    .new_leaf_with_context(style, measure_context(node.kind, &node.props))
+            } else {
+                self.taffy.new_with_children(style, &children)
+            }
+            .expect("taffy node");
+            self.nodes.insert(
+                node.id,
+                LayoutNode {
+                    node: id,
+                    kind: node.kind,
+                    props: Rc::clone(&node.props),
+                    children: node.children.iter().map(|child| child.id).collect(),
+                    generation,
+                },
+            );
+            return id;
+        };
+
+        known.generation = generation;
+        let id = known.node;
+        let changed = known.kind != node.kind
+            || !(Rc::ptr_eq(&known.props, &node.props) || known.props == node.props);
+        if changed {
+            let style = style_for(node.kind, &node.props);
+            if self.taffy.style(id).expect("taffy node") != &style {
+                self.taffy.set_style(id, style).expect("taffy node");
+            }
+            known.kind = node.kind;
+            known.props = Rc::clone(&node.props);
+        }
+        if changed && is_leaf {
+            let context = measure_context(node.kind, &node.props);
+            if self.taffy.get_node_context(id) != Some(&context) {
+                self.taffy
+                    .set_node_context(id, Some(context))
+                    .expect("taffy node");
+            }
+        }
+        // A child may be a new taffy node under the same id, so compare those.
+        if self.taffy.children(id).expect("taffy node") != children {
+            self.taffy.set_children(id, &children).expect("taffy node");
+        }
+        known.children.clear();
+        known.children.extend(node.children.iter().map(|child| child.id));
+        id
+    }
+
+    fn remove_unseen(&mut self) {
+        let generation = self.generation;
+        let taffy = &mut self.taffy;
+        self.nodes.retain(|_, known| {
+            let seen = known.generation == generation;
+            if !seen {
+                taffy.remove(known.node).expect("taffy node");
+            }
+            seen
+        });
+    }
+
+    fn frames(&self, root_node: NodeId, root: &UiNode) -> HashMap<u32, Frame> {
+        let mut frames = HashMap::with_capacity(self.nodes.len());
+        self.collect(root_node, root, &mut frames);
+        frames
+    }
+
+    fn collect(&self, node: NodeId, ui: &UiNode, frames: &mut HashMap<u32, Frame>) {
+        let layout = self.taffy.layout(node).expect("taffy layout result");
+        frames.insert(
+            ui.id,
+            Frame {
+                x: layout.location.x,
+                y: layout.location.y,
+                width: layout.size.width,
+                height: layout.size.height,
             },
-        )
-        .expect("taffy layout failed");
-
-    let mut frames = HashMap::new();
-    collect(&taffy, root_node, root, &mut frames);
-    frames
-}
-
-fn build_node(taffy: &mut TaffyTree<MeasureCtx>, node: &UiNode) -> NodeId {
-    let style = style_for(node.kind, &node.props);
-
-    if node.children.is_empty() {
-        taffy
-            .new_leaf_with_context(style, measure_context(node.kind, &node.props))
-            .expect("taffy leaf")
-    } else {
-        let children: Vec<NodeId> = node
-            .children
-            .iter()
-            .map(|child| build_node(taffy, child))
-            .collect();
-        taffy
-            .new_with_children(style, &children)
-            .expect("taffy container")
+        );
+        for child in &ui.children {
+            if let Some(known) = self.nodes.get(&child.id) {
+                self.collect(known.node, child, frames);
+            }
+        }
     }
 }
 
@@ -336,7 +488,7 @@ fn measure(
     known: Size<Option<f32>>,
     available: Size<AvailableSpace>,
     context: Option<&mut MeasureCtx>,
-    measurer: Option<&dyn TextMeasurer>,
+    measurer: &dyn TextMeasurer,
 ) -> Size<f32> {
     if let (Some(width), Some(height)) = (known.width, known.height) {
         return Size { width, height };
@@ -356,10 +508,8 @@ fn measure(
         _ => UNLIMITED_WIDTH,
     });
 
-    let (text_width, text_height) = match measurer {
-        Some(measurer) => measurer.measure(text, context.font_size, context.bold, available_width),
-        None => rough_measure(text, context.font_size, available_width),
-    };
+    let (text_width, text_height) =
+        measurer.measure(text, context.font_size, context.bold, available_width);
 
     let width = known
         .width
@@ -381,29 +531,6 @@ pub(crate) fn rough_measure(text: &str, font_size: f32, max_width: f32) -> (f32,
         1.0
     };
     (width, lines * line_height)
-}
-
-fn collect(
-    taffy: &TaffyTree<MeasureCtx>,
-    node: NodeId,
-    ui: &UiNode,
-    frames: &mut HashMap<u32, Frame>,
-) {
-    let layout = taffy.layout(node).expect("taffy layout result");
-    frames.insert(
-        ui.id,
-        Frame {
-            x: layout.location.x,
-            y: layout.location.y,
-            width: layout.size.width,
-            height: layout.size.height,
-        },
-    );
-
-    let children = taffy.children(node).expect("taffy children");
-    for (child_node, child_ui) in children.iter().zip(ui.children.iter()) {
-        collect(taffy, *child_node, child_ui, frames);
-    }
 }
 
 /// Inclusive start, exclusive end, with one item of overscan on each side.
@@ -457,6 +584,140 @@ mod tests {
             (actual - expected).abs() < 0.01,
             "expected {expected}, got {actual}"
         );
+    }
+
+    /// Small deterministic random numbers.
+    struct Rng(u64);
+
+    impl Rng {
+        fn below(&mut self, n: u64) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0 % n
+        }
+    }
+
+    /// A screen-like tree. `seed` decides its shape and `noise` a few of its
+    /// details, so trees with the same seed are mostly alike, as frames are.
+    fn random_tree(rng: &mut Rng, noise: &mut Rng, depth: u32) -> crate::Element {
+        let roll = rng.below(if depth >= 4 { 3 } else { 9 });
+        let mut element = match roll {
+            0 | 1 => {
+                let words = 1 + rng.below(12) + if noise.below(6) == 0 { noise.below(9) } else { 0 };
+                text("word ".repeat(words as usize)).size(10.0 + rng.below(12) as f32)
+            }
+            2 => crate::button("Tap me"),
+            3 | 4 => row(),
+            5 => list().content_height(400.0),
+            6 => glass(),
+            _ => column(),
+        };
+        if roll > 2 {
+            let children = rng.below(4) + 1;
+            for i in 0..children {
+                let mut child = random_tree(rng, noise, depth + 1);
+                if noise.below(25) == 0 {
+                    continue;
+                }
+                if rng.below(2) == 0 {
+                    child = child.key(format!("k{i}"));
+                }
+                element = element.child(child);
+            }
+            if rng.below(3) == 0 {
+                element = element.gap(rng.below(20) as f32);
+            }
+        }
+        match rng.below(8) {
+            0 => element = element.width(-1.0),
+            1 => element = element.width(40.0 + rng.below(200) as f32),
+            2 => element = element.weight(1.0),
+            3 => element = element.height(20.0 + rng.below(100) as f32),
+            4 => element = element.pad(rng.below(16) as f32),
+            5 if depth > 0 => element = element.absolute().top(10.0).right(12.0),
+            _ => {}
+        }
+        if noise.below(12) == 0 {
+            element = element.pad_h(noise.below(30) as f32);
+        }
+        if noise.below(12) == 0 {
+            element = element.bg("#123456");
+        }
+        element
+    }
+
+    struct Wrapping;
+
+    impl super::TextMeasurer for Wrapping {
+        fn measure(&self, text: &str, size: f32, _: bool, max_width: f32) -> (f32, f32) {
+            let max_width = max_width.max(1.0);
+            let full = text.len() as f32 * size * 0.5;
+            (full.min(max_width), size * 1.2 * (full / max_width).ceil().max(1.0))
+        }
+    }
+
+    /// Like a host with a cache: asked once, known after.
+    #[derive(Default)]
+    struct Lazy(std::cell::RefCell<std::collections::HashSet<(String, u32, u32)>>);
+
+    impl super::TextMeasurer for Lazy {
+        fn measure(&self, text: &str, size: f32, bold: bool, max_width: f32) -> (f32, f32) {
+            super::TextMeasurer::measure(&Wrapping, text, size, bold, max_width)
+        }
+
+        fn known(&self, text: &str, size: f32, bold: bool, width: f32) -> Option<(f32, f32)> {
+            let key = (text.to_string(), size.to_bits(), width.to_bits());
+            self.0
+                .borrow()
+                .contains(&key)
+                .then(|| self.measure(text, size, bold, width))
+        }
+
+        fn prime(&self, requests: &[super::TextRequest]) {
+            let mut known = self.0.borrow_mut();
+            for r in requests {
+                known.insert((r.text.clone(), r.font_size.to_bits(), r.max_width.to_bits()));
+            }
+        }
+    }
+
+    #[test]
+    fn a_kept_layout_matches_one_from_nothing() {
+        for seed in 1..=60u64 {
+            let mut tree = super::LayoutTree::default();
+            let mut lazy_tree = super::LayoutTree::default();
+            let lazy = Lazy::default();
+            let mut noise = Rng(seed * 7919 + 1);
+            for frame in 0..25u64 {
+                // Mostly the same screen; sometimes a different one.
+                let shape = if frame % 9 == 8 { seed + 1000 + frame } else { seed };
+                let root = build(
+                    column()
+                        .width(-1.0)
+                        .height(-1.0)
+                        .child(random_tree(&mut Rng(shape * 104_729 + 3), &mut noise, 0))
+                        .child(random_tree(&mut Rng(shape * 1_299_709 + 5), &mut noise, 0)),
+                );
+                let (width, height) = if frame % 11 == 10 { (852.0, 393.0) } else { (393.0, 852.0) };
+                let fresh = compute(&root, width, height, Some(&Wrapping));
+                let (kept, _) = tree.compute(&root, width, height, &Wrapping);
+                assert_eq!(kept, fresh, "seed {seed} frame {frame}");
+                let (kept, _) = lazy_tree.compute(&root, width, height, &lazy);
+                assert_eq!(kept, fresh, "batched, seed {seed} frame {frame}");
+            }
+        }
+    }
+
+    #[test]
+    fn removed_nodes_are_forgotten() {
+        let mut tree = super::LayoutTree::default();
+        let big = build((0..20).fold(column(), |c, i| c.child(text(format!("{i}")))));
+        tree.compute(&big, 300.0, 600.0, &Wrapping);
+        assert_eq!(tree.nodes.len(), 21);
+        let small = build(column().child(text("0")));
+        tree.compute(&small, 300.0, 600.0, &Wrapping);
+        assert_eq!((tree.nodes.len(), tree.taffy.total_node_count()), (2, 2));
     }
 
     #[test]
