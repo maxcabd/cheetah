@@ -59,19 +59,66 @@ impl NightshadeApp {
         }
     }
 
-    /// The cards to build: the selected one and CARDS_AHEAD either side, and
-    /// any built before for these results, with no gap between. A dozen cards
-    /// with their photos and glass at once held up the screen for 150 ms; the
-    /// rest are empty pages until they come close.
+    /// The cards to build: the selected one, its neighbours, and any built
+    /// before for these results, with no gap between. A dozen cards with
+    /// their photos and glass at once held up the screen for 150 ms; the rest
+    /// are empty pages until `cards_tick` gets to them.
     fn built_cards(&self) -> std::ops::RangeInclusive<usize> {
-        let first = self.selected.saturating_sub(CARDS_AHEAD);
-        let last = self.selected + CARDS_AHEAD;
+        let first = self.selected.saturating_sub(CARDS_BESIDE);
+        let last = self.selected + CARDS_BESIDE;
         let (first, last) = match self.cards_built.get() {
             Some((from, to)) => (first.min(from), last.max(to)),
             None => (first, last),
         };
         self.cards_built.set(Some((first, last)));
         first..=last
+    }
+
+    /// The card to build next, if there's one to: the nearest side first, and
+    /// ahead before behind.
+    fn next_card(&self) -> Option<(usize, usize)> {
+        let count = self.response()?.places.len();
+        let built = self.built_cards();
+        let (first, last) = (*built.start(), *built.end());
+        let ahead = last + 1 < count && last < self.selected + CARDS_AHEAD;
+        let behind = first > 0 && first + CARDS_AHEAD > self.selected;
+        if ahead && (!behind || last - self.selected.min(last) <= self.selected - first) {
+            Some((first, last + 1))
+        } else if behind {
+            Some((first - 1, last))
+        } else {
+            None
+        }
+    }
+
+    /// The cards moved, or are new: build more once they're still.
+    pub(crate) fn build_ahead(&mut self) {
+        self.cards_moved = true;
+        self.schedule_card(CARDS_SETTLE_MS);
+    }
+
+    fn schedule_card(&mut self, ms: u64) {
+        if self.cards_timer || self.next_card().is_none() {
+            return;
+        }
+        self.cards_timer = true;
+        self.actions.push(Action::Timer {
+            name: "cards".into(),
+            ms,
+        });
+    }
+
+    /// Build one more card, so no frame has more than one to do.
+    pub(crate) fn cards_tick(&mut self) {
+        self.cards_timer = false;
+        if std::mem::take(&mut self.cards_moved) {
+            self.schedule_card(CARDS_SETTLE_MS);
+            return;
+        }
+        if let Some(built) = self.next_card() {
+            self.cards_built.set(Some(built));
+        }
+        self.schedule_card(CARDS_STEP_MS);
     }
 
     pub(crate) fn carousel_model(&self, context: &ViewContext, places: &[Place]) -> Value {

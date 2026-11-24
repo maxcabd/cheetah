@@ -88,6 +88,7 @@ impl NightshadeApp {
                 self.focused = true;
                 self.expanded = false;
                 self.haptic("light");
+                self.build_ahead();
             }
             Err(error) => {
                 self.search = Resource::Failed(error);
@@ -123,6 +124,7 @@ impl NightshadeApp {
             self.focused = true;
             self.locating = false;
             self.haptic("selection");
+            self.build_ahead();
         }
     }
 

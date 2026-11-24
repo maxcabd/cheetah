@@ -75,6 +75,7 @@ impl NightshadeApp {
                 self.focused = saved.focused;
                 self.query = saved.query;
                 self.search = Resource::Ready(results);
+                self.build_ahead();
             }
             // A search still running when the app was closed runs again.
             None if !saved.query.is_empty() => self.run_search(&saved.query),

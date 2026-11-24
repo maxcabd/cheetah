@@ -13,9 +13,14 @@ pub(crate) const CARD_HEIGHT: f32 = 280.0;
 pub(crate) const CARD_WIDTH_FRACTION: f32 = 0.78;
 /// Space between cards in the carousel.
 pub(crate) const CARD_GAP: f32 = 10.0;
-/// Cards built on either side of the selected one, so a swipe or two never
-/// outruns them.
-pub(crate) const CARDS_AHEAD: usize = 2;
+/// Cards built with the selected one, on either side: the ones that peek in.
+pub(crate) const CARDS_BESIDE: usize = 1;
+/// Cards built on either side once nothing is happening, so quick swipes
+/// don't outrun them.
+pub(crate) const CARDS_AHEAD: usize = 4;
+/// Before building the first of those, and between them.
+pub(crate) const CARDS_SETTLE_MS: u64 = 450;
+pub(crate) const CARDS_STEP_MS: u64 = 120;
 /// A minimized card (MINI_CARD_HEIGHT in `views/theme.view`).
 pub(crate) const MINI_CARD_HEIGHT: f32 = 72.0;
 pub(crate) const SEARCH_BOTTOM_GAP: f32 = 4.0;

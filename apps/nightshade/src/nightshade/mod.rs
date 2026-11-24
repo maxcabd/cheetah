@@ -69,6 +69,10 @@ pub struct NightshadeApp {
     cards_minimized: bool,
     /// First and last result cards built so far (`carousel_model`).
     cards_built: std::cell::Cell<Option<(usize, usize)>>,
+    /// A timer to build the next card is pending; at most one runs.
+    cards_timer: bool,
+    /// The cards moved since that timer started: let them settle first.
+    cards_moved: bool,
     /// Bookmarked place ids (the bookmark button), kept across launches.
     saved_places: std::collections::BTreeSet<String>,
     /// The user's own searches, newest first, kept across launches.
@@ -131,6 +135,8 @@ impl NightshadeApp {
             locate_taps: 0,
             cards_minimized: false,
             cards_built: Default::default(),
+            cards_timer: false,
+            cards_moved: false,
             saved_places: Default::default(),
             recent_searches: Vec::new(),
             trending: Vec::new(),
@@ -233,8 +239,10 @@ impl App for NightshadeApp {
         }
 
         if event.kind == "timer" {
-            if event.payload == "searching" {
-                self.searching_tick();
+            match event.payload.as_str() {
+                "searching" => self.searching_tick(),
+                "cards" => self.cards_tick(),
+                _ => {}
             }
             return;
         }
@@ -321,6 +329,7 @@ impl App for NightshadeApp {
                         self.focused = true;
                         self.locating = false;
                         self.haptic("selection");
+                        self.build_ahead();
                     }
                 }
             }

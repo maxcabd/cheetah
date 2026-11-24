@@ -1330,18 +1330,48 @@ fn only_cards_near_the_selected_one_are_built() {
             payload: index.to_string(),
         });
     };
-    assert_eq!(built(&app), [0, 1, 2]);
+    // Until the cards have been still for a while, only what's on screen.
+    assert_eq!(built(&app), [0, 1]);
+    fn tick(app: &mut NightshadeApp) -> bool {
+        let pending = app
+            .take_actions()
+            .iter()
+            .any(|action| matches!(action, crate::app::Action::Timer { name, .. } if name == "cards"));
+        if pending {
+            app.update(Event {
+                id: 0,
+                key: None,
+                kind: "timer".into(),
+                payload: "cards".into(),
+            });
+        }
+        pending
+    }
+    assert!(tick(&mut app));
+    assert_eq!(built(&app), [0, 1], "they had just appeared");
+    assert!(tick(&mut app));
+    assert_eq!(built(&app), [0, 1, 2], "one at a time");
+    while tick(&mut app) {}
+    assert_eq!(built(&app), [0, 1, 2, 3, 4]);
+
+    // A swipe builds nothing: its neighbours are there. More follow later.
     page(&mut app, 1);
-    assert_eq!(built(&app), [0, 1, 2, 3]);
+    assert_eq!(built(&app), [0, 1, 2, 3, 4]);
+    while tick(&mut app) {}
+    assert_eq!(built(&app), [0, 1, 2, 3, 4, 5]);
+
     // A jump builds the cards it passes, and none are taken away again.
     page(&mut app, 8);
-    assert_eq!(built(&app), (0..=10).collect::<Vec<_>>());
+    assert_eq!(built(&app), (0..=9).collect::<Vec<_>>());
+    while tick(&mut app) {}
+    assert_eq!(built(&app).len(), 12);
     page(&mut app, 0);
-    assert_eq!(built(&app).len(), 11);
+    assert_eq!(built(&app).len(), 12);
+    assert!(!tick(&mut app), "nothing left to build");
 
     // New results start over.
     submit(&mut app, "sushi");
     let id = request_id(&mut app);
     http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body}));
-    assert_eq!(built(&app), [0, 1, 2]);
+    assert_eq!(built(&app), [0, 1]);
 }
