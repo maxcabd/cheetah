@@ -1,4 +1,4 @@
-//! Frame metrics from the connected device's session: what each frame cost,
+//! Frame metrics from the devices connected since the server started: what each frame cost,
 //! by what caused it. `cheetah metrics` reads the file this writes.
 //!
 //! `work` is the runtime's own time (update, view, diff, layout, encode). It
@@ -155,6 +155,12 @@ impl Metrics {
             waited_us: 0,
             sent: VecDeque::new(),
         }
+    }
+
+    /// A device connected. Frames the last one never reported on won't be.
+    pub fn connected(&mut self) {
+        self.sent.clear();
+        self.waited_us = 0;
     }
 
     pub fn frame(&mut self, report: FrameReport) {
@@ -331,6 +337,12 @@ mod tests {
         assert_eq!(summary["triggers"]["native"]["device"]["main_us"]["max"], 50_000);
         assert!(summary["triggers"]["scroll"]["device"].is_null());
         assert_eq!(summary["total"]["device"]["frames"], 2);
+
+        // A new connection keeps what was measured, but not what it's owed.
+        metrics.frame(sized("click place", 500));
+        metrics.connected();
+        metrics.applied(&json!({"bytes": 500, "apply_us": 99_000}));
+        assert_eq!(metrics.summary()["total"]["device"]["frames"], 2);
         let _ = std::fs::remove_file(path("metrics-device-test"));
     }
 

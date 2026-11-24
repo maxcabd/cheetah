@@ -441,8 +441,19 @@ struct WsHost {
     /// round trip that blocks layout, so every text is measured once per
     /// connection, not on every render.
     measured: Mutex<HashMap<MeasureKey, (f32, f32)>>,
-    /// This session's frames, for `cheetah metrics`.
-    metrics: Mutex<metrics::Metrics>,
+    /// Every connection's frames, for `cheetah metrics`.
+    metrics: &'static Mutex<metrics::Metrics>,
+}
+
+/// Kept while the server runs: a phone that reconnects (the app was in the
+/// background) adds to what it measured before.
+fn shared_metrics() -> &'static Mutex<metrics::Metrics> {
+    static METRICS: std::sync::OnceLock<Mutex<metrics::Metrics>> = std::sync::OnceLock::new();
+    METRICS.get_or_init(|| {
+        Mutex::new(metrics::Metrics::new(
+            APP_NAME.get().map_or("app", String::as_str),
+        ))
+    })
 }
 
 /// Text, font size and max width (as bits, so they hash), bold.
@@ -717,15 +728,15 @@ async fn serve(
 
     let (mut sink, mut stream) = ws.split();
     let (out, mut outbound) = unbounded_channel::<Message>();
+    let metrics = shared_metrics();
+    metrics.lock().unwrap().connected();
     let host = Arc::new(WsHost {
         out,
         seq: AtomicU64::new(1),
         pending: Mutex::new(HashMap::new()),
         alive: AtomicBool::new(true),
         measured: Mutex::new(HashMap::new()),
-        metrics: Mutex::new(metrics::Metrics::new(
-            APP_NAME.get().map_or("app", String::as_str),
-        )),
+        metrics,
     });
 
     let writer = tokio::spawn(async move {
