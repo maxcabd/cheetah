@@ -23,8 +23,10 @@ def read(path):
         if not match:
             continue
         side, test, metric, unit, average, noise = match.groups()
-        # "CPU Time (cheetah)" names the process: the column says that.
-        metric = re.sub(r" \([a-z][\w ]*\)$", "", metric)
+        # "CPU Time (cheetah)" names the process: the column says that. A
+        # "Duration (apply)" names the signpost.
+        if not metric.startswith("Duration"):
+            metric = re.sub(r" \([a-z][\w ]*\)$", "", metric)
         # The simulator has no hardware counters; they read 0.
         if float(average) > 0:
             found.setdefault((test, metric, unit), {})[side] = (float(average), float(noise))
@@ -44,7 +46,8 @@ def table(found):
             if key not in row:
                 cells.append("-")
                 continue
-            cell = f"{row[key][0]:.2f} {unit}"
+            value = row[key][0]
+            cell = f"{value * 1000:.0f} ms" if unit == "s" and value < 0.1 else f"{value:.2f} {unit}"
             if native and key != "Native":
                 cell += f" ({(row[key][0] / native[0] - 1) * 100:+.0f}%)"
             cells.append(cell)
