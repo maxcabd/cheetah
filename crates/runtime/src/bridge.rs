@@ -1,5 +1,5 @@
 use crate::app::RuntimeMetrics;
-use crate::layout::{TextMeasurer, TextRequest};
+use crate::layout::{TextMeasurer, TextRequest, UNLIMITED_WIDTH};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -68,17 +68,35 @@ impl CachedTextMeasurer {
 }
 
 impl TextMeasurer for CachedTextMeasurer {
+    fn known(&self, text: &str, font_size: f32, bold: bool, max_width: f32) -> Option<(f32, f32)> {
+        let cache = self.cache.borrow();
+        let mut key = (
+            text.to_string(),
+            font_size.to_bits(),
+            bold,
+            max_width.to_bits(),
+        );
+        if let Some(size) = cache.get(&key) {
+            return Some(*size);
+        }
+        // Text that fits without a limit is the same under a wider one.
+        key.3 = UNLIMITED_WIDTH.to_bits();
+        cache
+            .get(&key)
+            .copied()
+            .filter(|(width, _)| *width <= max_width)
+    }
+
     fn measure(&self, text: &str, font_size: f32, bold: bool, max_width: f32) -> (f32, f32) {
+        if let Some(size) = self.known(text, font_size, bold, max_width) {
+            return size;
+        }
         let key = (
             text.to_string(),
             font_size.to_bits(),
             bold,
             max_width.to_bits(),
         );
-
-        if let Some(value) = self.cache.borrow().get(&key) {
-            return *value;
-        }
 
         let value = self.host.measure_text(text, font_size, bold, max_width);
         let mut cache = self.cache.borrow_mut();

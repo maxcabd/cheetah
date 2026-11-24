@@ -1,9 +1,8 @@
 use crate::diff::{diff, Op};
-use crate::element::Kind;
 use crate::element::{Element, Props};
-use crate::layout::{compute, Frame, TextMeasurer, TextRequest};
+use crate::layout::{compute, compute_batched, Frame, TextMeasurer};
 use crate::native_api::NativeCall;
-use crate::tree::{build, flatten, FlatTree, UiNode};
+use crate::tree::{build, flatten, FlatTree};
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -320,22 +319,22 @@ impl Runtime {
         if layout_needed {
             self.viewport = viewport;
             self.layout_dirty = false;
-            if let Some(measurer) = self.text_measurer.as_deref() {
-                let mut requests = Vec::new();
-                collect_text_requests(&root, viewport.width, &mut requests);
-                self.metrics.text_requests = requests.len();
-                let prime_start = Instant::now();
-                measurer.prime(&requests);
-                self.metrics.prime_us = prime_start.elapsed().as_micros() as u64;
-            }
             let layout_start = Instant::now();
-            let frames = compute(
-                &root,
-                viewport.width,
-                viewport.height,
-                self.text_measurer.as_deref(),
-            );
-            self.metrics.layout_us = layout_start.elapsed().as_micros() as u64;
+            let (frames, measured) = match self.text_measurer.as_deref() {
+                Some(measurer) => {
+                    compute_batched(&root, viewport.width, viewport.height, measurer)
+                }
+                None => (
+                    compute(&root, viewport.width, viewport.height, None),
+                    Default::default(),
+                ),
+            };
+            self.metrics.text_requests = measured.texts;
+            self.metrics.prime_us = measured.time.as_micros() as u64;
+            self.metrics.layout_us = layout_start
+                .elapsed()
+                .saturating_sub(measured.time)
+                .as_micros() as u64;
 
             for (id, frame) in &frames {
                 let changed = self
@@ -470,28 +469,6 @@ fn layout_required(previous: &FlatTree, next: &FlatTree) -> bool {
     false
 }
 
-fn collect_text_requests(node: &UiNode, default_width: f32, out: &mut Vec<TextRequest>) {
-    if matches!(node.kind, Kind::Text | Kind::Button) {
-        if let Some(text) = &node.props.text {
-            if !text.is_empty() {
-                let width = match node.props.width {
-                    Some(width) if width > 0.0 => width,
-                    _ => default_width,
-                };
-                out.push(TextRequest {
-                    text: text.clone(),
-                    font_size: node.props.size.unwrap_or(14.0),
-                    bold: node.props.bold.unwrap_or(false),
-                    max_width: width.max(1.0),
-                });
-            }
-        }
-    }
-    for child in &node.children {
-        collect_text_requests(child, default_width, out);
-    }
-}
-
 fn props_affect_layout(previous: &Props, next: &Props) -> bool {
     if previous.width != next.width
         || previous.height != next.height
@@ -589,6 +566,90 @@ mod tests {
             let (_, trigger) = runtime.take_frame().expect("rendered");
             assert_eq!(trigger.as_deref(), Some(name));
         }
+    }
+
+    /// Wraps at `max_width`, 10 wide a letter, and counts its host calls.
+    struct BatchHost {
+        batches: std::sync::Mutex<Vec<usize>>,
+        singles: std::sync::atomic::AtomicUsize,
+    }
+
+    fn wrapped(text: &str, max_width: f32) -> (f32, f32) {
+        let max_width = max_width.max(10.0);
+        let full = text.len() as f32 * 10.0;
+        (full.min(max_width), 20.0 * (full / max_width).ceil().max(1.0))
+    }
+
+    impl crate::bridge::Host for BatchHost {
+        fn measure_text(&self, text: &str, _: f32, _: bool, max_width: f32) -> (f32, f32) {
+            self.singles
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            wrapped(text, max_width)
+        }
+
+        fn measure_text_batch(&self, requests: &[crate::layout::TextRequest]) -> Vec<(f32, f32)> {
+            self.batches.lock().unwrap().push(requests.len());
+            requests
+                .iter()
+                .map(|r| wrapped(&r.text, r.max_width))
+                .collect()
+        }
+
+        fn emit_ops(&self, _: &[u8]) {}
+    }
+
+    struct CardsApp;
+
+    impl App for CardsApp {
+        fn view(&self, _: &crate::app::ViewContext) -> Element {
+            (0..12).fold(column().width(300.0).height(900.0), |list, i| {
+                list.child(
+                    crate::element::row()
+                        .width(-1.0)
+                        .child(text(format!("Restaurant number {i}")).weight(1.0))
+                        .child(text(format!("{i} km")))
+                        .child(button("Directions and a long label that wraps")),
+                )
+            })
+        }
+
+        fn update(&mut self, _: Event) {}
+    }
+
+    #[test]
+    fn texts_are_measured_in_batches_and_exactly() {
+        let viewport = Viewport {
+            width: 300.0,
+            height: 900.0,
+        };
+        let host = std::sync::Arc::new(BatchHost {
+            batches: Default::default(),
+            singles: Default::default(),
+        });
+        let mut runtime = Runtime::new(CardsApp);
+        runtime.set_text_measurer(Rc::new(crate::bridge::CachedTextMeasurer::new(
+            std::sync::Arc::clone(&host) as std::sync::Arc<dyn crate::bridge::Host>,
+        )));
+        runtime.render(viewport);
+        let batches = host.batches.lock().unwrap().len();
+        assert!((1..=3).contains(&batches), "{batches} batches");
+        assert_eq!(host.singles.load(std::sync::atomic::Ordering::SeqCst), 0);
+
+        // The same frames as measuring each text as layout asks.
+        struct Direct;
+        impl TextMeasurer for Direct {
+            fn measure(&self, text: &str, _: f32, _: bool, max_width: f32) -> (f32, f32) {
+                wrapped(text, max_width)
+            }
+        }
+        let mut direct = Runtime::new(CardsApp);
+        direct.set_text_measurer(Rc::new(Direct));
+        direct.render(viewport);
+        assert_eq!(runtime.frames, direct.frames);
+
+        // Known texts are never asked about again.
+        runtime.refresh();
+        assert_eq!(host.batches.lock().unwrap().len(), batches);
     }
 
     struct ColoredTextApp {

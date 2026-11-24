@@ -1,6 +1,7 @@
 use crate::element::{Kind, Props};
 use crate::tree::UiNode;
 use serde::Serialize;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use taffy::geometry::Point;
 use taffy::prelude::*;
@@ -32,7 +33,14 @@ pub trait TextMeasurer {
     /// Returns the content size in dp, excluding padding.
     fn measure(&self, text: &str, font_size: f32, bold: bool, max_width: f32) -> (f32, f32);
 
-    /// Optional batch pre-pass. The default keeps custom measurers simple.
+    /// The size if it's known without asking the host. The default measures,
+    /// so a custom measurer needs nothing else.
+    fn known(&self, text: &str, font_size: f32, bold: bool, max_width: f32) -> Option<(f32, f32)> {
+        Some(self.measure(text, font_size, bold, max_width))
+    }
+
+    /// Make these known, in one batch where the host can. The default keeps
+    /// custom measurers simple.
     fn prime(&self, requests: &[TextRequest]) {
         for request in requests {
             let _ = self.measure(
@@ -42,6 +50,88 @@ pub trait TextMeasurer {
                 request.max_width,
             );
         }
+    }
+}
+
+/// The width layout asks for when nothing limits it.
+pub(crate) const UNLIMITED_WIDTH: f32 = 100_000.0;
+
+/// Layout passes that may find texts to measure. An estimate can change the
+/// width another text gets, so one batch isn't always the last; two or three
+/// settle any real screen.
+const MEASURE_PASSES: usize = 5;
+
+/// What measuring during a layout took.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Measured {
+    pub texts: usize,
+    pub time: std::time::Duration,
+}
+
+/// `compute`, asking the host for unknown texts in batches. Each pass lays
+/// out with estimates for them and collects what it asked for, at the widths
+/// it really asked at; a host call per text (a network round trip on the dev
+/// server) would stall layout on every one.
+pub(crate) fn compute_batched(
+    root: &UiNode,
+    width: f32,
+    height: f32,
+    measurer: &dyn TextMeasurer,
+) -> (HashMap<u32, Frame>, Measured) {
+    let mut measured = Measured::default();
+    for _ in 0..MEASURE_PASSES {
+        let collector = Collector {
+            measurer,
+            missing: RefCell::new(Vec::new()),
+        };
+        let frames = compute(root, width, height, Some(&collector));
+        let missing = collector.missing.into_inner();
+        if missing.is_empty() {
+            return (frames, measured);
+        }
+        let start = std::time::Instant::now();
+        measurer.prime(&missing);
+        measured.time += start.elapsed();
+        measured.texts += missing.len();
+    }
+    // Still finding texts: ask for the rest as layout needs them.
+    (compute(root, width, height, Some(measurer)), measured)
+}
+
+/// Known sizes, and estimates (noted as missing) for the rest.
+struct Collector<'a> {
+    measurer: &'a dyn TextMeasurer,
+    missing: RefCell<Vec<TextRequest>>,
+}
+
+impl TextMeasurer for Collector<'_> {
+    fn measure(&self, text: &str, font_size: f32, bold: bool, max_width: f32) -> (f32, f32) {
+        if let Some(size) = self.measurer.known(text, font_size, bold, max_width) {
+            return size;
+        }
+        let request = TextRequest {
+            text: text.to_string(),
+            font_size,
+            bold,
+            max_width,
+        };
+        let mut missing = self.missing.borrow_mut();
+        // Also unlimited: on one line, that answers every wider question.
+        if max_width < UNLIMITED_WIDTH {
+            let unlimited = TextRequest {
+                max_width: UNLIMITED_WIDTH,
+                ..request.clone()
+            };
+            if self.measurer.known(text, font_size, bold, UNLIMITED_WIDTH).is_none()
+                && !missing.contains(&unlimited)
+            {
+                missing.push(unlimited);
+            }
+        }
+        if !missing.contains(&request) {
+            missing.push(request);
+        }
+        rough_measure(text, font_size, max_width)
     }
 }
 
@@ -263,7 +353,7 @@ fn measure(
 
     let available_width = known.width.unwrap_or(match available.width {
         AvailableSpace::Definite(width) => width.max(1.0),
-        _ => 100_000.0,
+        _ => UNLIMITED_WIDTH,
     });
 
     let (text_width, text_height) = match measurer {
