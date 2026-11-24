@@ -10,9 +10,43 @@ use std::time::Instant;
 pub const RUNS: usize = 30;
 const CARDS: usize = 12;
 
+/// What a person feels: how soon the app is there, how soon a tap shows, and
+/// whether scrolling keeps up.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Group {
+    Startup,
+    ViewChange,
+    Scroll,
+}
+
+impl Group {
+    pub const ALL: [Group; 3] = [Group::Startup, Group::ViewChange, Group::Scroll];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Group::Startup => "startup",
+            Group::ViewChange => "view change",
+            Group::Scroll => "scroll",
+        }
+    }
+
+    /// The runtime's share of a frame, for p95. A 120 Hz frame is 8.3 ms and
+    /// UIKit needs most of it to draw, so a view change may take one whole
+    /// frame and scrolling, which repeats every frame, a quarter of one.
+    /// Startup may take one 60 Hz frame.
+    pub fn budget_ms(self) -> f64 {
+        match self {
+            Group::Startup => 16.7,
+            Group::ViewChange => 8.3,
+            Group::Scroll => 4.0,
+        }
+    }
+}
+
 /// One step's timings and op traffic, over every run.
 pub struct Flow {
     pub name: &'static str,
+    pub group: Group,
     pub ms: Vec<f64>,
     pub ops: Vec<usize>,
     pub bytes: Vec<usize>,
@@ -30,7 +64,7 @@ struct Session {
 }
 
 impl Session {
-    fn record(&mut self, name: &'static str, run: impl FnOnce(&mut Runtime) -> Vec<Op>) -> Vec<Op> {
+    fn record(&mut self, group: Group, name: &'static str, run: impl FnOnce(&mut Runtime) -> Vec<Op>) -> Vec<Op> {
         let start = Instant::now();
         let ops = run(&mut self.runtime);
         let bytes = runtime::encode_ops(&ops).len();
@@ -38,6 +72,7 @@ impl Session {
         if self.step == self.flows.len() {
             self.flows.push(Flow {
                 name,
+                group,
                 ms: Vec::new(),
                 ops: Vec::new(),
                 bytes: Vec::new(),
@@ -62,13 +97,17 @@ impl Session {
     }
 
     fn event(&mut self, name: &'static str, key: Option<&str>, kind: &str, payload: String) -> Vec<Op> {
+        let group = match name {
+            "swipe_card" | "swipe_back" | "swipe_fling" => Group::Scroll,
+            _ => Group::ViewChange,
+        };
         let event = Event {
             id: 0,
             key: key.map(str::to_string),
             kind: kind.to_string(),
             payload,
         };
-        self.record(name, |runtime| runtime.dispatch(event))
+        self.record(group, name, |runtime| runtime.dispatch(event))
     }
 }
 
@@ -123,16 +162,17 @@ pub fn run(viewport: Viewport) -> Vec<Flow> {
         let start = Instant::now();
         let mut runtime = Runtime::new(NightshadeApp::remote("http://bench.local"));
         runtime.event(0, "host", HOST_INFO);
-        let launch_ms = elapsed_ms(start);
+        let create_ms = elapsed_ms(start);
         let mut session = Session {
             runtime,
             flows,
             step: 0,
         };
-        session.record("launch", |runtime| runtime.render(viewport));
-        // Launch includes building the app, not only its first render.
-        *session.flows[0].ms.last_mut().expect("just recorded") += launch_ms;
-        session.record("unchanged", |runtime| runtime.render(viewport));
+        session.record(Group::Startup, "create_app", |_| Vec::new());
+        session.record(Group::Startup, "first_frame", |runtime| runtime.render(viewport));
+        // Creating the app (parsing its views) happened before recording.
+        *session.flows[0].ms.last_mut().expect("just recorded") += create_ms;
+        session.record(Group::ViewChange, "unchanged", |runtime| runtime.render(viewport));
         session.event("focus_search", Some("search"), "focus", String::new());
         session.event("type_letter", Some("search"), "change", "r".into());
         session.event("type_word", Some("search"), "change", "ramen open now".into());
@@ -144,7 +184,8 @@ pub fn run(viewport: Viewport) -> Vec<Flow> {
         });
         session.event("show_results", None, "native", response.to_string());
         session.event("swipe_card", Some("places"), "page", "1".into());
-        session.event("swipe_card_far", Some("places"), "page", "9".into());
+        session.event("swipe_back", Some("places"), "page", "0".into());
+        session.event("swipe_fling", Some("places"), "page", "9".into());
         session.event("tap_pin", Some("map"), "marker", "p4".into());
         let color = json!({"color": "#7a4b2c"}).to_string();
         session.event("photo_color", Some("photo:p4"), "load", color);
@@ -152,6 +193,18 @@ pub fn run(viewport: Viewport) -> Vec<Flow> {
         session.event("satellite", Some("map:type"), "click", String::new());
         let page = json!({"path": "/restaurant/p4", "transition": "zoom", "source": "card-p4"});
         session.event("open_page", None, "navigate", page.to_string());
+        session.event("close_page", Some("page:1"), "dismiss", String::new());
+        session.event("expand_sheet", Some("search-panel"), "select", "expanded".into());
+        session.event("rest_sheet", Some("search-panel"), "select", "rest".into());
+        let keyboard = HOST_INFO.replace("\"keyboardInset\": 0", "\"keyboardInset\": 336");
+        assert_ne!(keyboard, HOST_INFO);
+        session.event("keyboard_opens", None, "host", keyboard);
+        let rotated = Viewport {
+            width: viewport.height,
+            height: viewport.width,
+        };
+        session.record(Group::ViewChange, "rotate", |runtime| runtime.render(rotated));
+        session.record(Group::ViewChange, "rotate_back", |runtime| runtime.render(viewport));
         session.event("clear_search", Some("search:clear"), "click", String::new());
         flows = session.flows;
     }

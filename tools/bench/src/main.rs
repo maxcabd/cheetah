@@ -161,30 +161,35 @@ fn main() {
         "flow", "p50_ms", "p95_ms", "max_ms", "ops", "bytes", "nodes", "build_us", "diff_us", "layout_us"
     );
     let flows = flows::run(viewport);
-    let mut flow_p95 = Vec::new();
-    for flow in &flows {
-        let timing = stats(flow.ms.clone());
-        println!(
-            "{:<18}{:>8.2}{:>8.2}{:>8.2}{:>7}{:>8}{:>7}{:>10}{:>9}{:>10}",
-            flow.name,
-            timing.p50,
-            timing.p95,
-            timing.max,
-            median(&flow.ops),
-            median(&flow.bytes),
-            flow.nodes,
-            median(&flow.build_us),
-            median(&flow.diff_us),
-            median(&flow.layout_us)
-        );
-        flow_p95.push((flow.name, timing.p95));
+    let mut checks: Vec<(String, f64, f64)> = Vec::new();
+    for group in flows::Group::ALL {
+        println!("{} (budget {:.1} ms)", group.name(), group.budget_ms());
+        for flow in flows.iter().filter(|flow| flow.group == group) {
+            let timing = stats(flow.ms.clone());
+            println!(
+                "{:<18}{:>8.2}{:>8.2}{:>8.2}{:>7}{:>8}{:>7}{:>10}{:>9}{:>10}",
+                flow.name,
+                timing.p50,
+                timing.p95,
+                timing.max,
+                median(&flow.ops),
+                median(&flow.bytes),
+                flow.nodes,
+                median(&flow.build_us),
+                median(&flow.diff_us),
+                median(&flow.layout_us)
+            );
+            checks.push((flow.name.to_string(), timing.p95, group.budget_ms()));
+        }
     }
+    checks.push(("chat scroll".into(), scroll_stats.p95, flows::Group::Scroll.budget_ms()));
     if let Ok(file) = std::env::var("CHEETAH_BENCH_JSON") {
         let report: Vec<Value> = flows
             .iter()
             .map(|flow| {
                 let timing = stats(flow.ms.clone());
                 serde_json::json!({
+                    "group": flow.group.name(), "budget_ms": flow.group.budget_ms(),
                     "flow": flow.name, "p50_ms": timing.p50, "p95_ms": timing.p95, "max_ms": timing.max,
                     "ops": median(&flow.ops), "wire_bytes": median(&flow.bytes), "nodes": flow.nodes,
                 })
@@ -200,15 +205,11 @@ fn main() {
         .unwrap_or(50.0);
     println!("frame_budget_ms: {budget_ms:.2}");
     let mut failed = false;
-    for (name, value) in [
-        ("scroll_p95", scroll_stats.p95),
-        ("like_p95", like_stats.p95),
-    ]
-    .into_iter()
-    .chain(flow_p95)
-    {
-        if value > budget_ms {
-            eprintln!("benchmark budget exceeded: {name}={value:.2}ms > {budget_ms:.2}ms");
+    checks.push(("scroll_p95".into(), scroll_stats.p95, budget_ms));
+    checks.push(("like_p95".into(), like_stats.p95, budget_ms));
+    for (name, value, budget) in checks {
+        if value > budget {
+            eprintln!("benchmark budget exceeded: {name}={value:.2}ms > {budget:.2}ms");
             failed = true;
         }
     }

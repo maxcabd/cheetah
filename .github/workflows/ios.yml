@@ -213,8 +213,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           mkdir -p ci-preview
           {
-            echo "iOS 26 simulator scroll performance"
-            grep -E "testScrollPerformance|measured|XCTOSSignpost|frame|hitch" /tmp/xcodebuild-uitest.log | tail -100 || true
+            echo "iOS 26 simulator: startup, views changing, scrolling (testNative...: Settings, for comparison)"
+            grep -E "measured \[" /tmp/xcodebuild-uitest.log | tail -100 || true
           } > ci-preview/ios-performance.txt
           RESULT=$(find build/uitest/Logs/Test -maxdepth 1 -name '*.xcresult' | sort | tail -1)
           if [ -n "$RESULT" ]; then
