@@ -67,6 +67,8 @@ pub struct NightshadeApp {
     locate_taps: u32,
     /// Result cards shrunk to small bars (swipe a card's handle down).
     cards_minimized: bool,
+    /// First and last result cards built so far (`carousel_model`).
+    cards_built: std::cell::Cell<Option<(usize, usize)>>,
     /// Bookmarked place ids (the bookmark button), kept across launches.
     saved_places: std::collections::BTreeSet<String>,
     /// The user's own searches, newest first, kept across launches.
@@ -128,6 +130,7 @@ impl NightshadeApp {
             locating: false,
             locate_taps: 0,
             cards_minimized: false,
+            cards_built: Default::default(),
             saved_places: Default::default(),
             recent_searches: Vec::new(),
             trending: Vec::new(),

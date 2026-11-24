@@ -1296,3 +1296,52 @@ fn a_shared_state_file_would_show_demo_results_in_the_app() {
         let _ = std::fs::remove_file(file);
     }
 }
+
+#[test]
+fn only_cards_near_the_selected_one_are_built() {
+    let mut app = remote_app();
+    submit(&mut app, "pizza");
+    let id = request_id(&mut app);
+    let cards: Vec<serde_json::Value> = (0..12)
+        .map(|i| {
+            serde_json::json!({
+                "place_id": format!("p{i}"), "name": format!("Place {i}"),
+                "lat": 45.4, "lng": -75.7, "distance_m": 100,
+            })
+        })
+        .collect();
+    let body = serde_json::json!({ "cards": cards }).to_string();
+    let response = serde_json::json!({"id": id, "ok": true, "status": 200, "body": body});
+    http_response(&mut app, response);
+
+    let built = |app: &NightshadeApp| -> Vec<usize> {
+        let screen = render(app);
+        // Every page is there, so the carousel scrolls the same.
+        assert_eq!(find(&screen, "places").expect("carousel").children.len(), 12);
+        (0..12)
+            .filter(|i| find(&screen, &format!("place-p{i}")).is_some())
+            .collect()
+    };
+    let page = |app: &mut NightshadeApp, index: usize| {
+        app.update(Event {
+            id: 0,
+            key: Some("places".into()),
+            kind: "page".into(),
+            payload: index.to_string(),
+        });
+    };
+    assert_eq!(built(&app), [0, 1, 2]);
+    page(&mut app, 1);
+    assert_eq!(built(&app), [0, 1, 2, 3]);
+    // A jump builds the cards it passes, and none are taken away again.
+    page(&mut app, 8);
+    assert_eq!(built(&app), (0..=10).collect::<Vec<_>>());
+    page(&mut app, 0);
+    assert_eq!(built(&app).len(), 11);
+
+    // New results start over.
+    submit(&mut app, "sushi");
+    let id = request_id(&mut app);
+    http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body}));
+    assert_eq!(built(&app), [0, 1, 2]);
+}

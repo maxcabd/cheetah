@@ -13,6 +13,9 @@ pub(crate) const CARD_HEIGHT: f32 = 280.0;
 pub(crate) const CARD_WIDTH_FRACTION: f32 = 0.78;
 /// Space between cards in the carousel.
 pub(crate) const CARD_GAP: f32 = 10.0;
+/// Cards built on either side of the selected one, so a swipe or two never
+/// outruns them.
+pub(crate) const CARDS_AHEAD: usize = 2;
 /// A minimized card (MINI_CARD_HEIGHT in `views/theme.view`).
 pub(crate) const MINI_CARD_HEIGHT: f32 = 72.0;
 pub(crate) const SEARCH_BOTTOM_GAP: f32 = 4.0;

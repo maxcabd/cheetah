@@ -59,6 +59,21 @@ impl NightshadeApp {
         }
     }
 
+    /// The cards to build: the selected one and CARDS_AHEAD either side, and
+    /// any built before for these results, with no gap between. A dozen cards
+    /// with their photos and glass at once held up the screen for 150 ms; the
+    /// rest are empty pages until they come close.
+    fn built_cards(&self) -> std::ops::RangeInclusive<usize> {
+        let first = self.selected.saturating_sub(CARDS_AHEAD);
+        let last = self.selected + CARDS_AHEAD;
+        let (first, last) = match self.cards_built.get() {
+            Some((from, to)) => (first.min(from), last.max(to)),
+            None => (first, last),
+        };
+        self.cards_built.set(Some((first, last)));
+        first..=last
+    }
+
     pub(crate) fn carousel_model(&self, context: &ViewContext, places: &[Place]) -> Value {
         let width = context.viewport.width.max(320.0);
         // Cards narrower than the screen, one per page: the carousel is one
@@ -66,6 +81,7 @@ impl NightshadeApp {
         // cards peek in at the edges to show there are more results.
         let card_width = width * CARD_WIDTH_FRACTION;
         let page = card_width + CARD_GAP;
+        let built = self.built_cards();
         json!({
             "width": width,
             "page": page,
@@ -80,8 +96,13 @@ impl NightshadeApp {
             "card_controls": card_width - 32.0,
             "places": places
                 .iter()
-                .map(|place| {
+                .enumerate()
+                .map(|(index, place)| {
+                    if !built.contains(&index) {
+                        return json!({ "built": false });
+                    }
                     let mut card = Self::card_model(place);
+                    card["built"] = true.into();
                     card["saved"] = self.is_saved(&place.id).into();
                     // The photo's dominant color, once it has loaded.
                     if let Some(color) = self.photo_colors.get(&place.id) {

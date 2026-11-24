@@ -8,11 +8,14 @@
 component Carousel
   hscroll key="places" absolute=true bottom=CAROUSEL_BOTTOM left=carousel.left width=carousel.page height=carousel.height clip=false animate=true transition_ms=380 spring=true paged=true page_scale=0.9 scroll_x=carousel.scroll_x content_width=carousel.content_width
     for place in carousel.places
+      # Every page is there (the scroll view pages by them); only cards near
+      # the selected one are built.
       column width=carousel.page height=carousel.height align_items="center" justify="end"
-        if carousel.minimized
-          use MiniCard place=place width=carousel.card_width inner=carousel.card_inner
-        else
-          use Card place=place width=carousel.card_width inner=carousel.card_inner controls=carousel.card_controls
+        if place.built
+          if carousel.minimized
+            use MiniCard place=place width=carousel.card_width inner=carousel.card_inner
+          else
+            use Card place=place width=carousel.card_width inner=carousel.card_inner controls=carousel.card_controls
 
 # The grab handle at the top of a card: swipe it down to minimize, up to
 # restore; a tap toggles. Only the handle takes swipes, so swiping the rest
