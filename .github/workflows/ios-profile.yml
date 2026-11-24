@@ -1,0 +1,85 @@
+name: iOS profile
+
+# Where the app's CPU time goes while a test uses it: the simulator's process
+# is sampled from the Mac, so nothing in the app changes. By hand:
+#   gh workflow run ios-profile.yml -f tests="Results Page"
+on:
+  workflow_dispatch:
+    inputs:
+      tests:
+        description: Performance tests to profile (Startup, Results, Page, Scroll)
+        default: "Results Page Scroll"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-profile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  profile:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios
+
+      - name: Build
+        run: |
+          set -o pipefail
+          brew install xcodegen
+          chmod +x ios/build-rust.sh
+          # As released: no developer source map.
+          CHEETAH_RUST_FEATURES="" ./ios/build-rust.sh > /tmp/rust.log 2>&1 || { tail -30 /tmp/rust.log; exit 1; }
+          (cd ios && xcodegen generate) && (cd ios/NativeTwin && xcodegen generate)
+          DEVICE=$(xcrun simctl list devices available | awk '/-- iOS 26/ {f=1; next} /^-- / {f=0} f && /iPhone/ {print; exit}' | grep -oE '[0-9A-F-]{36}')
+          echo "DEVICE=$DEVICE" >> "$GITHUB_ENV"
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcodebuild -project ios/NativeTwin/NativeTwin.xcodeproj -scheme NativeTwin -sdk iphonesimulator \
+            -configuration Release -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath build/twin \
+            CODE_SIGNING_ALLOWED=NO build > /tmp/twin.log 2>&1
+          xcrun simctl install "$DEVICE" build/twin/Build/Products/Release-iphonesimulator/NativeTwin.app
+          xcodebuild build-for-testing -project ios/Cheetah.xcodeproj -scheme Cheetah -sdk iphonesimulator \
+            -configuration Release -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath build/perf \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO > /tmp/build.log 2>&1 || { grep error: /tmp/build.log; exit 1; }
+
+      - name: Profile
+        env:
+          TEST_RUNNER_NATIVE_TWIN: "1"
+          TESTS: ${{ inputs.tests }}
+        run: |
+          mkdir -p /tmp/profiles
+          for test in $TESTS; do
+            for side in Cheetah Native; do
+              app=$([ "$side" = Cheetah ] && echo Cheetah || echo NativeTwin)
+              name="$side$test"
+              xcodebuild test-without-building -project ios/Cheetah.xcodeproj -scheme Cheetah -sdk iphonesimulator \
+                -configuration Release -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath build/perf \
+                -only-testing:"CheetahUITests/CheetahPerformanceTests/test$name" > "/tmp/profiles/$name.test.log" 2>&1 &
+              runner=$!
+              part=0
+              while kill -0 $runner 2>/dev/null; do
+                pid=$(pgrep -f "/$app.app/$app( |$)" | head -1 || true)
+                if [ -n "$pid" ]; then
+                  part=$((part + 1))
+                  sample "$pid" 6 1 -mayDie -file "/tmp/profiles/$name.$part.txt" > /dev/null 2>&1 || true
+                else
+                  sleep 0.2
+                fi
+              done
+              wait $runner || echo "$name failed"
+              grep -E "measured \[|swift:[0-9]+: error" "/tmp/profiles/$name.test.log" | cut -c1-200 || true
+            done
+          done
+          ls -la /tmp/profiles
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: profiles
+          path: /tmp/profiles
