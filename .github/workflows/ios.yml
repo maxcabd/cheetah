@@ -230,7 +230,7 @@ jobs:
       - name: Measure Cheetah against the UIKit twin
         if: steps.twin.outcome == 'success'
         continue-on-error: true
-        timeout-minutes: 18
+        timeout-minutes: 22
         shell: bash
         env:
           TEST_RUNNER_NATIVE_TWIN: "1"

@@ -11,6 +11,13 @@ import XCTest
 /// native sheet and native paging instead of its own JS ones.
 ///
 /// Each is skipped when its app isn't installed.
+///
+/// Except for startup, only the app's CPU time is measured, and the test stays
+/// out of it meanwhile. Looking for an element makes the app describe its
+/// whole accessibility tree, which costs far more than what is being measured
+/// (over 99% of Cheetah's samples when opening a page) and grows with the
+/// number of views. So taps go to a position on the home screen's app, not to
+/// an element, and nothing is looked up until the measurement stops.
 final class CheetahPerformanceTests: XCTestCase {
     private static let twinID = "com.example.cheetah.twin"
     private static let reactID = "com.nightshade.nightshadeapp"
@@ -66,6 +73,22 @@ final class CheetahPerformanceTests: XCTestCase {
         return app
     }
 
+    private let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+
+    /// Long enough for every version's transition to finish.
+    private let settle: TimeInterval = 2.5
+
+    /// A position on screen, for tapping without asking the app anything.
+    private func spot(_ point: CGPoint, in app: XCUIApplication) -> XCUICoordinate {
+        springboard.coordinate(withNormalizedOffset: .zero)
+            .withOffset(CGVector(dx: point.x, dy: point.y))
+    }
+
+    private func center(_ element: XCUIElement, _ dx: CGFloat = 0.5, _ dy: CGFloat = 0.5) -> CGPoint {
+        let frame = element.frame
+        return CGPoint(x: frame.minX + frame.width * dx, y: frame.minY + frame.height * dy)
+    }
+
     // MARK: Startup: launch to a result card on screen
 
     func testCheetahStartup() throws {
@@ -119,17 +142,29 @@ final class CheetahPerformanceTests: XCTestCase {
     private func results(_ app: XCUIApplication) {
         app.launch()
         let suggestion = app.descendants(matching: .any)["Cafes within 12 min walk"].firstMatch
-        let result = app.staticTexts["Java Haven"].firstMatch
-        let clear = app.buttons["Clear"].firstMatch
         XCTAssertTrue(suggestion.waitForExistence(timeout: 20), "suggestions should be visible")
-        measure(metrics: [XCTClockMetric(), XCTCPUMetric(application: app)], options: options) {
+        sleep(2)
+        let show = spot(center(suggestion), in: app)
+        show.tap()
+        let clear = app.buttons["Clear"].firstMatch
+        XCTAssertTrue(app.staticTexts["Java Haven"].waitForExistence(timeout: 10), "a card should appear")
+        XCTAssertTrue(clear.waitForExistence(timeout: 10), "results should have a clear button")
+        sleep(2)
+        let reset = spot(center(clear), in: app)
+        reset.tap()
+        XCTAssertTrue(suggestion.waitForExistence(timeout: 10), "results should clear")
+        sleep(2)
+
+        measure(metrics: [XCTCPUMetric(application: app)], options: options) {
             startMeasuring()
-            suggestion.tap()
-            XCTAssertTrue(result.waitForExistence(timeout: 10), "a card should appear")
+            show.tap()
+            Thread.sleep(forTimeInterval: settle)
             stopMeasuring()
-            clear.tap()
-            XCTAssertTrue(suggestion.waitForExistence(timeout: 10), "results should clear")
+            reset.tap()
+            Thread.sleep(forTimeInterval: settle)
         }
+        show.tap()
+        XCTAssertTrue(app.staticTexts["Java Haven"].waitForExistence(timeout: 10), "the taps should still work")
     }
 
     /// A tap on a card to its page.
@@ -152,20 +187,28 @@ final class CheetahPerformanceTests: XCTestCase {
     private func page(_ app: XCUIApplication) {
         app.launch()
         let card = app.descendants(matching: .any)["card-java"].firstMatch
-        let close = app.buttons["Close"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20), "result cards should be visible")
-        measure(metrics: [XCTClockMetric(), XCTCPUMetric(application: app)], options: options) {
+        sleep(2)
+        // Below the photo, which takes touches of its own.
+        let open = spot(center(card, 0.5, 0.62), in: app)
+        open.tap()
+        let close = app.buttons["Close"].firstMatch
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "the page should open")
+        sleep(2)
+        let back = spot(center(close), in: app)
+        back.tap()
+        sleep(3)
+
+        measure(metrics: [XCTCPUMetric(application: app)], options: options) {
             startMeasuring()
-            // Below the photo, which takes touches of its own.
-            card.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.62)).tap()
-            XCTAssertTrue(close.waitForExistence(timeout: 10), "the page should open")
+            open.tap()
+            Thread.sleep(forTimeInterval: settle)
             stopMeasuring()
-            close.tap()
-            let closed = XCTNSPredicateExpectation(
-                predicate: NSPredicate(format: "exists == false"), object: close
-            )
-            XCTAssertEqual(XCTWaiter().wait(for: [closed], timeout: 10), .completed, "the page should close")
+            back.tap()
+            Thread.sleep(forTimeInterval: settle)
         }
+        open.tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 10), "the taps should still work")
     }
 
     // MARK: Scrolling: paging the result cards
@@ -190,20 +233,52 @@ final class CheetahPerformanceTests: XCTestCase {
         app.launch()
         let card = app.descendants(matching: .any)["card-java"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20), "result cards should be visible")
-        // Along the text, below the photo's own pages. By position, since not
-        // every version's carousel is a scroll view.
-        let height = max(app.frame.height, 1)
-        let y = (card.frame.minY + card.frame.height * 0.68) / height
-        let right = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: y))
-        let left = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: y))
+        sleep(2)
+        // Along the text, below the photo's own pages.
+        let width = springboard.frame.width
+        let y = center(card, 0.5, 0.68).y
+        let right = spot(CGPoint(x: width * 0.85, y: y), in: app)
+        let left = spot(CGPoint(x: width * 0.15, y: y), in: app)
         let metrics: [XCTMetric] = [
             XCTOSSignpostMetric.scrollingAndDecelerationMetric,
             XCTCPUMetric(application: app),
         ]
         measure(metrics: metrics, options: options) {
             startMeasuring()
-            right.press(forDuration: 0.01, thenDragTo: left, withVelocity: .fast, thenHoldForDuration: 0)
-            left.press(forDuration: 0.01, thenDragTo: right, withVelocity: .fast, thenHoldForDuration: 0)
+            for _ in 0..<3 {
+                right.press(forDuration: 0.01, thenDragTo: left, withVelocity: .fast, thenHoldForDuration: 0)
+                left.press(forDuration: 0.01, thenDragTo: right, withVelocity: .fast, thenHoldForDuration: 0)
+            }
+            stopMeasuring()
+        }
+    }
+
+    // MARK: At rest, for what the rest is on top of
+
+    func testCheetahIdle() throws {
+        idle(cheetah())
+    }
+
+    func testNativeIdle() throws {
+        idle(try twin())
+    }
+
+    func testReactIdle() throws {
+        idle(try react())
+    }
+
+    func testTunedIdle() throws {
+        idle(try react(tuned: true))
+    }
+
+    private func idle(_ app: XCUIApplication) {
+        app.launch()
+        XCTAssertTrue(app.staticTexts["Java Haven"].waitForExistence(timeout: 30), "a card should appear")
+        sleep(3)
+        let metrics: [XCTMetric] = [XCTCPUMetric(application: app), XCTMemoryMetric(application: app)]
+        measure(metrics: metrics, options: options) {
+            startMeasuring()
+            Thread.sleep(forTimeInterval: settle)
             stopMeasuring()
         }
     }
