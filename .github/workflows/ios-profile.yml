@@ -55,6 +55,10 @@ jobs:
           TESTS: ${{ inputs.tests }}
         run: |
           mkdir -p /tmp/profiles
+          # Its permission alert would sit over the first launch and take the
+          # tests' taps, which go to positions.
+          xcrun simctl install "$DEVICE" build/perf/Build/Products/Release-iphonesimulator/Cheetah.app
+          xcrun simctl privacy "$DEVICE" grant location com.example.cheetah
           for test in $TESTS; do
             for side in Cheetah Native; do
               app=$([ "$side" = Cheetah ] && echo Cheetah || echo NativeTwin)
