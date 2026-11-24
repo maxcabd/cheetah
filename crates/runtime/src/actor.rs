@@ -59,7 +59,9 @@ pub(crate) fn spawn(
         // Dev-server builds run Nightshade from apps/nightshade instead.
         #[cfg(not(feature = "devserver"))]
         if app == "nightshade" || app == "nightshade-demo" {
-            let state = std::path::Path::new(&store_path).with_file_name("nightshade-state.redb");
+            // Each has its own: the demo's sample results aren't the user's.
+            let state =
+                std::path::Path::new(&store_path).with_file_name(format!("{app}-state.redb"));
             return Runtime::new(NightshadeApp::new(app == "nightshade-demo").with_state_file(state));
         }
         let _ = &app;

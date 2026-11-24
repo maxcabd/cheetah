@@ -1275,3 +1275,24 @@ fn acting_on_a_result_reports_it_for_ranking() {
     click(&mut app, "card:bookmark:b");
     assert!(!app.take_native_calls().iter().any(|c| c.args.contains("/v1/search/feedback")));
 }
+
+/// Why the demo needs a state file of its own (crates/runtime/src/actor.rs).
+#[test]
+fn a_shared_state_file_would_show_demo_results_in_the_app() {
+    let dir = std::env::temp_dir();
+    let file = |name: &str| dir.join(format!("{name}-{}-state.redb", std::process::id()));
+    let (demo_file, app_file) = (file("leak-demo"), file("leak-app"));
+    let background = || Event {
+        id: 0,
+        key: None,
+        kind: "lifecycle".into(),
+        payload: "background".into(),
+    };
+    let mut demo = NightshadeApp::new(true).with_state_file(&demo_file);
+    demo.update(background());
+    assert!(NightshadeApp::new(false).with_state_file(&demo_file).has_results());
+    assert!(!NightshadeApp::new(false).with_state_file(&app_file).has_results());
+    for file in [demo_file, app_file] {
+        let _ = std::fs::remove_file(file);
+    }
+}
