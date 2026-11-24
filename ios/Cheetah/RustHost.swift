@@ -738,9 +738,11 @@ final class RustHost: NSObject {
 
         // A native element's children go to its module (e.g. map pins).
         if let node = tags[id], node.container == nil, let native = views[id] as? NativeModuleHostView {
-            native.setChildren(wanted.compactMap { childId in
-                views[childId].map { (view: $0, props: tags[childId]?.props ?? [:]) }
-            })
+            metrics.measure(.map) {
+                native.setChildren(wanted.compactMap { childId in
+                    views[childId].map { (view: $0, props: tags[childId]?.props ?? [:]) }
+                })
+            }
             return
         }
 
@@ -755,7 +757,11 @@ final class RustHost: NSObject {
             subview.removeFromSuperview()
         }
 
-        for (index, childId) in wanted.enumerated() {
+        // Only what isn't already in its place: inserting a view again makes
+        // UIKit lay it out and draw it again.
+        var placed = parent.subviews
+        var index = 0
+        for childId in wanted {
             guard let child = views[childId] else {
                 continue
             }
@@ -765,11 +771,15 @@ final class RustHost: NSObject {
                 }
                 continue
             }
-            if child.superview !== parent {
-                parent.addSubview(child)
+            if index >= placed.count || placed[index] !== child {
+                if let old = placed.firstIndex(where: { $0 === child }) {
+                    placed.remove(at: old)
+                }
+                let target = min(index, placed.count)
+                parent.insertSubview(child, at: target)
+                placed.insert(child, at: target)
             }
-            let target = min(index, max(0, parent.subviews.count - 1))
-            parent.insertSubview(child, at: target)
+            index += 1
         }
 
         if node.scrollView != nil {
@@ -1362,7 +1372,19 @@ final class RustHost: NSObject {
         }
     }
 
+    private var fonts: [String: UIFont] = [:]
+
     private func uiFont(size: CGFloat, bold: Bool, family: String?) -> UIFont {
+        let key = "\(family ?? "")|\(size)|\(bold)"
+        if let known = fonts[key] {
+            return known
+        }
+        let font = makeFont(size: size, bold: bold, family: family)
+        fonts[key] = font
+        return font
+    }
+
+    private func makeFont(size: CGFloat, bold: Bool, family: String?) -> UIFont {
         let name: String?
         switch family {
         case "satoshi": name = "Satoshi-Regular"

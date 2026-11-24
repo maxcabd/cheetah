@@ -252,6 +252,10 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
     private var lastRecenter: Int?
     private var childAnnotations: [ObjectIdentifier: ViewAnnotation] = [:]
     private var nextRegionAnimated = false
+    /// The first region: MapKit may discard it while the map is still being
+    /// set up, so it is checked again. Later ones are set once; setting them
+    /// again would restart their animation and redraw the map.
+    private var settlingFirstRegion = false
 
     var nativeView: UIView {
         map
@@ -339,6 +343,7 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
             let regionKey = "\(latitude.doubleValue),\(longitude.doubleValue),\(latitudeDelta.doubleValue),\(longitudeDelta.doubleValue)"
             if regionKey != lastRegionKey {
                 nextRegionAnimated = lastRegionKey != nil
+                settlingFirstRegion = lastRegionKey == nil
                 lastRegionKey = regionKey
                 pendingRegion = MKCoordinateRegion(
                     center: CLLocationCoordinate2D(
@@ -353,11 +358,12 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
                 regionApplied = false
                 appliedAfterLoad = false
                 applyPendingRegion()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
-                    self?.applyPendingRegion(force: true)
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
-                    self?.applyPendingRegion(force: true)
+                if settlingFirstRegion {
+                    for delay in [0.25, 1.0] {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                            self?.settleFirstRegion()
+                        }
+                    }
                 }
             }
         }
@@ -378,6 +384,20 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
         regionApplied = true
     }
 
+    /// Set the first region again if MapKit dropped it.
+    private func settleFirstRegion() {
+        guard settlingFirstRegion, let region = pendingRegion, map.bounds.width > 1 else {
+            return
+        }
+        let shown = map.region
+        let off = abs(shown.center.latitude - region.center.latitude) > region.span.latitudeDelta * 0.05
+            || abs(shown.center.longitude - region.center.longitude) > region.span.longitudeDelta * 0.05
+            || shown.span.latitudeDelta > region.span.latitudeDelta * 2
+        if off || !regionApplied {
+            applyPendingRegion(force: true)
+        }
+    }
+
     func mapViewDidFinishLoadingMap(_ mapView: MKMapView) {
         applyPendingRegionAfterLoad()
     }
@@ -387,12 +407,11 @@ private final class MapNativeModule: NSObject, CheetahNativeModule, CheetahChild
     }
 
     private func applyPendingRegionAfterLoad() {
-        guard !appliedAfterLoad, let region = pendingRegion else {
+        guard !appliedAfterLoad, pendingRegion != nil else {
             return
         }
-        map.setRegion(region, animated: false)
-        regionApplied = true
         appliedAfterLoad = true
+        settleFirstRegion()
     }
 
     static func coordinate(_ props: [String: Any]) -> CLLocationCoordinate2D? {
@@ -921,6 +940,7 @@ private final class MenuNativeModule: CheetahNativeModule {
 private final class IconNativeModule: CheetahNativeModule {
     private let imageView = UIImageView()
     private var iconName = "circle.fill"
+    private var applied: (raw: String?, color: String?, size: CGFloat)?
 
     var nativeView: UIView {
         imageView
@@ -933,10 +953,13 @@ private final class IconNativeModule: CheetahNativeModule {
     }
 
     func apply(props: [String: Any]) {
-        if let raw = props["nativeProps"] as? String,
-           let data = raw.data(using: .utf8),
-           let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        {
+        let raw = props["nativeProps"] as? String
+        let size = CGFloat((props["size"] as? NSNumber)?.doubleValue ?? 16)
+        if let applied, applied.raw == raw, applied.color == props["color"] as? String, applied.size == size {
+            return
+        }
+        applied = (raw, props["color"] as? String, size)
+        if let raw, let config = NativeProps.parse(raw) {
             iconName = config["name"] as? String ?? iconName
             if let color = config["color"] as? String {
                 imageView.tintColor = UIColor(hex: color)
@@ -946,12 +969,7 @@ private final class IconNativeModule: CheetahNativeModule {
             imageView.tintColor = UIColor(hex: color)
         }
         let symbol = Self.symbols[iconName] ?? iconName
-        let config = UIImage.SymbolConfiguration(
-            pointSize: CGFloat((props["size"] as? NSNumber)?.doubleValue ?? 16),
-            weight: .regular
-        )
-        imageView.image = UIImage(systemName: symbol, withConfiguration: config)?
-            .withRenderingMode(.alwaysTemplate)
+        imageView.image = SymbolImages.image(symbol, size: size)
         imageView.accessibilityLabel = iconName
     }
 
@@ -1000,10 +1018,7 @@ private final class PhotoPagerNativeModule: CheetahNativeModule {
     }
 
     func apply(props: [String: Any]) {
-        guard let raw = props["nativeProps"] as? String,
-              let data = raw.data(using: .utf8),
-              let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
+        guard let raw = props["nativeProps"] as? String, let config = NativeProps.parse(raw) else {
             return
         }
         // `photos`: a page per photo (asset:// or http(s)://); else one
@@ -1163,18 +1178,19 @@ private final class GradientView: UIView {
 ///   stroke: "#rrggbb[aa]", strokeWidth: points
 private final class ShapeNativeModule: CheetahNativeModule {
     private let shapeView = ShapeView()
+    private var applied: String?
 
     var nativeView: UIView {
         shapeView
     }
 
     func apply(props: [String: Any]) {
-        guard let raw = props["nativeProps"] as? String,
-              let data = raw.data(using: .utf8),
-              let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        guard let raw = props["nativeProps"] as? String, raw != applied,
+              let config = NativeProps.parse(raw)
         else {
             return
         }
+        applied = raw
         shapeView.configure(config)
     }
 }
@@ -1205,8 +1221,23 @@ private final class ShapeView: UIView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// Parsed paths: every pin has the same one.
+    private static var paths: [String: CGPath] = [:]
+
+    private static func path(_ text: String) -> CGPath {
+        if let known = paths[text] {
+            return known
+        }
+        let parsed: CGPath = SVGPath.parse(text)
+        if paths.count >= 64 {
+            paths.removeAll()
+        }
+        paths[text] = parsed
+        return parsed
+    }
+
     func configure(_ config: [String: Any]) {
-        path = SVGPath.parse(config["path"] as? String ?? "")
+        path = Self.path(config["path"] as? String ?? "")
         if let box = config["viewBox"] as? [NSNumber], box.count == 2 {
             viewBox = CGSize(width: box[0].doubleValue, height: box[1].doubleValue)
         } else {

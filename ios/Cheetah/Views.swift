@@ -2,20 +2,27 @@ import UIKit
 
 extension UIColor {
     convenience init(hex: String) {
-        var value = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        if value.hasPrefix("#") {
-            value.removeFirst()
-        }
-
+        // By hand: a Scanner for every color of every view adds up.
         var raw: UInt64 = 0
-        Scanner(string: value).scanHexInt64(&raw)
+        var digits = 0
+        for byte in hex.utf8 {
+            let digit: UInt8
+            switch byte {
+            case 48...57: digit = byte - 48
+            case 97...102: digit = byte - 87
+            case 65...70: digit = byte - 55
+            default: continue
+            }
+            raw = raw << 4 | UInt64(digit)
+            digits += 1
+        }
 
         let red: CGFloat
         let green: CGFloat
         let blue: CGFloat
         let alpha: CGFloat
 
-        if value.count == 8 {
+        if digits == 8 {
             red = CGFloat((raw >> 24) & 0xFF) / 255.0
             green = CGFloat((raw >> 16) & 0xFF) / 255.0
             blue = CGFloat((raw >> 8) & 0xFF) / 255.0
@@ -63,6 +70,7 @@ final class GlassView: UIView {
     private var tint: String?
     private var interactive = false
     private var fallback: String?
+    private var applied = false
     private var transparencyObserver: NSObjectProtocol?
 
     override init(frame: CGRect) {
@@ -99,6 +107,13 @@ final class GlassView: UIView {
     /// `fallback`: the element's `bg`, shown instead of glass when Reduce
     /// Transparency is on.
     func apply(style: String, tint: String?, interactive: Bool, fallback: String? = nil) {
+        // A new effect is animated in: not for a change of something else.
+        if applied, self.style == style, self.tint == tint,
+           self.interactive == interactive, self.fallback == fallback
+        {
+            return
+        }
+        applied = true
         self.style = style
         self.tint = tint
         self.interactive = interactive

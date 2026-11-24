@@ -9,6 +9,8 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
     private var imageViews: [UIImageView] = []
     /// One source per page: asset://name or an http(s) URL.
     private var sources: [String] = []
+    /// Pages whose photo has been asked for.
+    private var requested: Set<Int> = []
     private var pages = 5
     private static let cache = NSCache<NSString, UIImage>()
     /// The first photo's dominant color ("#rrggbb"), once it has loaded.
@@ -44,9 +46,17 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
         guard photos != sources else { return }
         sources = photos
         pages = photos.count
+        requested.removeAll()
         rebuild()
-        for (index, source) in photos.enumerated() where !source.isEmpty {
-            load(source, page: index)
+        loadNear(page: 0)
+    }
+
+    /// Load the photo on `page` and its neighbours, each once: a card of five
+    /// photos shows one.
+    private func loadNear(page: Int) {
+        for index in max(page - 1, 0)...max(page + 1, 0)
+        where index < sources.count && !sources[index].isEmpty && requested.insert(index).inserted {
+            load(sources[index], page: index)
         }
     }
 
@@ -57,7 +67,9 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
         }
         if source.hasPrefix("http://") || source.hasPrefix("https://"), let url = URL(string: source) {
             URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
-                guard let data, let image = UIImage(data: data) else { return }
+                guard let data, let loaded = UIImage(data: data) else { return }
+                // Decoded here, not on the main thread when first drawn.
+                let image = loaded.preparingForDisplay() ?? loaded
                 Self.cache.setObject(image, forKey: source as NSString)
                 DispatchQueue.main.async {
                     self?.show(image, page: page, source: source)
@@ -117,6 +129,7 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         guard bounds.width > 0 else { return }
         overlay.progress = scrollView.contentOffset.x / bounds.width
+        loadNear(page: Int((scrollView.contentOffset.x / bounds.width).rounded()))
     }
 
     private func rebuild() {
