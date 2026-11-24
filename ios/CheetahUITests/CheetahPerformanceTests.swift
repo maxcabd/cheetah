@@ -89,6 +89,18 @@ final class CheetahPerformanceTests: XCTestCase {
         return CGPoint(x: frame.minX + frame.width * dx, y: frame.minY + frame.height * dy)
     }
 
+    /// With PROFILE=1 (ios-profile.yml): repeat the steps for a while instead
+    /// of measuring, so a sampler has something to see.
+    private func profile(_ steps: () -> Void) -> Bool {
+        guard ProcessInfo.processInfo.environment["PROFILE"] == "1" else { return false }
+        FileManager.default.createFile(atPath: "/tmp/cheetah-profile-start", contents: nil)
+        let end = Date().addingTimeInterval(45)
+        while Date() < end {
+            steps()
+        }
+        return true
+    }
+
     // MARK: Startup: launch to a result card on screen
 
     func testCheetahStartup() throws {
@@ -155,6 +167,12 @@ final class CheetahPerformanceTests: XCTestCase {
         XCTAssertTrue(suggestion.waitForExistence(timeout: 10), "results should clear")
         sleep(2)
 
+        if profile({
+            show.tap()
+            Thread.sleep(forTimeInterval: 1)
+            reset.tap()
+            Thread.sleep(forTimeInterval: 1)
+        }) { return }
         measure(metrics: [XCTCPUMetric(application: app)], options: options) {
             startMeasuring()
             show.tap()
@@ -199,6 +217,12 @@ final class CheetahPerformanceTests: XCTestCase {
         back.tap()
         sleep(3)
 
+        if profile({
+            open.tap()
+            Thread.sleep(forTimeInterval: 1.5)
+            back.tap()
+            Thread.sleep(forTimeInterval: 1.5)
+        }) { return }
         measure(metrics: [XCTCPUMetric(application: app)], options: options) {
             startMeasuring()
             open.tap()

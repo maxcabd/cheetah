@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       tests:
-        description: Performance tests to profile (Startup, Results, Page, Scroll)
-        default: "Results Page Scroll"
+        description: Performance tests to profile (Results, Page)
+        default: "Results Page"
 
 permissions:
   contents: read
@@ -51,6 +51,7 @@ jobs:
       - name: Profile
         env:
           TEST_RUNNER_NATIVE_TWIN: "1"
+          TEST_RUNNER_PROFILE: "1"
           TESTS: ${{ inputs.tests }}
         run: |
           mkdir -p /tmp/profiles
@@ -58,20 +59,20 @@ jobs:
             for side in Cheetah Native; do
               app=$([ "$side" = Cheetah ] && echo Cheetah || echo NativeTwin)
               name="$side$test"
+              rm -f /tmp/cheetah-profile-start
               xcodebuild test-without-building -project ios/Cheetah.xcodeproj -scheme Cheetah -sdk iphonesimulator \
                 -configuration Release -destination "platform=iOS Simulator,id=$DEVICE" -derivedDataPath build/perf \
                 -only-testing:"CheetahUITests/CheetahPerformanceTests/test$name" > "/tmp/profiles/$name.test.log" 2>&1 &
               runner=$!
-              part=0
-              while kill -0 $runner 2>/dev/null; do
-                pid=$(pgrep -f "/$app.app/$app( |$)" | head -1 || true)
-                if [ -n "$pid" ]; then
-                  part=$((part + 1))
-                  sample "$pid" 6 1 -mayDie -file "/tmp/profiles/$name.$part.txt" > /dev/null 2>&1 || true
-                else
-                  sleep 0.2
-                fi
-              done
+              # One sample, started once the test is only tapping: writing a
+              # sample takes long enough to miss what follows it.
+              while kill -0 $runner 2>/dev/null && [ ! -f /tmp/cheetah-profile-start ]; do sleep 0.3; done
+              pid=$(pgrep -f "/$app.app/$app( |$)" | head -1 || true)
+              if [ -n "$pid" ]; then
+                ps -o pid,time,rss -p "$pid" | tee "/tmp/profiles/$name.before.txt"
+                sample "$pid" 20 4 -mayDie -file "/tmp/profiles/$name.1.txt" > /dev/null 2>&1 || true
+                ps -o pid,time,rss -p "$pid" | tee "/tmp/profiles/$name.after.txt" || true
+              fi
               wait $runner || echo "$name failed"
               grep -E "measured \[|swift:[0-9]+: error" "/tmp/profiles/$name.test.log" | cut -c1-200 || true
             done
