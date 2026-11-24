@@ -6,9 +6,14 @@ import XCTest
 /// on the same device: the gap is what Cheetah costs. Simulator numbers
 /// compare with each other, not with a phone.
 ///
-/// The native ones are skipped when NativeTwin isn't installed.
+/// `testReact...` is the same product in React Native (the app Nightshade
+/// started as, in its benchmark mode), and `testTuned...` that app with a
+/// native sheet and native paging instead of its own JS ones.
+///
+/// Each is skipped when its app isn't installed.
 final class CheetahPerformanceTests: XCTestCase {
     private static let twinID = "com.example.cheetah.twin"
+    private static let reactID = "com.nightshade.nightshadeapp"
     private var launched: XCUIApplication?
 
     private var options: XCTMeasureOptions {
@@ -46,6 +51,21 @@ final class CheetahPerformanceTests: XCTestCase {
         return app
     }
 
+    private func react(tuned: Bool = false, suggestions: Bool = false) throws -> XCUIApplication {
+        guard ProcessInfo.processInfo.environment["REACT_TWIN"] == "1" else {
+            throw XCTSkip("the React Native app isn't installed (set TEST_RUNNER_REACT_TWIN=1 when it is)")
+        }
+        let app = XCUIApplication(bundleIdentifier: Self.reactID)
+        if tuned {
+            app.launchArguments += ["-benchVariant", "native"]
+        }
+        if suggestions {
+            app.launchArguments += ["-benchScreen", "suggestions"]
+        }
+        launched = app
+        return app
+    }
+
     // MARK: Startup: launch to a result card on screen
 
     func testCheetahStartup() throws {
@@ -54,6 +74,14 @@ final class CheetahPerformanceTests: XCTestCase {
 
     func testNativeStartup() throws {
         startup(try twin())
+    }
+
+    func testReactStartup() throws {
+        startup(try react())
+    }
+
+    func testTunedStartup() throws {
+        startup(try react(tuned: true))
     }
 
     private func startup(_ app: XCUIApplication) {
@@ -80,6 +108,14 @@ final class CheetahPerformanceTests: XCTestCase {
         results(try twin(["--suggestions"]))
     }
 
+    func testReactResults() throws {
+        results(try react(suggestions: true))
+    }
+
+    func testTunedResults() throws {
+        results(try react(tuned: true, suggestions: true))
+    }
+
     private func results(_ app: XCUIApplication) {
         app.launch()
         let suggestion = app.descendants(matching: .any)["Cafes within 12 min walk"].firstMatch
@@ -103,6 +139,14 @@ final class CheetahPerformanceTests: XCTestCase {
 
     func testNativePage() throws {
         page(try twin())
+    }
+
+    func testReactPage() throws {
+        page(try react())
+    }
+
+    func testTunedPage() throws {
+        page(try react(tuned: true))
     }
 
     private func page(_ app: XCUIApplication) {
@@ -134,21 +178,30 @@ final class CheetahPerformanceTests: XCTestCase {
         scroll(try twin())
     }
 
+    func testReactScroll() throws {
+        scroll(try react())
+    }
+
+    func testTunedScroll() throws {
+        scroll(try react(tuned: true))
+    }
+
     private func scroll(_ app: XCUIApplication) {
         app.launch()
         let card = app.descendants(matching: .any)["card-java"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20), "result cards should be visible")
-        let cards = app.scrollViews.containing(.any, identifier: "card-java").firstMatch
-        XCTAssertTrue(cards.exists, "the carousel should be a scroll view")
+        // Along the text, below the photo's own pages. By position, since not
+        // every version's carousel is a scroll view.
+        let height = max(app.frame.height, 1)
+        let y = (card.frame.minY + card.frame.height * 0.68) / height
+        let right = app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: y))
+        let left = app.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: y))
         let metrics: [XCTMetric] = [
             XCTOSSignpostMetric.scrollingAndDecelerationMetric,
             XCTCPUMetric(application: app),
         ]
         measure(metrics: metrics, options: options) {
             startMeasuring()
-            // Along the text, below the photo's own pages.
-            let right = cards.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.68))
-            let left = cards.coordinate(withNormalizedOffset: CGVector(dx: 0.15, dy: 0.68))
             right.press(forDuration: 0.01, thenDragTo: left, withVelocity: .fast, thenHoldForDuration: 0)
             left.press(forDuration: 0.01, thenDragTo: right, withVelocity: .fast, thenHoldForDuration: 0)
             stopMeasuring()
