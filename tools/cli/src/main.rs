@@ -355,8 +355,9 @@ fn metrics_table(data: &Value, age: u64) -> String {
         lines.push("On the phone: no reports (needs a dev build from this version on).".into());
         return lines.join("\n");
     }
-    const PARTS: [&str; 9] = [
-        "apply", "commit", "create", "props", "children", "layout", "remove", "native", "map",
+    const PARTS: [&str; 12] = [
+        "apply", "commit", "create", "props", "children", "layout", "remove", "insert", "glass",
+        "modules", "calls", "map",
     ];
     let mut header = format!("{:<24}{:>7}{:>8}{:>8} |", "on the phone, ms", "frames", "p50", "p95");
     for part in PARTS {

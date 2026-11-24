@@ -119,26 +119,56 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
         }
     }
 
+    /// Kept and prepared: making one for each tap wakes the Taptic Engine
+    /// while the frame that asked for it waits.
+    private lazy var selectionHaptic = UISelectionFeedbackGenerator()
+    private lazy var noticeHaptic = UINotificationFeedbackGenerator()
+    private var impactHaptics: [UIImpactFeedbackGenerator.FeedbackStyle: UIImpactFeedbackGenerator] = [:]
+
     private func haptics(_ method: String) -> Bool {
         switch method {
         case "light":
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            impact(.light)
         case "medium":
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            impact(.medium)
         case "heavy":
-            UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+            impact(.heavy)
         case "selection":
-            UISelectionFeedbackGenerator().selectionChanged()
+            after {
+                self.selectionHaptic.selectionChanged()
+                self.selectionHaptic.prepare()
+            }
         case "success":
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            notice(.success)
         case "warning":
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            notice(.warning)
         case "error":
-            UINotificationFeedbackGenerator().notificationOccurred(.error)
+            notice(.error)
         default:
             return false
         }
         return true
+    }
+
+    private func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
+        let generator = impactHaptics[style] ?? UIImpactFeedbackGenerator(style: style)
+        impactHaptics[style] = generator
+        after {
+            generator.impactOccurred()
+            generator.prepare()
+        }
+    }
+
+    private func notice(_ type: UINotificationFeedbackGenerator.FeedbackType) {
+        after {
+            self.noticeHaptic.notificationOccurred(type)
+            self.noticeHaptic.prepare()
+        }
+    }
+
+    /// Once this frame is on screen: a haptic never holds it up.
+    private func after(_ work: @escaping () -> Void) {
+        DispatchQueue.main.async(execute: work)
     }
 
     private func location(_ method: String) -> Bool {

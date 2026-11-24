@@ -8,10 +8,11 @@ import os
 /// cost next to nothing; the report goes to the dev server, for
 /// `cheetah metrics`.
 final class HostMetrics {
-    /// Kinds of work inside a frame. `map` and `native` are parts of
-    /// whichever op they happen in and aren't counted there.
+    /// Kinds of work inside a frame. The first five are ops; the rest happen
+    /// inside them and aren't counted there: putting views on screen, glass,
+    /// native modules, native calls (haptics, http) and the map's pins.
     enum Phase: Int, CaseIterable {
-        case create, props, children, layout, remove, native, map
+        case create, props, children, layout, remove, insert, glass, modules, calls, map
     }
 
     private static let signposter = OSSignposter(subsystem: "dev.cheetah.host", category: "frames")

@@ -403,6 +403,29 @@ mod tests {
     use super::*;
     use crate::element::{column, text};
 
+    /// Props travel by number: each host must list them in this order.
+    #[test]
+    fn hosts_number_props_the_same_way() {
+        let swift = include_str!("../../../ios/Cheetah/WireProps.swift");
+        let body = swift.split("enum Prop:").nth(1).expect("the Prop enum");
+        let body = body.split("static let").next().expect("its cases");
+        let names: Vec<&str> = body
+            .lines()
+            .filter_map(|line| line.trim().strip_prefix("case "))
+            .flat_map(|line| line.split(','))
+            .map(str::trim)
+            .collect();
+        assert_eq!(names, PROP_NAMES);
+
+        let kotlin = include_str!(
+            "../../../android/app/src/main/java/com/example/rustui/RustHost.kt"
+        );
+        let list = kotlin.split("val propNames = arrayOf(").nth(1).expect("propNames");
+        let list = list.split(')').next().expect("its end");
+        let names: Vec<&str> = list.split(',').map(|name| name.trim().trim_matches('"')).collect();
+        assert_eq!(names, PROP_NAMES);
+    }
+
     #[test]
     fn encodes_sparse_property_update() {
         let ops = vec![Op::UpdateProps {

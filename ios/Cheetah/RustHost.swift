@@ -125,7 +125,7 @@ private final class NodeTag {
     var tapRecognizer: UITapGestureRecognizer?
     var source: String?
     var native: String?
-    var props: [String: Any]?
+    var props: WireProps?
     var animate = false
     // Motion: animation timing and gestures.
     var transitionMs: Double = 200
@@ -184,8 +184,6 @@ private struct WireReader {
         defer { offset += Int(length) }
         return String(decoding: data[offset..<(offset + Int(length))], as: UTF8.self)
     }
-
-    static let propNames: [String] = ["text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures", "refresh", "refreshing", "pageScale"]
 
     mutating func take(_ count: Int) -> Data? {
         guard offset + count <= data.count else { return nil }
@@ -280,7 +278,7 @@ final class RustHost: NSObject {
     /// Main thread.
     func onRuntimeConnected() {
         for id in Array(views.keys) {
-            remove(["id": NSNumber(value: id)])
+            remove(id: id)
         }
         viewPool.removeAll()
         let size = lastSize
@@ -443,56 +441,36 @@ final class RustHost: NSObject {
                     let root = reader.u8(),
                     let hasSource = reader.u8()
                 else { return }
-                var source: [String: Any]?
+                var source: String?
                 if hasSource != 0 {
                     guard
                         let file = reader.string(),
                         let line = reader.u32(),
-                        let column = reader.u32()
+                        reader.u32() != nil
                     else { return }
-                    source = [
-                        "file": file,
-                        "line": NSNumber(value: line),
-                        "column": NSNumber(value: column),
-                    ]
+                    source = "\(file):\(line)"
                 }
                 guard let props = decodeProps(&reader) else { return }
-                var op: [String: Any] = [
-                    "op": "create",
-                    "id": NSNumber(value: id),
-                    "kind": kind,
-                    "root": root != 0,
-                    "props": props,
-                ]
-                if let source {
-                    op["source"] = source
+                metrics.measure(.create) {
+                    create(id: id, kind: kind, root: root != 0, source: source, props: props)
                 }
-                metrics.measure(.create) { create(op) }
             case 2:
                 guard let id = reader.u32(), let props = decodeProps(&reader) else { return }
                 metrics.measure(.props) {
-                    update([
-                        "op": "update",
-                        "id": NSNumber(value: id),
-                        "props": props,
-                    ])
+                    update(id: id, props: props)
                 }
             case 7:
                 guard let id = reader.u32(), let props = decodeProps(&reader) else { return }
                 metrics.measure(.props) { updateProps(id: id, delta: props) }
             case 3:
                 guard let id = reader.u32(), let count = reader.u32() else { return }
-                var children: [NSNumber] = []
+                var children: [UInt32] = []
                 for _ in 0..<count {
                     guard let child = reader.u32() else { return }
-                    children.append(NSNumber(value: child))
+                    children.append(child)
                 }
                 metrics.measure(.children) {
-                    self.children([
-                        "op": "children",
-                        "id": NSNumber(value: id),
-                        "children": children,
-                    ])
+                    self.children(id: id, wanted: children)
                 }
             case 4:
                 guard
@@ -503,18 +481,19 @@ final class RustHost: NSObject {
                     let height = reader.f32()
                 else { return }
                 metrics.measure(.layout) {
-                    layout([
-                        "op": "layout",
-                        "id": NSNumber(value: id),
-                        "x": NSNumber(value: x),
-                        "y": NSNumber(value: y),
-                        "width": NSNumber(value: width),
-                        "height": NSNumber(value: height),
-                    ])
+                    layout(
+                        id: id,
+                        target: CGRect(
+                            x: CGFloat(x),
+                            y: CGFloat(y),
+                            width: CGFloat(width),
+                            height: CGFloat(height)
+                        )
+                    )
                 }
             case 5:
                 guard let id = reader.u32() else { return }
-                metrics.measure(.remove) { remove(["op": "remove", "id": NSNumber(value: id)]) }
+                metrics.measure(.remove) { remove(id: id) }
             case 6:
                 guard let id = reader.u32(), let text = reader.string() else { return }
                 metrics.measure(.props) { applyText(id: id, text: text) }
@@ -527,7 +506,7 @@ final class RustHost: NSObject {
                 else { return }
                 let object = try? JSONSerialization.jsonObject(with: data)
                 let payload = object as? [String: Any] ?? [:]
-                metrics.measure(.native) {
+                metrics.measure(.calls) {
                     _ = nativeApis.invoke(module: module, method: method, args: payload)
                 }
             default:
@@ -544,58 +523,53 @@ final class RustHost: NSObject {
             button.title = text
         }
         if var props = tags[id]?.props {
-            props["text"] = text
+            props.set(.text, .string(text))
             tags[id]?.props = props
         }
     }
 
-    private func decodeProps(_ reader: inout WireReader) -> [String: Any]? {
+    private func decodeProps(_ reader: inout WireReader) -> WireProps? {
         guard let count = reader.u32() else { return nil }
-        var props: [String: Any] = [:]
+        var props = WireProps()
+        props.reserve(Int(min(count, 128)))
         for _ in 0..<count {
             guard let id = reader.u16(), let type = reader.u8() else { return nil }
-            let value: Any
+            let value: PropValue
             switch type {
             case 1:
                 guard let string = reader.string() else { return nil }
-                value = string
+                value = .string(string)
             case 2:
                 guard let number = reader.f32() else { return nil }
-                value = NSNumber(value: number)
+                value = .number(number)
             case 3:
                 guard let flag = reader.u8() else { return nil }
-                value = flag != 0
+                value = .bool(flag != 0)
             case 4:
                 guard let number = reader.u32() else { return nil }
-                value = NSNumber(value: number)
+                value = .count(number)
             default:
                 return nil
             }
             // A prop newer than this build: skip it and keep the rest, so new
             // view attributes never break an installed app.
-            if Int(id) < WireReader.propNames.count {
-                props[WireReader.propNames[Int(id)]] = value
+            if let prop = Prop(rawValue: id) {
+                props.append(prop, value)
             }
         }
         return props
     }
 
-    private func create(_ op: [String: Any]) {
-        let id = uint32(op["id"])
-        let kind = op["kind"] as? String ?? "space"
+    private func create(id: UInt32, kind: String, root: Bool, source: String?, props nodeProps: WireProps) {
         let view = obtainView(kind)
         view.tag = Int(id)
 
         let node = NodeTag(id: id, kind: kind, view: view)
-        let nodeProps = op["props"] as? [String: Any] ?? [:]
         node.props = nodeProps
-        node.native = nodeProps["native"] as? String
-        if let source = op["source"] as? [String: Any],
-           let file = source["file"] as? String,
-           let line = source["line"] as? NSNumber
-        {
-            node.source = "\(file):\(line.intValue)"
-            view.accessibilityHint = node.source
+        node.native = nodeProps.string(.native)
+        if let source {
+            node.source = source
+            view.accessibilityHint = source
         }
         if let scroll = view as? UIScrollView, let content = scroll.subviews.first {
             node.container = content
@@ -610,12 +584,12 @@ final class RustHost: NSObject {
         views[id] = view
         tags[id] = node
 
-        if bool(op["root"]) {
+        if root {
             container.addSubview(view)
         }
 
         applyProps(view, node: node, props: nodeProps)
-        if bool(nodeProps["animate"]) {
+        if nodeProps.bool(.animate) {
             let target = view.alpha
             view.alpha = 0
             UIView.animate(
@@ -709,38 +683,30 @@ final class RustHost: NSObject {
         }
     }
 
-    private func update(_ op: [String: Any]) {
-        let id = uint32(op["id"])
+    private func update(id: UInt32, props: WireProps) {
         guard let view = views[id], let node = tags[id] else {
             return
-        }
-        let props = op["props"] as? [String: Any] ?? [:]
-        node.props = props
-        applyProps(view, node: node, props: props)
-    }
-
-    private func updateProps(id: UInt32, delta: [String: Any]) {
-        guard let view = views[id], let node = tags[id] else {
-            return
-        }
-        var props = node.props ?? [:]
-        for (key, value) in delta {
-            props[key] = value
         }
         node.props = props
         applyProps(view, node: node, props: props)
     }
 
-    private func children(_ op: [String: Any]) {
-        let id = uint32(op["id"])
-        let numbers = op["children"] as? [NSNumber] ?? []
-        let wanted = numbers.map { UInt32(truncating: $0) }
+    private func updateProps(id: UInt32, delta: WireProps) {
+        guard let view = views[id], let node = tags[id] else {
+            return
+        }
+        var props = node.props ?? WireProps()
+        props.merge(delta)
+        node.props = props
+        applyProps(view, node: node, props: props)
+    }
 
+    private func children(id: UInt32, wanted: [UInt32]) {
         // A native element's children go to its module (e.g. map pins).
         if let node = tags[id], node.container == nil, let native = views[id] as? NativeModuleHostView {
             metrics.measure(.map) {
                 native.setChildren(wanted.compactMap { childId in
-                    views[childId].map { (view: $0, props: tags[childId]?.props ?? [:]) }
+                    views[childId].map { (view: $0, props: tags[childId]?.props?.dictionary ?? [:]) }
                 })
             }
             return
@@ -776,7 +742,7 @@ final class RustHost: NSObject {
                     placed.remove(at: old)
                 }
                 let target = min(index, placed.count)
-                parent.insertSubview(child, at: target)
+                metrics.measure(.insert) { parent.insertSubview(child, at: target) }
                 placed.insert(child, at: target)
             }
             index += 1
@@ -787,23 +753,16 @@ final class RustHost: NSObject {
         }
     }
 
-    private func layout(_ op: [String: Any]) {
-        let id = uint32(op["id"])
+    private func layout(id: UInt32, target: CGRect) {
         guard let view = views[id] else {
             return
         }
         if tags[id]?.isSheet == true {
             // The native sheet's height follows the Rust layout.
-            updateSheetHeight(number(op["height"]))
+            updateSheetHeight(target.height)
             return
         }
 
-        let target = CGRect(
-            x: number(op["x"]),
-            y: number(op["y"]),
-            width: number(op["width"]),
-            height: number(op["height"])
-        )
         // A map pin: the map positions it; only its size comes from layout.
         if let pin = view.superview as? ViewAnnotationView {
             pin.fit(target.size)
@@ -879,13 +838,13 @@ final class RustHost: NSObject {
     /// Opacity and transform (`translate_x`, `translate_y`, `scale`,
     /// `rotate`). With `animate`, changes ease (or spring) over
     /// `transition_ms`.
-    private func applyMotion(_ view: UIView, node: NodeTag, props: [String: Any]) {
-        let alpha = props["opacity"] != nil ? CGFloat(number(props["opacity"])) : 1.0
-        let scale = props["scale"] != nil ? number(props["scale"]) : 1.0
-        let radians = number(props["rotate"]) * .pi / 180
+    private func applyMotion(_ view: UIView, node: NodeTag, props: WireProps) {
+        let alpha = props.has(.opacity) ? CGFloat((props.number(.opacity) ?? 0)) : 1.0
+        let scale = props.has(.scale) ? (props.number(.scale) ?? 0) : 1.0
+        let radians = (props.number(.rotate) ?? 0) * .pi / 180
         let transform = CGAffineTransform(
-            translationX: number(props["translateX"]),
-            y: number(props["translateY"])
+            translationX: (props.number(.translateX) ?? 0),
+            y: (props.number(.translateY) ?? 0)
         )
         .rotated(by: radians)
         .scaledBy(x: scale, y: scale)
@@ -921,9 +880,9 @@ final class RustHost: NSObject {
     ///     the system's Liquid Glass shows; "#171717" before)
     ///   grabber: system grabber (default true)
     ///   cornerRadius: (default 28)
-    private func styleSheet(_ controller: UIViewController, props: [String: Any]) {
+    private func styleSheet(_ controller: UIViewController, props: WireProps) {
         var config: [String: Any] = [:]
-        if let raw = props["nativeProps"] as? String,
+        if let raw = props.string(.nativeProps),
            let data = raw.data(using: .utf8),
            let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         {
@@ -978,7 +937,7 @@ final class RustHost: NSObject {
             sheet.largestUndimmedDetentIdentifier = identifier
             sheet.prefersScrollingExpandsWhenScrolledToEdge = false
         }
-        styleSheet(controller, props: tags[id]?.props ?? [:])
+        styleSheet(controller, props: tags[id]?.props ?? WireProps())
 
         // The sheet can't be dismissed, so a drag down only "attempts" it:
         // see presentationControllerDidAttemptToDismiss.
@@ -988,8 +947,7 @@ final class RustHost: NSObject {
         sheetNodeId = id
     }
 
-    private func remove(_ op: [String: Any]) {
-        let id = uint32(op["id"])
+    private func remove(id: UInt32) {
         if tags[id]?.isSheet == true {
             sheetController?.dismiss(animated: false)
             sheetController = nil
@@ -1075,11 +1033,11 @@ final class RustHost: NSObject {
         }
     }
 
-    private func applyProps(_ view: UIView, node: NodeTag, props: [String: Any]) {
-        let text = props["text"] as? String
-        let size = max(number(props["size"], fallback: 14), 1)
-        let bold = bool(props["bold"])
-        let fontFamily = props["font"] as? String
+    private func applyProps(_ view: UIView, node: NodeTag, props: WireProps) {
+        let text = props.string(.text)
+        let size = max((props.number(.size) ?? 14), 1)
+        let bold = props.bool(.bold)
+        let fontFamily = props.string(.font)
         let font = uiFont(size: size, bold: bold, family: fontFamily)
 
         if let label = view as? UILabel {
@@ -1087,21 +1045,21 @@ final class RustHost: NSObject {
                 label.text = text
             }
             label.font = font
-            if let color = props["color"] as? String {
+            if let color = props.string(.color) {
                 label.textColor = UIColor(hex: color)
             }
-            if let align = props["align"] as? String {
+            if let align = props.string(.align) {
                 label.textAlignment = textAlignment(align)
             }
-            if let lines = props["lines"] as? NSNumber {
-                let count = lines.intValue
+            if let lines = props.number(.lines) {
+                let count = Int(lines)
                 label.numberOfLines = count
                 label.lineBreakMode = count == 1 ? .byTruncatingTail : .byWordWrapping
             }
-            if let lineHeight = props["lineHeight"] as? NSNumber, let text {
+            if let lineHeight = props.number(.lineHeight), let text {
                 let paragraph = NSMutableParagraphStyle()
-                paragraph.minimumLineHeight = CGFloat(lineHeight.doubleValue)
-                paragraph.maximumLineHeight = CGFloat(lineHeight.doubleValue)
+                paragraph.minimumLineHeight = lineHeight
+                paragraph.maximumLineHeight = lineHeight
                 paragraph.alignment = label.textAlignment
                 paragraph.lineBreakMode = label.lineBreakMode
                 label.attributedText = NSAttributedString(
@@ -1120,33 +1078,33 @@ final class RustHost: NSObject {
                 button.title = text
             }
             button.titleFont = font
-            if let color = props["color"] as? String {
+            if let color = props.string(.color) {
                 button.titleColor = UIColor(hex: color)
             }
-            if let align = props["align"] as? String {
+            if let align = props.string(.align) {
                 button.titleAlignment = textAlignment(align)
             }
         }
 
         if let field = view as? UITextField {
             field.font = font
-            if let color = props["color"] as? String {
+            if let color = props.string(.color) {
                 field.textColor = UIColor(hex: color)
             }
-            if let placeholder = props["placeholder"] as? String {
+            if let placeholder = props.string(.placeholder) {
                 field.attributedPlaceholder = NSAttributedString(
                     string: placeholder,
                     attributes: [
                         .foregroundColor: UIColor(
-                            hex: props["placeholderColor"] as? String ?? "#a3a3a3"
+                            hex: props.string(.placeholderColor) ?? "#a3a3a3"
                         ),
                     ]
                 )
             }
-            if let align = props["align"] as? String {
+            if let align = props.string(.align) {
                 field.textAlignment = textAlignment(align)
             }
-            if let value = props["value"] as? String {
+            if let value = props.string(.value) {
                 let previous = node.lastValue
                 node.lastValue = value
                 if field.isFirstResponder {
@@ -1166,7 +1124,7 @@ final class RustHost: NSObject {
             }
         }
 
-        if bool(props["pressable"]), node.tapRecognizer == nil {
+        if props.bool(.pressable), node.tapRecognizer == nil {
             view.isUserInteractionEnabled = true
             let tap = UITapGestureRecognizer(target: self, action: #selector(viewTapped(_:)))
             view.addGestureRecognizer(tap)
@@ -1175,16 +1133,16 @@ final class RustHost: NSObject {
 
         // Pull-to-refresh (`refresh` / `refreshing`) on vertical scrolls.
         if let scroll = view as? UIScrollView, node.kind != "hscroll" {
-            if bool(props["refresh"]) {
+            if props.bool(.refresh) {
                 let control = scroll.refreshControl ?? {
                     let created = UIRefreshControl()
                     created.addTarget(self, action: #selector(refreshPulled(_:)), for: .valueChanged)
                     scroll.refreshControl = created
                     return created
                 }()
-                if bool(props["refreshing"]), !control.isRefreshing {
+                if props.bool(.refreshing), !control.isRefreshing {
                     control.beginRefreshing()
-                } else if !bool(props["refreshing"]), control.isRefreshing {
+                } else if !props.bool(.refreshing), control.isRefreshing {
                     control.endRefreshing()
                 }
             } else if scroll.refreshControl != nil {
@@ -1193,7 +1151,7 @@ final class RustHost: NSObject {
         }
 
         let gestureKinds = Set(
-            (props["gestures"] as? String ?? "")
+            (props.string(.gestures) ?? "")
                 .split(separator: ",")
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
@@ -1207,7 +1165,7 @@ final class RustHost: NSObject {
             relay.update(kinds: gestureKinds, tap: node.tapRecognizer)
         }
 
-        if let imageView = view as? UIImageView, let source = props["src"] as? String {
+        if let imageView = view as? UIImageView, let source = props.string(.src) {
             if node.imageSource != source {
                 node.imageSource = source
                 imageView.image = nil
@@ -1215,7 +1173,7 @@ final class RustHost: NSObject {
             }
         }
 
-        if let imageView = view as? UIImageView, let fit = props["fit"] as? String {
+        if let imageView = view as? UIImageView, let fit = props.string(.fit) {
             imageView.contentMode = fit == "contain" ? .scaleAspectFit : .scaleAspectFill
         }
 
@@ -1223,22 +1181,22 @@ final class RustHost: NSObject {
             native.onEvent = { [weak self] kind, payload in
                 self?.event(id: node.id, kind: kind, payload: payload)
             }
-            metrics.measure(.native) {
+            metrics.measure(.modules) {
                 native.configure(
-                    name: props["native"] as? String ?? "",
-                    props: props
+                    name: props.string(.native) ?? "",
+                    props: props.dictionary
                 )
             }
         }
 
         if let pin = view.superview as? ViewAnnotationView {
-            pin.move(to: props)
+            pin.move(to: props.dictionary)
         }
         if node.isSheet, node.id == sheetNodeId, let controller = sheetController {
             styleSheet(controller, props: props)
         }
 
-        if let background = props["bg"] as? String {
+        if let background = props.string(.bg) {
             view.backgroundColor = UIColor(hex: background)
         } else if ["text", "row", "column", "space"].contains(node.kind) {
             // A removed `bg` must not leave the old color behind.
@@ -1246,52 +1204,54 @@ final class RustHost: NSObject {
         }
 
         if let glass = view as? GlassView {
-            glass.apply(
-                style: props["glassStyle"] as? String ?? "regular",
-                tint: props["glassTint"] as? String,
-                interactive: bool(props["glassInteractive"]),
-                fallback: props["bg"] as? String
-            )
+            metrics.measure(.glass) {
+                glass.apply(
+                    style: props.string(.glassStyle) ?? "regular",
+                    tint: props.string(.glassTint),
+                    interactive: props.bool(.glassInteractive),
+                    fallback: props.string(.bg)
+                )
+            }
         }
 
         if let map = view as? MKMapView {
-            node.mapProps = props
+            node.mapProps = props.dictionary
             // A map created during the create pass has no superview yet. Let
             // the first layout pass install it in the window before MapKit
             // initializes its Metal-backed map layer.
             if map.superview != nil {
-                metrics.measure(.map) { applyMap(map, props: props) }
+                metrics.measure(.map) { applyMap(map, props: props.dictionary) }
             }
         }
 
-        node.animate = bool(props["animate"])
-        let radius = number(props["radius"])
+        node.animate = props.bool(.animate)
+        let radius = (props.number(.radius) ?? 0)
         view.layer.cornerRadius = radius
         view.layer.cornerCurve = .continuous
         if let scroll = view as? UIScrollView {
             // Rows include overscan outside the viewport, so scroll views clip
             // even without a corner radius, unless the view says `clip=false`
             // (a carousel whose neighbouring pages peek in).
-            scroll.clipsToBounds = (props["clip"] as? Bool) ?? true
+            scroll.clipsToBounds = props.flag(.clip) ?? true
         } else if let glass = view as? GlassView {
             glass.updateShape(radius: radius)
         } else {
-            view.clipsToBounds = bool(props["clip"]) || radius > 0
+            view.clipsToBounds = props.bool(.clip) || radius > 0
         }
 
-        let borderWidth = number(props["borderWidth"])
+        let borderWidth = (props.number(.borderWidth) ?? 0)
         if borderWidth > 0 {
             view.layer.borderWidth = borderWidth
             view.layer.borderColor = UIColor(
-                hex: props["borderColor"] as? String ?? "#ffffff"
+                hex: props.string(.borderColor) ?? "#ffffff"
             ).cgColor
         } else {
             view.layer.borderWidth = 0
         }
-        node.transitionMs = props["transitionMs"] != nil ? number(props["transitionMs"]) : 200
-        node.spring = bool(props["spring"])
+        node.transitionMs = props.has(.transitionMs) ? (props.number(.transitionMs) ?? 0) : 200
+        node.spring = props.bool(.spring)
         applyMotion(view, node: node, props: props)
-        if bool(props["shadow"]) {
+        if props.bool(.shadow) {
             view.layer.shadowColor = UIColor.black.cgColor
             view.layer.shadowOpacity = 0.3
             view.layer.shadowRadius = 8
@@ -1301,9 +1261,9 @@ final class RustHost: NSObject {
             view.layer.shadowOpacity = 0
         }
 
-        let base = number(props["pad"])
-        let horizontal = number(props["padH"], fallback: base)
-        let vertical = number(props["padV"], fallback: base)
+        let base = (props.number(.pad) ?? 0)
+        let horizontal = (props.number(.padH) ?? base)
+        let vertical = (props.number(.padV) ?? base)
         let insets = UIEdgeInsets(top: vertical, left: horizontal, bottom: vertical, right: horizontal)
         if let label = view as? InsetLabel {
             label.insets = insets
@@ -1315,23 +1275,23 @@ final class RustHost: NSObject {
             button.insets = insets
         }
 
-        if let label = props["label"] as? String {
+        if let label = props.string(.label) {
             view.accessibilityLabel = label
             view.isAccessibilityElement = true
             view.accessibilityTraits = .button
         }
 
-        if let testID = props["testId"] as? String {
+        if let testID = props.string(.testId) {
             view.accessibilityIdentifier = testID
         }
 
         if let scroll = view as? UIScrollView {
-            if props["contentInsetTop"] != nil || props["contentInsetBottom"] != nil {
-                let top = props["contentInsetTop"] != nil
-                    ? number(props["contentInsetTop"])
+            if props.has(.contentInsetTop) || props.has(.contentInsetBottom) {
+                let top = props.has(.contentInsetTop)
+                    ? (props.number(.contentInsetTop) ?? 0)
                     : scroll.contentInset.top
-                let bottom = props["contentInsetBottom"] != nil
-                    ? number(props["contentInsetBottom"])
+                let bottom = props.has(.contentInsetBottom)
+                    ? (props.number(.contentInsetBottom) ?? 0)
                     : scroll.contentInset.bottom
                 scroll.contentInset = UIEdgeInsets(
                     top: top,
@@ -1340,25 +1300,25 @@ final class RustHost: NSObject {
                     right: 0
                 )
             }
-            if let contentHeight = props["contentHeight"] {
-                node.contentHeight = number(contentHeight)
+            if let contentHeight = props.number(.contentHeight) {
+                node.contentHeight = contentHeight
                 updateScrollContent(node)
             }
-            if let contentWidth = props["contentWidth"] {
-                node.contentWidth = number(contentWidth)
+            if let contentWidth = props.number(.contentWidth) {
+                node.contentWidth = contentWidth
                 updateScrollContent(node)
             }
-            if let scrollTo = props["scrollTo"] {
-                node.pendingScrollTo = number(scrollTo)
+            if let scrollTo = props.number(.scrollTo) {
+                node.pendingScrollTo = scrollTo
                 applyScroll(node)
             }
-            if let paged = props["paged"] as? NSNumber {
-                node.paged = paged.boolValue
-                scroll.isPagingEnabled = paged.boolValue
+            if let paged = props.flag(.paged) {
+                node.paged = paged
+                scroll.isPagingEnabled = paged
             }
-            node.pageScale = props["pageScale"] != nil ? number(props["pageScale"]) : 1
-            if let scrollX = props["scrollX"] as? NSNumber {
-                let target = CGFloat(scrollX.doubleValue)
+            node.pageScale = props.has(.pageScale) ? (props.number(.pageScale) ?? 0) : 1
+            if let scrollX = props.number(.scrollX) {
+                let target = scrollX
                 let animated = node.paged && abs(scroll.contentOffset.x - target) > 1
                 scroll.setContentOffset(
                     CGPoint(x: target, y: scroll.contentOffset.y),
@@ -1603,27 +1563,6 @@ final class RustHost: NSObject {
         case "native": return 16
         default: return 0
         }
-    }
-
-    private func number(_ value: Any?, fallback: CGFloat = 0) -> CGFloat {
-        if let number = value as? NSNumber {
-            return CGFloat(number.doubleValue)
-        }
-        return fallback
-    }
-
-    private func uint32(_ value: Any?) -> UInt32 {
-        if let number = value as? NSNumber {
-            return number.uint32Value
-        }
-        return 0
-    }
-
-    private func bool(_ value: Any?) -> Bool {
-        if let number = value as? NSNumber {
-            return number.boolValue
-        }
-        return false
     }
 
     private func textAlignment(_ align: String) -> NSTextAlignment {

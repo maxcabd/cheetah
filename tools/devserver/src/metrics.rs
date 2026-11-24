@@ -32,9 +32,9 @@ struct Trigger {
 }
 
 /// Times a device reports for a frame, in the order they're listed there.
-const DEVICE_TIMES: [&str; 10] = [
+const DEVICE_TIMES: [&str; 13] = [
     "queue_us", "apply_us", "commit_us", "create_us", "props_us", "children_us", "layout_us",
-    "remove_us", "native_us", "map_us",
+    "remove_us", "insert_us", "glass_us", "modules_us", "calls_us", "map_us",
 ];
 
 #[derive(Clone, Debug)]
