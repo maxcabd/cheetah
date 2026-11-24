@@ -10,5 +10,7 @@
 /android/app/src/main/jniLibs/**/*.so
 /ios/Cheetah.xcodeproj
 /ios/build
+/ios/NativeTwin/NativeTwin.xcodeproj
+/ios/NativeTwin/Generated
 /ios/DerivedData
 /ios/Libs

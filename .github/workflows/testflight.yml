@@ -32,6 +32,7 @@ on:
       - "ios/**"
       - "!ios/**/*.md"
       - "!ios/CheetahUITests/**"
+      - "!ios/NativeTwin/**"
       - "!ios/Libs/**"
       - "!ios/Cheetah.xcodeproj/**"
       - "!ios/Cheetah/Generated/**"

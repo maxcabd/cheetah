@@ -28,6 +28,7 @@ fn excluded(path: &str) -> bool {
         || path.contains("/.gradle/")
         || path.ends_with("local.properties")
         || path.starts_with("ios/CheetahUITests/")
+        || path.starts_with("ios/NativeTwin/")
         || path.starts_with("ios/Libs/")
         || path.starts_with("ios/Cheetah.xcodeproj/")
         || path.starts_with("ios/Cheetah/Generated/")

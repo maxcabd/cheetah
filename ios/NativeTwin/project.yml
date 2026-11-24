@@ -1,0 +1,38 @@
+# Nightshade's screens in plain UIKit, to measure Cheetah against
+# (CheetahUITests/CheetahPerformanceTests). Its own project: it is never part
+# of a Cheetah build.
+name: NativeTwin
+options:
+  deploymentTarget:
+    iOS: "16.0"
+
+targets:
+  NativeTwin:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: ../Cheetah/Assets
+        buildPhase: resources
+    info:
+      path: Generated/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UIAppFonts: [Satoshi-Medium.otf, Satoshi-Bold.otf, Brice-Bold.otf, Brice-Semi-Bold.otf]
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+          UISceneConfigurations:
+            UIWindowSceneSessionRoleApplication:
+              - UISceneConfigurationName: Default
+                UISceneDelegateClassName: $(PRODUCT_MODULE_NAME).SceneDelegate
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.example.cheetah.twin
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+
+schemes:
+  NativeTwin:
+    build:
+      targets:
+        NativeTwin: all

@@ -176,6 +176,7 @@ jobs:
             -sdk iphonesimulator \
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.device }}" \
             -derivedDataPath build/uitest-ios18 \
+            -skip-testing:CheetahUITests/CheetahPerformanceTests \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO 2>&1 | tee /tmp/xcodebuild-uitest-ios18.log
           exit ${PIPESTATUS[0]}
