@@ -1,0 +1,809 @@
+[1m[92m Downloading[0m crates ...
+[1m[92m  Downloaded[0m roxmltree v0.20.0
+[1m[92m   Compiling[0m zmij v1.0.23
+[1m[92m   Compiling[0m serde_core v1.0.229
+[1m[92m   Compiling[0m serde_json v1.0.154
+[1m[92m   Compiling[0m itoa v1.0.18
+[1m[92m   Compiling[0m memchr v2.8.3
+[1m[92m   Compiling[0m roxmltree v0.20.0
+[1m[92m   Compiling[0m cheetah-drive v0.1.0 (/Users/runner/work/cheetah/cheetah/tools/drive)
+[1m[92m    Finished[0m `dev` profile [unoptimized + debuginfo] target(s) in 15.78s
+[1m[92m     Running[0m `target/debug/cheetah-drive ios test tools/drive/nightshade.drive`
+Command line invocation:
+    /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/xcodebuild test -project ios/Cheetah.xcodeproj -scheme Cheetah -destination "platform=iOS Simulator,id=DA1C9012-81EC-4C70-B52A-068AEAFBA1DE" "-only-testing:CheetahUITests/CheetahDriveTests/testDriveScript"
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:iOS Simulator, arch:arm64, id:DA1C9012-81EC-4C70-B52A-068AEAFBA1DE, OS:18.5, name:iPhone 16 Pro }
+{ platform:iOS Simulator, arch:x86_64, id:DA1C9012-81EC-4C70-B52A-068AEAFBA1DE, OS:18.5, name:iPhone 16 Pro }
+ComputePackagePrebuildTargetDependencyGraph
+
+Prepare packages
+
+CreateBuildRequest
+
+SendProjectDescription
+
+CreateBuildOperation
+
+ComputeTargetDependencyGraph
+note: Building targets in dependency order
+note: Target dependency graph (2 targets)
+    Target 'CheetahUITests' in project 'Cheetah'
+        ➜ Explicit dependency on target 'Cheetah' in project 'Cheetah'
+    Target 'Cheetah' in project 'Cheetah' (no dependencies)
+
+GatherProvisioningInputs
+
+CreateBuildDescription
+
+ExecuteExternalTool /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets.xcassets
+
+ExecuteExternalTool /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc --version
+
+ExecuteExternalTool /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -x c -c /dev/null
+
+ExecuteExternalTool /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+
+ExecuteExternalTool /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+
+Build description signature: 567e3da1532d896bacea5065c69bf168
+Build description path: /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/XCBuildData/567e3da1532d896bacea5065c69bf168.xcbuilddata
+ClangStatCache /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache
+    cd /Users/runner/work/cheetah/cheetah/ios/Cheetah.xcodeproj
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -o /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah-dd41ad567c3a41f0a5161d6d96734d69-VFS-iphonesimulator/all-product-headers.yaml
+    cd /Users/runner/work/cheetah/cheetah/ios/Cheetah.xcodeproj
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah-dd41ad567c3a41f0a5161d6d96734d69-VFS-iphonesimulator/all-product-headers.yaml
+
+CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator
+    cd /Users/runner/work/cheetah/cheetah/ios/Cheetah.xcodeproj
+    builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator
+
+CreateBuildDirectory /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator
+    cd /Users/runner/work/cheetah/cheetah/ios/Cheetah.xcodeproj
+    builtin-create-build-directory /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator
+
+ProcessXCFramework /Users/runner/work/cheetah/cheetah/ios/Libs/Runtime.xcframework /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/libruntime.a ios simulator
+    cd /Users/runner/work/cheetah/cheetah/ios/Cheetah.xcodeproj
+    builtin-process-xcframework --xcframework /Users/runner/work/cheetah/cheetah/ios/Libs/Runtime.xcframework --platform ios --environment simulator --target-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/empty-CheetahUITests.plist (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/empty-CheetahUITests.plist
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/ProductTypeInfoPlistAdditions.plist (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/ProductTypeInfoPlistAdditions.plist
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests_const_extract_protocols.json (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests_const_extract_protocols.json
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.SwiftFileList (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.SwiftFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.SwiftConstValuesFileList (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.SwiftConstValuesFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.LinkFileList (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.LinkFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests-OutputFileMap.json (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests-OutputFileMap.json
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources/Entitlements-Simulated.plist (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources/Entitlements-Simulated.plist
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.hmap (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.DependencyStaticMetadataFileList (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.DependencyStaticMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.DependencyMetadataFileList (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.DependencyMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-project-headers.hmap (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-project-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-own-target-headers.hmap (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-own-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-generated-files.hmap (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-generated-files.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-all-target-headers.hmap (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-all-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-all-non-framework-target-headers.hmap (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-all-non-framework-target-headers.hmap
+
+MkDir /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah_const_extract_protocols.json (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah_const_extract_protocols.json
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.SwiftFileList (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.SwiftFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.SwiftConstValuesFileList (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.SwiftConstValuesFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.LinkFileList (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.LinkFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah-OutputFileMap.json (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah-OutputFileMap.json
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/Entitlements-Simulated.plist (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/Entitlements-Simulated.plist
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.hmap (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.DependencyStaticMetadataFileList (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.DependencyStaticMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.DependencyMetadataFileList (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.DependencyMetadataFileList
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-project-headers.hmap (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-project-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-own-target-headers.hmap (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-own-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-generated-files.hmap (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-generated-files.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-all-target-headers.hmap (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-all-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-all-non-framework-target-headers.hmap (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-all-non-framework-target-headers.hmap
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-DebugDylibPath-normal-arm64.txt (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-DebugDylibPath-normal-arm64.txt
+
+WriteAuxiliaryFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-DebugDylibInstallName-normal-arm64.txt (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    write-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-DebugDylibInstallName-normal-arm64.txt
+
+MkDir /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+ProcessProductPackaging /Users/runner/work/cheetah/cheetah/ios/Cheetah/Generated/Cheetah.entitlements /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app.xcent (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+    Entitlements:
+    
+    {
+}
+    
+    builtin-productPackagingUtility /Users/runner/work/cheetah/cheetah/ios/Cheetah/Generated/Cheetah.entitlements -entitlements -format xml -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app.xcent
+
+ProcessProductPackaging /Users/runner/work/cheetah/cheetah/ios/Cheetah/Generated/Cheetah.entitlements /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app-Simulated.xcent (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+    Entitlements:
+    
+    {
+    "application-identifier" = "FAKETEAMID.com.example.cheetah";
+}
+    
+    builtin-productPackagingUtility /Users/runner/work/cheetah/cheetah/ios/Cheetah/Generated/Cheetah.entitlements -entitlements -format xml -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app-Simulated.xcent
+
+ProcessProductPackagingDER /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app.xcent /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app.xcent.der (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /usr/bin/derq query -f xml -i /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app.xcent -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app.xcent.der --raw
+
+ProcessProductPackagingDER /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app-Simulated.xcent /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app-Simulated.xcent.der (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /usr/bin/derq query -f xml -i /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app-Simulated.xcent -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app-Simulated.xcent.der --raw
+
+Ld /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/__preview.dylib normal (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios16.0-simulator -dynamiclib -isysroot /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -O0 -L/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -F/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -FLibs -install_name @rpath/Cheetah.debug.dylib -dead_strip -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah_dependency_info.dat -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __entitlements -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app-Simulated.xcent -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __ents_der -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app-Simulated.xcent.der -Xlinker -no_adhoc_codesign -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/__preview.dylib
+
+MkDir /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_output/unthinned (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_output/unthinned
+
+MkDir /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_output/thinned (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_output/thinned
+
+GenerateAssetSymbols /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets.xcassets (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/actool /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets.xcassets --compile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app --output-format human-readable-text --notices --warnings --export-dependency-info /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_dependencies --output-partial-info-plist /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_generated_info.plist --app-icon AppIcon --compress-pngs --enable-on-demand-resources YES --development-region en --target-device iphone --minimum-deployment-target 16.0 --platform iphonesimulator --bundle-identifier com.example.cheetah --generate-swift-asset-symbol-extensions NO --generate-swift-asset-symbols /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/GeneratedAssetSymbols.swift --generate-objc-asset-symbols /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/GeneratedAssetSymbols.h --generate-asset-symbol-index /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+/* com.apple.actool.compilation-results */
+/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/GeneratedAssetSymbols.h
+/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/GeneratedAssetSymbols.swift
+
+
+CpResource /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/second-cup-card-full.jpeg /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/second-cup-card-full.jpeg (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/second-cup-card-full.jpeg /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+CpResource /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Satoshi-Regular.otf /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/Satoshi-Regular.otf (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/Satoshi-Regular.otf /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+CpResource /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Satoshi-Medium.otf /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/Satoshi-Medium.otf (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/Satoshi-Medium.otf /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+CpResource /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Satoshi-Bold.otf /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/Satoshi-Bold.otf (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/Satoshi-Bold.otf /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+CpResource /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/GeneralSans-Semibold.otf /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/GeneralSans-Semibold.otf (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/GeneralSans-Semibold.otf /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+CpResource /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/GeneralSans-Regular.otf /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/GeneralSans-Regular.otf (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/GeneralSans-Regular.otf /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+CpResource /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/GeneralSans-Medium.otf /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/GeneralSans-Medium.otf (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/GeneralSans-Medium.otf /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+CpResource /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/GeneralSans-Bold.otf /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/GeneralSans-Bold.otf (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/GeneralSans-Bold.otf /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+CpResource /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Brice-Semi-Bold.otf /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/Brice-Semi-Bold.otf (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/Brice-Semi-Bold.otf /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+CpResource /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Brice-Bold.otf /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/Brice-Bold.otf (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets/Brice-Bold.otf /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+CompileAssetCatalogVariant thinned /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets.xcassets (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /Applications/Xcode_16.4.app/Contents/Developer/usr/bin/actool /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets.xcassets --compile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_output/thinned --output-format human-readable-text --notices --warnings --export-dependency-info /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_dependencies_thinned --output-partial-info-plist /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_generated_info.plist_thinned --app-icon AppIcon --compress-pngs --enable-on-demand-resources YES --filter-for-thinning-device-configuration iPhone17,1 --filter-for-device-os-version 18.5 --development-region en --target-device iphone --minimum-deployment-target 16.0 --platform iphonesimulator
+/* com.apple.actool.compilation-results */
+/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_generated_info.plist_thinned
+/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_output/thinned/AppIcon60x60@2x.png
+/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_output/thinned/AppIcon76x76@2x~ipad.png
+/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_output/thinned/Assets.car
+
+
+SwiftDriver Cheetah normal arm64 com.apple.xcode.tools.swift.compiler (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-SwiftDriver -- /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name Cheetah -Onone -enforce-exclusivity\=checked @/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Index.noindex/DataStore -swift-version 5 -I /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -F /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -F Libs -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache -output-file-map /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-generated-files.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-own-target-headers.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-project-headers.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/cheetah/cheetah/ios/Cheetah -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah-Swift.h -import-objc-header /Users/runner/work/cheetah/cheetah/ios/Cheetah/Cheetah-Bridging-Header.h -pch-output-dir /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/PrecompiledHeaders -working-directory /Users/runner/work/cheetah/cheetah/ios -experimental-emit-module-separately -disable-cmo
+
+SwiftGeneratePch normal arm64 Compiling\ bridging\ header (in target 'Cheetah' from project 'Cheetah')
+
+PrecompileSwiftBridgingHeader normal arm64 (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling bridging header (in target 'Cheetah' from project 'Cheetah')
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ Cheetah (in target 'Cheetah' from project 'Cheetah')
+EmitSwiftModule normal arm64 (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 Compiling\ AppDelegate.swift,\ BuiltinModules.swift,\ ControlModules.swift,\ DevRuntimeLink.swift,\ DominantColor.swift,\ GeneratedModules.swift,\ Gestures.swift,\ HostMetrics.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/AppDelegate.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/BuiltinModules.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/ControlModules.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/DevRuntimeLink.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/DominantColor.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/Generated/GeneratedModules.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/Gestures.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/HostMetrics.swift (in target 'Cheetah' from project 'Cheetah')
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/AppDelegate.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/BuiltinModules.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/ControlModules.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/DevRuntimeLink.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/DominantColor.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/Generated/GeneratedModules.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/Gestures.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/HostMetrics.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 Compiling\ RuntimeLink.swift,\ RustHost.swift,\ RustViewController.swift,\ SceneDelegate.swift,\ SecureStoreApi.swift,\ Views.swift,\ WireProps.swift,\ GeneratedAssetSymbols.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/RuntimeLink.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/RustHost.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/RustViewController.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/SceneDelegate.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/SecureStoreApi.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/Views.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/WireProps.swift /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'Cheetah' from project 'Cheetah')
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/RuntimeLink.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/RustHost.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/RustViewController.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/SceneDelegate.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/SecureStoreApi.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/Views.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/WireProps.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+LinkAssetCatalog /Users/runner/work/cheetah/cheetah/ios/Cheetah/Assets.xcassets (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-linkAssetCatalog --thinned /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_output/thinned --thinned-dependencies /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_dependencies_thinned --thinned-info-plist-content /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_generated_info.plist_thinned --unthinned /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_output/unthinned --unthinned-dependencies /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_dependencies_unthinned --unthinned-info-plist-content /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_generated_info.plist_unthinned --output /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app --plist-output /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_generated_info.plist
+note: Emplaced /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Assets.car (in target 'Cheetah' from project 'Cheetah')
+note: Emplaced /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/AppIcon76x76@2x~ipad.png (in target 'Cheetah' from project 'Cheetah')
+note: Emplaced /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/AppIcon60x60@2x.png (in target 'Cheetah' from project 'Cheetah')
+
+SwiftDriverJobDiscovery normal arm64 Emitting module for Cheetah (in target 'Cheetah' from project 'Cheetah')
+
+SwiftDriver\ Compilation\ Requirements Cheetah normal arm64 com.apple.xcode.tools.swift.compiler (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name Cheetah -Onone -enforce-exclusivity\=checked @/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Index.noindex/DataStore -swift-version 5 -I /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -F /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -F Libs -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache -output-file-map /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-generated-files.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-own-target-headers.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-project-headers.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/cheetah/cheetah/ios/Cheetah -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah-Swift.h -import-objc-header /Users/runner/work/cheetah/cheetah/ios/Cheetah/Cheetah-Bridging-Header.h -pch-output-dir /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/PrecompiledHeaders -working-directory /Users/runner/work/cheetah/cheetah/ios -experimental-emit-module-separately -disable-cmo
+
+ProcessInfoPlistFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Info.plist /Users/runner/work/cheetah/cheetah/ios/Cheetah/Info.plist (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-infoPlistUtility /Users/runner/work/cheetah/cheetah/ios/Cheetah/Info.plist -producttype com.apple.product-type.application -genpkginfo /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/PkgInfo -expandbuildsettings -format binary -platform iphonesimulator -additionalcontentfile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/assetcatalog_generated_info.plist -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Info.plist
+
+SwiftMergeGeneratedHeaders /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/Cheetah-Swift.h /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah-Swift.h (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-swiftHeaderTool -arch arm64 /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah-Swift.h -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/Cheetah-Swift.h
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.swiftmodule/arm64-apple-ios-simulator.swiftmodule /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.swiftmodule (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.swiftmodule /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.swiftmodule/arm64-apple-ios-simulator.swiftmodule
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.swiftmodule/arm64-apple-ios-simulator.swiftdoc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.swiftdoc (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.swiftdoc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.swiftmodule/arm64-apple-ios-simulator.swiftdoc
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.swiftmodule/arm64-apple-ios-simulator.abi.json /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.abi.json (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.abi.json /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.swiftmodule/arm64-apple-ios-simulator.abi.json
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.swiftsourceinfo (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.swiftsourceinfo /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo
+
+SwiftCompile normal arm64 Compiling\ HttpApi.swift,\ MediaModules.swift,\ Modules.swift,\ NativeApis.swift,\ NativeModules.swift,\ NativeProps.swift,\ PhotoPagerView.swift,\ PlatformModules.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/HttpApi.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/MediaModules.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/Modules.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/NativeApis.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/NativeModules.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/NativeProps.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/PhotoPagerView.swift /Users/runner/work/cheetah/cheetah/ios/Cheetah/PlatformModules.swift (in target 'Cheetah' from project 'Cheetah')
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/HttpApi.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/MediaModules.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/Modules.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/NativeApis.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/NativeModules.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/NativeProps.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/PhotoPagerView.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/Cheetah/PlatformModules.swift (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling AppDelegate.swift, BuiltinModules.swift, ControlModules.swift, DevRuntimeLink.swift, DominantColor.swift, GeneratedModules.swift, Gestures.swift, HostMetrics.swift (in target 'Cheetah' from project 'Cheetah')
+
+ProcessProductPackaging "" /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.xctest-Simulated.xcent (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+    Entitlements:
+    
+    {
+    "application-identifier" = "FAKETEAMID.com.example.cheetah.uitests.xctrunner";
+    "keychain-access-groups" =     (
+        "FAKETEAMID.com.example.cheetah.uitests.xctrunner"
+    );
+}
+    
+    builtin-productPackagingUtility -entitlements -format xml -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.xctest-Simulated.xcent
+
+ProcessProductPackagingDER /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.xctest-Simulated.xcent /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.xctest-Simulated.xcent.der (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /usr/bin/derq query -f xml -i /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.xctest-Simulated.xcent -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.xctest-Simulated.xcent.der --raw
+
+SwiftDriver CheetahUITests normal arm64 com.apple.xcode.tools.swift.compiler (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-SwiftDriver -- /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name CheetahUITests -Onone -enforce-exclusivity\=checked @/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.SwiftFileList -DDEBUG -module-alias Testing\=_Testing_Unavailable -plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Index.noindex/DataStore -swift-version 5 -I /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -I /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -F /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/Developer/Library/Frameworks -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache -output-file-map /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-generated-files.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-own-target-headers.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-project-headers.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests-Swift.h -working-directory /Users/runner/work/cheetah/cheetah/ios -experimental-emit-module-separately -disable-cmo
+
+SwiftEmitModule normal arm64 Emitting\ module\ for\ CheetahUITests (in target 'CheetahUITests' from project 'Cheetah')
+EmitSwiftModule normal arm64 (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftCompile normal arm64 Compiling\ CheetahUITests.swift /Users/runner/work/cheetah/cheetah/ios/CheetahUITests/CheetahUITests.swift (in target 'CheetahUITests' from project 'Cheetah')
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/CheetahUITests/CheetahUITests.swift (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling HttpApi.swift, MediaModules.swift, Modules.swift, NativeApis.swift, NativeModules.swift, NativeProps.swift, PhotoPagerView.swift, PlatformModules.swift (in target 'Cheetah' from project 'Cheetah')
+
+SwiftCompile normal arm64 Compiling\ CheetahPerformanceTests.swift /Users/runner/work/cheetah/cheetah/ios/CheetahUITests/CheetahPerformanceTests.swift (in target 'CheetahUITests' from project 'Cheetah')
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/CheetahUITests/CheetahPerformanceTests.swift (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Compiling RuntimeLink.swift, RustHost.swift, RustViewController.swift, SceneDelegate.swift, SecureStoreApi.swift, Views.swift, WireProps.swift, GeneratedAssetSymbols.swift (in target 'Cheetah' from project 'Cheetah')
+
+SwiftCompile normal arm64 Compiling\ CheetahDriveTests.swift /Users/runner/work/cheetah/cheetah/ios/CheetahUITests/CheetahDriveTests.swift (in target 'CheetahUITests' from project 'Cheetah')
+SwiftCompile normal arm64 /Users/runner/work/cheetah/cheetah/ios/CheetahUITests/CheetahDriveTests.swift (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+
+SwiftDriverJobDiscovery normal arm64 Emitting module for CheetahUITests (in target 'CheetahUITests' from project 'Cheetah')
+
+SwiftDriver\ Compilation\ Requirements CheetahUITests normal arm64 com.apple.xcode.tools.swift.compiler (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-Swift-Compilation-Requirements -- /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name CheetahUITests -Onone -enforce-exclusivity\=checked @/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.SwiftFileList -DDEBUG -module-alias Testing\=_Testing_Unavailable -plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Index.noindex/DataStore -swift-version 5 -I /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -I /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -F /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/Developer/Library/Frameworks -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache -output-file-map /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-generated-files.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-own-target-headers.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-project-headers.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests-Swift.h -working-directory /Users/runner/work/cheetah/cheetah/ios -experimental-emit-module-separately -disable-cmo
+
+SwiftDriverJobDiscovery normal arm64 Compiling CheetahUITests.swift (in target 'CheetahUITests' from project 'Cheetah')
+
+SwiftDriver\ Compilation Cheetah normal arm64 com.apple.xcode.tools.swift.compiler (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-Swift-Compilation -- /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name Cheetah -Onone -enforce-exclusivity\=checked @/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.SwiftFileList -DDEBUG -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Index.noindex/DataStore -swift-version 5 -I /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -F /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -F Libs -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache -output-file-map /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-generated-files.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-own-target-headers.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-project-headers.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/work/cheetah/cheetah/ios/Cheetah -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah-Swift.h -import-objc-header /Users/runner/work/cheetah/cheetah/ios/Cheetah/Cheetah-Bridging-Header.h -pch-output-dir /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/PrecompiledHeaders -working-directory /Users/runner/work/cheetah/cheetah/ios -experimental-emit-module-separately -disable-cmo
+
+SwiftMergeGeneratedHeaders /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources/CheetahUITests-Swift.h /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests-Swift.h (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-swiftHeaderTool -arch arm64 /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests-Swift.h -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources/CheetahUITests-Swift.h
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests.swiftmodule/arm64-apple-ios-simulator.swiftmodule /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.swiftmodule (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.swiftmodule /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests.swiftmodule/arm64-apple-ios-simulator.swiftmodule
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests.swiftmodule/arm64-apple-ios-simulator.swiftdoc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.swiftdoc (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.swiftdoc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests.swiftmodule/arm64-apple-ios-simulator.swiftdoc
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests.swiftmodule/arm64-apple-ios-simulator.abi.json /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.abi.json (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.abi.json /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests.swiftmodule/arm64-apple-ios-simulator.abi.json
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.swiftsourceinfo (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.swiftsourceinfo /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests.swiftmodule/Project/arm64-apple-ios-simulator.swiftsourceinfo
+
+Ld /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Cheetah.debug.dylib normal (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios16.0-simulator -dynamiclib -isysroot /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -O0 -L/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -L/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -F/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -F/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -FLibs -filelist /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.LinkFileList -install_name @rpath/Cheetah.debug.dylib -Xlinker -rpath -Xlinker @executable_path/Frameworks -dead_strip -Xlinker -object_path_lto -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah_lto.o -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.swiftmodule -Xlinker -alias -Xlinker _main -Xlinker ___debug_main_executable_dylib_entry_point -lruntime -Xlinker -no_adhoc_codesign -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Cheetah.debug.dylib
+
+SwiftDriverJobDiscovery normal arm64 Compiling CheetahPerformanceTests.swift (in target 'CheetahUITests' from project 'Cheetah')
+
+SwiftDriverJobDiscovery normal arm64 Compiling CheetahDriveTests.swift (in target 'CheetahUITests' from project 'Cheetah')
+
+SwiftDriver\ Compilation CheetahUITests normal arm64 com.apple.xcode.tools.swift.compiler (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-Swift-Compilation -- /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name CheetahUITests -Onone -enforce-exclusivity\=checked @/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.SwiftFileList -DDEBUG -module-alias Testing\=_Testing_Unavailable -plugin-path /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -enable-bare-slash-regex -enable-experimental-feature DebugDescriptionMacro -sdk /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -target arm64-apple-ios16.0-simulator -g -module-cache-path /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex -Xfrontend -serialize-debugging-options -enable-testing -index-store-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Index.noindex/DataStore -swift-version 5 -I /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -I /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -F /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -F /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/Developer/Library/Frameworks -c -j3 -enable-batch-mode -incremental -Xcc -ivfsstatcache -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/SDKStatCaches.noindex/iphonesimulator18.5-22F76-96ae0914227b19deccb34b33ba7b5dea.sdkstatcache -output-file-map /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.swiftmodule -validate-clang-modules-once -clang-build-session-file /Users/runner/Library/Developer/Xcode/DerivedData/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-generated-files.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-own-target-headers.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests-project-headers.hmap -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/include -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources/arm64 -Xcc -I/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/DerivedSources -Xcc -DDEBUG\=1 -emit-objc-header -emit-objc-header-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests-Swift.h -working-directory /Users/runner/work/cheetah/cheetah/ios -experimental-emit-module-separately -disable-cmo
+
+ConstructStubExecutorLinkFileList /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-ExecutorLinkFileList-normal-arm64.txt (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    construct-stub-executor-link-file-list /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Cheetah.debug.dylib /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libPreviewsJITStubExecutor_no_swift_entry_point.a /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libPreviewsJITStubExecutor.a --output /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-ExecutorLinkFileList-normal-arm64.txt
+note: Using stub executor library with Swift entry point. (in target 'Cheetah' from project 'Cheetah')
+
+Ld /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Cheetah normal (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios16.0-simulator -isysroot /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -O0 -L/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -F/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -FLibs -Xlinker -rpath -Xlinker @executable_path -Xlinker -rpath -Xlinker @executable_path/Frameworks -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -e ___debug_blank_executor_main -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_dylib -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-DebugDylibPath-normal-arm64.txt -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __debug_instlnm -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-DebugDylibInstallName-normal-arm64.txt -Xlinker -filelist -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah-ExecutorLinkFileList-normal-arm64.txt -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __entitlements -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app-Simulated.xcent -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __ents_der -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app-Simulated.xcent.der /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Cheetah.debug.dylib -Xlinker -no_adhoc_codesign -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Cheetah
+
+ExtractAppIntentsMetadata (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name Cheetah --sdk-root /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk --xcode-version 16F6 --platform-family iOS --deployment-target 16.0 --bundle-identifier com.example.cheetah --output /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app --target-triple arm64-apple-ios16.0-simulator --binary-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Cheetah --dependency-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah_dependency_info.dat --stringsdata-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.SwiftFileList --metadata-file-list /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.DependencyMetadataFileList --static-metadata-file-list /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.DependencyStaticMetadataFileList --swift-const-vals-list /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Objects-normal/arm64/Cheetah.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-11-24 22:59:39.441 appintentsmetadataprocessor[24861:72975] Starting appintentsmetadataprocessor export
+2026-11-24 22:59:39.460 appintentsmetadataprocessor[24861:72975] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+
+CopySwiftLibs /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-swiftStdLibTool --copy --verbose --sign - --scan-executable /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Cheetah.debug.dylib --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Frameworks --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/PlugIns --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/SystemExtensions --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Extensions --platform iphonesimulator --toolchain /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+
+AppIntentsSSUTraining (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Info.plist --temp-dir-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/ssu --bundle-id com.example.cheetah --product-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app --extracted-metadata-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Metadata.appintents --metadata-file-list /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.DependencyMetadataFileList --archive-ssu-assets
+2026-11-24 22:59:39.558 appintentsnltrainingprocessor[24891:73035] Parsing options for appintentsnltrainingprocessor
+2026-11-24 22:59:39.559 appintentsnltrainingprocessor[24891:73035] No AppShortcuts found - Skipping.
+
+CodeSign /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Cheetah.debug.dylib (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/Cheetah.debug.dylib
+
+CodeSign /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/__preview.dylib (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app/__preview.dylib
+
+CodeSign /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --entitlements /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/Cheetah.build/Cheetah.app.xcent --timestamp\=none --generate-entitlement-der /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+RegisterExecutionPolicyException /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-RegisterExecutionPolicyException /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+Validate /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-validationUtility /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app -infoplist-subpath Info.plist
+
+Touch /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app (in target 'Cheetah' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /usr/bin/touch -c /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/Cheetah.app
+
+Ld /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/CheetahUITests normal (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios16.0-simulator -bundle -isysroot /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk -O0 -L/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -L/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -L/Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib -F/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/EagerLinkingTBDs/Debug-iphonesimulator -F/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator -iframework /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks -iframework /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk/Developer/Library/Frameworks -filelist /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.LinkFileList -Xlinker -rpath -Xlinker @loader_path/Frameworks -Xlinker -rpath -Xlinker @executable_path/Frameworks -dead_strip -Xlinker -object_path_lto -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests_lto.o -rdynamic -Xlinker -no_deduplicate -Xlinker -objc_abi_version -Xlinker 2 -Xlinker -dependency_info -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests_dependency_info.dat -fobjc-link-runtime -L/Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphonesimulator -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.swiftmodule -framework XCTest -lXCTestSwiftSupport -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __entitlements -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.xctest-Simulated.xcent -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __ents_der -Xlinker /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.xctest-Simulated.xcent.der -Xlinker -no_adhoc_codesign -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/CheetahUITests
+
+ProcessInfoPlistFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/Info.plist /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/empty-CheetahUITests.plist (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-infoPlistUtility /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/empty-CheetahUITests.plist -producttype com.apple.product-type.bundle.ui-testing -expandbuildsettings -format binary -platform iphonesimulator -additionalcontentfile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/ProductTypeInfoPlistAdditions.plist -o /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/Info.plist
+
+ExtractAppIntentsMetadata (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name CheetahUITests --sdk-root /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator18.5.sdk --xcode-version 16F6 --platform-family iOS --deployment-target 16.0 --bundle-identifier com.example.cheetah.uitests --output /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest --target-triple arm64-apple-ios16.0-simulator --binary-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/CheetahUITests --dependency-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests_dependency_info.dat --stringsdata-file /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.SwiftFileList --metadata-file-list /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.DependencyMetadataFileList --static-metadata-file-list /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.DependencyStaticMetadataFileList --swift-const-vals-list /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/Objects-normal/arm64/CheetahUITests.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-11-24 22:59:40.197 appintentsmetadataprocessor[24902:73090] Starting appintentsmetadataprocessor export
+2026-11-24 22:59:40.199 appintentsmetadataprocessor[24902:73090] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+
+CopySwiftLibs /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-swiftStdLibTool --copy --verbose --sign - --scan-executable /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/CheetahUITests --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/Frameworks --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/PlugIns --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/SystemExtensions --scan-folder /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/Extensions --platform iphonesimulator --toolchain /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/Frameworks --strip-bitcode --scan-executable /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libXCTestSwiftSupport.dylib --strip-bitcode-tool /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+
+AppIntentsSSUTraining (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/Info.plist --temp-dir-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/ssu --bundle-id com.example.cheetah.uitests --product-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest --extracted-metadata-path /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/Metadata.appintents --metadata-file-list /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Intermediates.noindex/Cheetah.build/Debug-iphonesimulator/CheetahUITests.build/CheetahUITests.DependencyMetadataFileList --archive-ssu-assets
+2026-11-24 22:59:40.229 appintentsnltrainingprocessor[24903:73096] Parsing options for appintentsnltrainingprocessor
+2026-11-24 22:59:40.231 appintentsnltrainingprocessor[24903:73096] No AppShortcuts found - Skipping.
+
+MkDir /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /bin/mkdir -p /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app
+
+CopyAndPreserveArchs /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/CheetahUITests-Runner (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /Applications/Xcode_16.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/lipo /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Xcode/Agents/XCTRunner.app/XCTRunner -output /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/CheetahUITests-Runner -extract arm64
+
+CopyPlistFile /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Info.plist /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Xcode/Agents/XCTRunner.app/Info.plist (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copyPlist --validate --convert xml1 --macro-expansion WRAPPEDPRODUCTNAME CheetahUITests-Runner --macro-expansion WRAPPEDPRODUCTBUNDLEIDENTIFIER com.example.cheetah.uitests.xctrunner --macro-expansion TESTPRODUCTNAME CheetahUITests --macro-expansion TESTPRODUCTBUNDLEIDENTIFIER com.example.cheetah.uitests --copy-value UIDeviceFamily /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest/Info.plist --outdir /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app -- /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Xcode/Agents/XCTRunner.app/Info.plist
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PkgInfo /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Xcode/Agents/XCTRunner.app/PkgInfo (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Xcode/Agents/XCTRunner.app/PkgInfo /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks/libXCTestSwiftSupport.dylib /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libXCTestSwiftSupport.dylib (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/lib/libXCTestSwiftSupport.dylib /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks/XCUnit.framework /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCUnit.framework (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCUnit.framework /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks/XCUIAutomation.framework /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks/XCUIAutomation.framework (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks/XCUIAutomation.framework /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks/XCTestSupport.framework /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCTestSupport.framework (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCTestSupport.framework /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks/XCTestCore.framework /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCTestCore.framework (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCTestCore.framework /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks/XCTest.framework /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks/XCTest.framework (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks/XCTest.framework /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks/XCTAutomationSupport.framework /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCTAutomationSupport.framework (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/PrivateFrameworks/XCTAutomationSupport.framework /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks
+
+Copy /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks/Testing.framework /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks/Testing.framework (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -exclude Headers -exclude PrivateHeaders -exclude Modules -exclude \*.tbd -resolve-src-symlinks /Applications/Xcode_16.4.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/Library/Frameworks/Testing.framework /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/Frameworks
+
+CodeSign /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest
+
+CodeSign /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    
+    Signing Identity:     "Sign to Run Locally"
+    
+    /usr/bin/codesign --force --sign - --timestamp\=none --generate-entitlement-der /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app
+/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app: replacing existing signature
+
+RegisterExecutionPolicyException /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    builtin-RegisterExecutionPolicyException /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest
+
+Touch /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest (in target 'CheetahUITests' from project 'Cheetah')
+    cd /Users/runner/work/cheetah/cheetah/ios
+    /usr/bin/touch -c /Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Build/Products/Debug-iphonesimulator/CheetahUITests-Runner.app/PlugIns/CheetahUITests.xctest
+
+2026-11-24 22:59:57.453235+0000 CheetahUITests-Runner[24945:73493] [Default] Running tests...
+    t =      nans Interface orientation changed to Portrait
+Test Suite 'Selected tests' started at 2026-11-24 22:59:58.984.
+Test Suite 'CheetahUITests.xctest' started at 2026-11-24 22:59:58.988.
+Test Suite 'CheetahDriveTests' started at 2026-11-24 22:59:58.988.
+Test Case '-[CheetahUITests.CheetahDriveTests testDriveScript]' started.
+    t =     0.00s Start Test at 2026-11-24 22:59:58.988
+    t =     0.16s Set Up
+    t =     0.19s Open com.example.cheetah
+    t =     0.19s     Launch com.example.cheetah
+    t =     4.63s         Setting up automation session
+    t =     5.74s         Wait for com.example.cheetah to idle
+    t =     9.92s Waiting 10.0s for Any (First Match) to exist
+    t =    10.94s     Checking `Expect predicate `existsNoRetry == 1` for object Any (First Match)`
+    t =    10.94s         Checking existence of `Any (First Match)`
+    t =    11.10s Tap Any (First Match)
+    t =    11.10s     Wait for com.example.cheetah to idle
+    t =    11.10s     Find the Any (First Match)
+    t =    11.27s     Check for interrupting elements affecting "Cafes within 12 min walk" Button
+    t =    11.40s     Synthesize event
+    t =    11.73s     Wait for com.example.cheetah to idle
+    t =    13.33s Waiting 5.0s for Any (First Match) to exist
+    t =    14.38s     Checking `Expect predicate `existsNoRetry == 1` for object Any (First Match)`
+    t =    14.38s         Checking existence of `Any (First Match)`
+    t =    14.64s Waiting 10.0s for Any (First Match) to exist
+    t =    15.67s     Checking `Expect predicate `existsNoRetry == 1` for object Any (First Match)`
+    t =    15.67s         Checking existence of `Any (First Match)`
+    t =    15.75s Tap Any (First Match)
+    t =    15.75s     Wait for com.example.cheetah to idle
+    t =    15.75s     Find the Any (First Match)
+    t =    15.82s     Check for interrupting elements affecting "Clear" Button
+    t =    15.88s     Synthesize event
+    t =    16.21s     Wait for com.example.cheetah to idle
+    t =    17.09s Waiting 5.0s for Any (First Match) to exist
+    t =    18.16s     Checking `Expect predicate `existsNoRetry == 1` for object Any (First Match)`
+    t =    18.16s         Checking existence of `Any (First Match)`
+    t =    18.25s Requesting snapshot of accessibility hierarchy for app with pid 25284
+    t =    18.48s Requesting snapshot of accessibility hierarchy for app with pid 25284
+    t =    18.54s Tear Down
+Test Case '-[CheetahUITests.CheetahDriveTests testDriveScript]' passed (18.779 seconds).
+Test Suite 'CheetahDriveTests' passed at 2026-11-24 23:00:17.768.
+	 Executed 1 test, with 0 failures (0 unexpected) in 18.779 (18.780) seconds
+Test Suite 'CheetahUITests.xctest' passed at 2026-11-24 23:00:17.768.
+	 Executed 1 test, with 0 failures (0 unexpected) in 18.779 (18.780) seconds
+Test Suite 'Selected tests' passed at 2026-11-24 23:00:17.768.
+	 Executed 1 test, with 0 failures (0 unexpected) in 18.779 (18.784) seconds
+2026-11-24 23:00:18.508 xcodebuild[21573:65101] [MT] IDETestOperationsObserverDebug: 37.789 elapsed -- Testing started completed.
+2026-11-24 23:00:18.508 xcodebuild[21573:65101] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-24 23:00:18.508 xcodebuild[21573:65101] [MT] IDETestOperationsObserverDebug: 37.789 sec, +37.788 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/Library/Developer/Xcode/DerivedData/Cheetah-gystsmydlpnitkezfrdbwhrctdfe/Logs/Test/Test-Cheetah-2026.11.24_22-58-44-+0000.xcresult
+
+** TEST SUCCEEDED **
+
+Testing started
+{
+  "debug" : "Attributes: Application, 0x105b46880, pid: 25284, label: 'Cheetah'\nElement subtree:\n →Application, 0x105b46880, pid: 25284, label: 'Cheetah'\n    Window (Main), 0x105b3d1c0, {{0.0, 0.0}, {402.0, 874.0}}\n      Other, 0x105b41c50, {{0.0, 0.0}, {402.0, 874.0}}\n        Other, 0x105b48d50, {{0.0, 0.0}, {402.0, 874.0}}\n          Other, 0x105b244e0, {{-402.0, -874.0}, {1206.0, 2622.0}}\n          Other, 0x105936d00, {{0.0, 0.0}, {402.0, 874.0}}\n            Other, 0x105b3d330, {{0.0, 0.0}, {402.0, 874.0}}\n              Other, 0x105b48e70, {{0.0, 0.0}, {402.0, 874.0}}\n                Other, 0x105b48f90, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'nightshade-map'\n                  Other, 0x105b490b0, {{0.0, 0.0}, {402.0, 874.0}}\n                    Other, 0x105b491d0, {{180.0, 337.3}, {48.0, 48.0}}, label: 'Map pin'\n                    Other, 0x105b492f0, {{337.7, 223.3}, {48.0, 48.0}}, label: 'Map pin'\n                    Other, 0x105b49410, {{250.7, 732.0}, {48.0, 48.0}}, label: 'Map pin'\n                    Other, 0x105b49530, {{0.0, 0.0}, {402.0, 874.0}}\n                      Map, 0x105b49650, {{0.0, 0.0}, {402.0, 874.0}}\n                        Other, 0x105b49770, {{148.1, 7.8}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'Polk Gulch'\n                        Other, 0x105b49890, {{291.3, 58.6}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'Nob Hill'\n                        Other, 0x105b499b0, {{18.6, 219.1}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'Japantown'\n                        Other, 0x105926ec0, {{127.9, 220.6}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'Cathedral Hill'\n                        Other, 0x10593cb80, {{265.8, 237.3}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'Tenderloin'\n                        Other, 0x10593cca0, {{8.8, 317.5}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'Western Addition'\n                        Other, 0x105a842c0, {{177.2, 367.3}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'Civic Center'\n                        Other, 0x105b49ad0, {{371.9, 398.5}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'SOMA'\n                        Other, 0x10592d9e0, {{81.6, 441.8}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'Hayes Valley'\n                        Other, 0x105a3b050, {{-3.7, 584.1}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'Duboce Triangle'\n                        Other, 0x105b49bf0, {{229.2, 796.9}, {30.0, 30.0}}, identifier: 'VKPointFeature', label: 'Mission District'\n                      Other, 0x105a32390, {{0.0, 0.0}, {402.0, 874.0}}, identifier: 'AnnotationContainer'\n                        Other, 0x105a402b0, {{180.0, 337.3}, {48.0, 48.0}}, label: 'Map pin'\n                        Other, 0x105b49d10, {{337.7, 223.3}, {48.0, 48.0}}, label: 'Map pin'\n                        Other, 0x105a33590, {{250.7, 732.0}, {48.0, 48.0}}, label: 'Map pin'\n                    Link, 0x105a3ff60, {{69.9, 819.3}, {28.6, 10.7}}, label: 'Legal'\n                Other, 0x105a40990, {{338.0, 62.0}, {48.0, 140.0}}\n                  Other, 0x105b49e30, {{338.0, 98.0}, {48.0, 48.0}}\n                    Other, 0x105b49f50, {{338.0, 98.0}, {48.0, 48.0}}\n                      Other, 0x105b4a070, {{338.0, 98.0}, {48.0, 48.0}}\n                      Other, 0x105b4a190, {{338.0, 98.0}, {48.0, 48.0}}\n                        Other, 0x105b4a2b0, {{351.0, 111.0}, {22.0, 22.0}}\n                          Image, 0x105b4a3d0, {{351.0, 111.0}, {22.0, 22.0}}, identifier: 'globe.americas.fill', label: 'globe.americas.fill'\n                  Other, 0x105b4a4f0, {{338.0, 154.0}, {48.0, 48.0}}\n                    Other, 0x105b4a610, {{338.0, 154.0}, {48.0, 48.0}}\n                      Other, 0x105b4a730, {{338.0, 154.0}, {48.0, 48.0}}\n                      Other, 0x10592db00, {{338.0, 154.0}, {48.0, 48.0}}\n                        Other, 0x105937c30, {{351.0, 167.0}, {22.0, 22.0}}\n                          Image, 0x105937d50, {{351.0, 167.0}, {22.0, 22.0}}, identifier: 'location', label: 'location'\n      Other, 0x1059364a0, {{0.0, 0.0}, {402.0, 874.0}}\n        Other, 0x1059365c0, {{-402.0, -874.0}, {1206.0, 2622.0}}\n        Other, 0x105937390, {{0.0, 520.0}, {402.0, 354.0}}\n          Other, 0x1059374b0, {{0.0, 520.0}, {402.0, 354.0}}\n            Other, 0x1059375d0, {{0.0, 520.0}, {402.0, 354.0}}\n              Other, 0x1059376f0, {{0.0, 520.0}, {402.0, 354.0}}\n                Other, 0x105937810, {{0.0, 520.0}, {402.0, 354.0}}\n                  Other, 0x105937930, {{0.0, 520.0}, {402.0, 320.0}}\n                    Other, 0x10593b4c0, {{0.0, 520.0}, {402.0, 24.0}}\n                      Other, 0x10593b5e0, {{186.0, 529.0}, {30.0, 6.0}}\n                    Other, 0x10593b700, {{0.0, 544.0}, {402.0, 240.0}}\n                      Other, 0x10593b820, {{0.0, 544.0}, {402.0, 240.0}}\n                        Button, 0x10593b940, {{0.0, 544.0}, {402.0, 26.0}}, label: 'Ready to discover?'\n                        ScrollView, 0x10593ed20, {{0.0, 584.0}, {402.0, 200.0}}\n                          Other, 0x10593ee40, {{0.0, 584.0}, {648.0, 200.0}}\n                            Other, 0x10593ef60, {{0.0, 584.0}, {648.0, 200.0}}\n                              Other, 0x10593f080, {{24.0, 611.0}, {600.0, 146.0}}\n                                Button, 0x10593f1a0, {{24.0, 611.0}, {203.0, 42.0}}, label: 'Cafes within 12 min walk'\n                                Button, 0x10593f2c0, {{237.0, 611.0}, {222.0, 42.0}}, label: 'Best dessert spots near me'\n                                Button, 0x10593f3e0, {{24.0, 663.0}, {180.0, 42.0}}, label: 'Halal spots in Ottawa'\n                                Button, 0x10593f500, {{214.0, 663.0}, {159.0, 42.0}}, label: 'Best brunch spots'\n                                Button, 0x10593f620, {{383.0, 663.0}, {229.0, 42.0}}, label: 'Casual catch up with friends'\n                                Button, 0x105b4a850, {{24.0, 715.0}, {263.0, 42.0}}, label: 'Nearby spots that open late night'\n                    Other, 0x105b4ac00, {{0.0, 784.0}, {402.0, 52.0}}, identifier: 'cheetah-search-bar'\n                      Other, 0x105b4ad20, {{24.0, 784.0}, {354.0, 52.0}}\n                        Other, 0x105b4ae40, {{24.0, 784.0}, {354.0, 52.0}}\n                          Other, 0x105b4af60, {{24.0, 784.0}, {354.0, 52.0}}\n                            TextField, 0x105b4b080, {{24.0, 786.0}, {310.0, 48.0}}, placeholderValue: 'What are you in the mood for?'\n                            Other, 0x105b4b1a0, {{334.0, 792.0}, {36.0, 36.0}}\n                              Other, 0x105b4b2c0, {{343.0, 801.0}, {18.0, 18.0}}\n                                Image, 0x105b4b3e0, {{343.0, 801.0}, {18.0, 18.0}}, identifier: 'waveform', label: 'waveform'\n                            Other, 0x105b4b500, {{370.0, 792.0}, {8.0, 36.0}}\n                    Other, 0x105b4b620, {{0.0, 836.0}, {402.0, 4.0}}\n    Window, 0x105b4b740, {{0.0, 0.0}, {402.0, 874.0}}\n      Other, 0x105b4b860, {{0.0, 0.0}, {402.0, 874.0}}\n        Other, 0x105b4b980, {{0.0, 0.0}, {402.0, 874.0}}\nPath to element:\n →Application, 0x105b46880, pid: 25284, label: 'Cheetah'\nQuery chain:\n →Find: Target Application 'com.example.cheetah'\n  Output: {\n    Application, 0x10593f860, pid: 25284, label: 'Cheetah'\n  }\n",
+  "nodes" : [
+
+  ],
+  "operations" : [
+    {
+      "line" : 2,
+      "ok" : true,
+      "operation" : "start nightshade"
+    },
+    {
+      "line" : 3,
+      "ok" : true,
+      "operation" : "wait 3000"
+    },
+    {
+      "line" : 4,
+      "ok" : true,
+      "operation" : "tap \"Cafes within 12 min walk\""
+    },
+    {
+      "line" : 5,
+      "ok" : true,
+      "operation" : "wait 1000"
+    },
+    {
+      "line" : 6,
+      "ok" : true,
+      "operation" : "expect exists Clear"
+    },
+    {
+      "line" : 7,
+      "ok" : true,
+      "operation" : "screenshot target\/drive\/nightshade-search.png"
+    },
+    {
+      "line" : 8,
+      "ok" : true,
+      "operation" : "tap Clear"
+    },
+    {
+      "line" : 9,
+      "ok" : true,
+      "operation" : "expect exists \"Ready to discover?\""
+    }
+  ]
+}
