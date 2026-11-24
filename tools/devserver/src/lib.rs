@@ -23,7 +23,7 @@
 use futures_util::{SinkExt, StreamExt};
 use runtime::app::{Action, App, Event, ViewContext};
 use runtime::dev::{
-    rough_measure, DevRuntime, Host, LiteralOverrides, RerenderHandle, TextRequest, Views,
+    rough_measure, DevRuntime, FrameReport, Host, LiteralOverrides, RerenderHandle, TextRequest, Views,
 };
 use runtime::{Element, NativeCall, Op, Runtime};
 use serde_json::{json, Value};
@@ -39,6 +39,7 @@ use tokio_tungstenite::tungstenite::Message;
 pub use subsecond;
 
 pub mod live;
+pub mod metrics;
 
 const MEASURE_TIMEOUT: Duration = Duration::from_secs(5);
 const GATEWAY_URL: &str = "ws://127.0.0.1:9001";
@@ -439,6 +440,8 @@ struct WsHost {
     /// round trip that blocks layout, so every text is measured once per
     /// connection, not on every render.
     measured: Mutex<HashMap<MeasureKey, (f32, f32)>>,
+    /// This session's frames, for `cheetah metrics`.
+    metrics: Mutex<metrics::Metrics>,
 }
 
 /// Text, font size and max width (as bits, so they hash), bold.
@@ -523,6 +526,14 @@ impl Host for WsHost {
     fn emit_ops(&self, bytes: &[u8]) {
         let _ = self.out.send(Message::Binary(bytes.to_vec().into()));
     }
+
+    fn wants_frames(&self) -> bool {
+        true
+    }
+
+    fn frame(&self, report: FrameReport) {
+        self.metrics.lock().unwrap().frame(report);
+    }
 }
 
 impl WsHost {
@@ -551,7 +562,13 @@ impl WsHost {
             return fallback();
         }
 
-        match receiver.recv_timeout(MEASURE_TIMEOUT) {
+        let asked = Instant::now();
+        let answer = receiver.recv_timeout(MEASURE_TIMEOUT);
+        self.metrics
+            .lock()
+            .unwrap()
+            .measured(requests.len(), asked.elapsed(), answer.is_err());
+        match answer {
             Ok(sizes) if sizes.len() == requests.len() * 2 => sizes
                 .as_chunks::<2>()
                 .0
@@ -704,6 +721,9 @@ async fn serve(
         pending: Mutex::new(HashMap::new()),
         alive: AtomicBool::new(true),
         measured: Mutex::new(HashMap::new()),
+        metrics: Mutex::new(metrics::Metrics::new(
+            APP_NAME.get().map_or("app", String::as_str),
+        )),
     });
 
     let writer = tokio::spawn(async move {
@@ -765,6 +785,7 @@ async fn serve(
     writer.abort();
     // Joining the actor thread blocks; keep it off the async workers.
     let _ = tokio::task::spawn_blocking(move || drop(runtime)).await;
+    host.metrics.lock().unwrap().write();
     println!("devserver: device disconnected ({peer})");
 }
 

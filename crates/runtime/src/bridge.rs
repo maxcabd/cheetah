@@ -1,3 +1,4 @@
+use crate::app::RuntimeMetrics;
 use crate::layout::{TextMeasurer, TextRequest};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -22,6 +23,31 @@ pub trait Host: Send + Sync {
     }
 
     fn emit_ops(&self, bytes: &[u8]);
+
+    /// Whether `frame` wants reports. Off, nothing is collected for it.
+    fn wants_frames(&self) -> bool {
+        false
+    }
+
+    /// What a frame cost, after its ops were emitted.
+    fn frame(&self, _report: FrameReport) {}
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct FrameReport {
+    /// What caused it: "click place", "scroll places", "resize", ...
+    pub trigger: String,
+    pub metrics: RuntimeMetrics,
+    pub encode_us: u64,
+    pub wire_bytes: usize,
+}
+
+impl FrameReport {
+    /// The runtime's own time, without waiting for text measurements.
+    pub fn work_us(&self) -> u64 {
+        let m = &self.metrics;
+        m.update_us + m.build_us + m.diff_us + m.layout_us + self.encode_us
+    }
 }
 
 type MeasurementKey = (String, u32, bool, u32);

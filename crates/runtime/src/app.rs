@@ -149,6 +149,9 @@ pub trait App {
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RuntimeMetrics {
+    /// The app's `update` for the events since the last render, and how many.
+    pub update_us: u64,
+    pub events: usize,
     pub build_us: u64,
     pub diff_us: u64,
     pub prime_us: u64,
@@ -166,6 +169,13 @@ pub struct Runtime {
     text_measurer: Option<Rc<dyn TextMeasurer>>,
     layout_dirty: bool,
     metrics: RuntimeMetrics,
+    /// Since the last render: time in `update`, events, and the first one's
+    /// kind and key family ("click place"), which the frame is put down to.
+    update_us: u64,
+    events: usize,
+    trigger: Option<String>,
+    /// Rendered since `take_frame`: events before the first resize don't.
+    rendered: bool,
     /// Literal values edited live by the dev server, applied after `view`.
     #[cfg(feature = "devserver")]
     literals: crate::live::LiteralOverrides,
@@ -186,6 +196,10 @@ impl Runtime {
             text_measurer: None,
             layout_dirty: true,
             metrics: RuntimeMetrics::default(),
+            update_us: 0,
+            events: 0,
+            trigger: None,
+            rendered: false,
             #[cfg(feature = "devserver")]
             literals: Default::default(),
             views,
@@ -194,6 +208,22 @@ impl Runtime {
 
     pub fn metrics(&self) -> RuntimeMetrics {
         self.metrics
+    }
+
+    /// The frame rendered since the last call: its metrics, and what caused
+    /// it if an event did. None when nothing was rendered.
+    pub fn take_frame(&mut self) -> Option<(RuntimeMetrics, Option<String>)> {
+        std::mem::take(&mut self.rendered).then(|| (self.metrics, self.trigger.take()))
+    }
+
+    fn update(&mut self, event: Event) {
+        if self.trigger.is_none() {
+            self.trigger = Some(trigger(&event));
+        }
+        let start = Instant::now();
+        self.app.update(event);
+        self.update_us += start.elapsed().as_micros() as u64;
+        self.events += 1;
     }
 
     pub fn set_text_measurer(&mut self, measurer: Rc<dyn TextMeasurer>) {
@@ -241,6 +271,9 @@ impl Runtime {
                 self.app.hot_reloaded();
             }
         }
+        self.rendered = true;
+        self.metrics.update_us = std::mem::take(&mut self.update_us);
+        self.metrics.events = std::mem::take(&mut self.events);
         let build_start = Instant::now();
         let root = {
             let context =
@@ -349,7 +382,7 @@ impl Runtime {
         if kind == "click" {
             if let Some(path) = node.and_then(|node| node.props.link.clone()) {
                 let props = &node.expect("a link comes from a node").props;
-                self.app.update(Event {
+                self.update(Event {
                     id,
                     key,
                     kind: "navigate".into(),
@@ -364,7 +397,7 @@ impl Runtime {
             }
         }
 
-        self.app.update(Event {
+        self.update(Event {
             id,
             key,
             kind: kind.to_string(),
@@ -385,7 +418,7 @@ impl Runtime {
     }
 
     pub fn dispatch(&mut self, event: Event) -> Vec<Op> {
-        self.app.update(event);
+        self.update(event);
         if self.viewport.width <= 0.0 || self.viewport.height <= 0.0 {
             return Vec::new();
         }
@@ -398,6 +431,21 @@ impl Runtime {
 
     pub fn has_queued(&self) -> bool {
         self.app.has_queued()
+    }
+}
+
+/// "click place" for a click on `place:java`: the kind, and the key up to
+/// its id, so frames group by what was done and not by which item.
+fn trigger(event: &Event) -> String {
+    let family = match &event.key {
+        Some(key) => key.split([':', '-']).next().unwrap_or(""),
+        None if event.kind == "timer" => event.payload.as_str(),
+        None => "",
+    };
+    if family.is_empty() {
+        event.kind.clone()
+    } else {
+        format!("{} {family}", event.kind)
     }
 }
 
@@ -508,6 +556,39 @@ mod tests {
         }
 
         fn update(&mut self, _: Event) {}
+    }
+
+    #[test]
+    fn frames_are_put_down_to_what_caused_them() {
+        let mut runtime = Runtime::new(StaticApp);
+        // No size yet: the event is applied, but nothing is rendered.
+        runtime.event(0, "host", "{}");
+        assert!(runtime.take_frame().is_none());
+
+        runtime.render(Viewport {
+            width: 300.0,
+            height: 600.0,
+        });
+        let (metrics, trigger) = runtime.take_frame().expect("rendered");
+        assert_eq!(trigger.as_deref(), Some("host"));
+        assert_eq!((metrics.events, metrics.nodes), (1, 2));
+        assert!(runtime.take_frame().is_none());
+
+        for (key, kind, payload, name) in [
+            (Some("place:java"), "click", "", "click place"),
+            (Some("place-java"), "click", "", "click place"),
+            (None, "timer", "searching", "timer searching"),
+            (None, "native", "{}", "native"),
+        ] {
+            runtime.dispatch(Event {
+                id: 0,
+                key: key.map(str::to_string),
+                kind: kind.into(),
+                payload: payload.into(),
+            });
+            let (_, trigger) = runtime.take_frame().expect("rendered");
+            assert_eq!(trigger.as_deref(), Some(name));
+        }
     }
 
     struct ColoredTextApp {

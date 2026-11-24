@@ -1,3 +1,39 @@
+// The app's source, compiled here: the runtime crate leaves it out when the
+// dev server is built too (a whole-workspace build). It names the runtime's
+// modules as its own crate's, as in apps/nightshade/src/main.rs.
+mod app {
+    pub use runtime::app::*;
+}
+mod element {
+    pub use runtime::element::*;
+}
+mod gesture {
+    pub use runtime::gesture::*;
+}
+mod http {
+    pub use runtime::http::*;
+}
+mod kv {
+    pub use runtime::kv::*;
+}
+mod native_api {
+    pub use runtime::native_api::*;
+}
+mod resource {
+    pub use runtime::resource::*;
+}
+mod router {
+    pub use runtime::router::*;
+}
+mod updates {
+    pub use runtime::updates::*;
+}
+#[allow(dead_code, unused_imports)]
+#[path = "../../../apps/nightshade/src/nightshade/mod.rs"]
+mod nightshade;
+
+mod flows;
+
 use runtime::demo::ChatApp;
 use runtime::{App, Event, Runtime, Viewport};
 use serde_json::Value;
@@ -6,7 +42,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
-const HOST_INFO: &str = r#"{
+pub(crate) const HOST_INFO: &str = r#"{
     "safeTop": 0,
     "safeBottom": 0,
     "keyboardInset": 0,
@@ -118,6 +154,46 @@ fn main() {
         median(&like_bytes)
     );
 
+    println!();
+    println!("nightshade, 12 results, {} runs each", flows::RUNS);
+    println!(
+        "{:<18}{:>8}{:>8}{:>8}{:>7}{:>8}{:>7}{:>10}{:>9}{:>10}",
+        "flow", "p50_ms", "p95_ms", "max_ms", "ops", "bytes", "nodes", "build_us", "diff_us", "layout_us"
+    );
+    let flows = flows::run(viewport);
+    let mut flow_p95 = Vec::new();
+    for flow in &flows {
+        let timing = stats(flow.ms.clone());
+        println!(
+            "{:<18}{:>8.2}{:>8.2}{:>8.2}{:>7}{:>8}{:>7}{:>10}{:>9}{:>10}",
+            flow.name,
+            timing.p50,
+            timing.p95,
+            timing.max,
+            median(&flow.ops),
+            median(&flow.bytes),
+            flow.nodes,
+            median(&flow.build_us),
+            median(&flow.diff_us),
+            median(&flow.layout_us)
+        );
+        flow_p95.push((flow.name, timing.p95));
+    }
+    if let Ok(file) = std::env::var("CHEETAH_BENCH_JSON") {
+        let report: Vec<Value> = flows
+            .iter()
+            .map(|flow| {
+                let timing = stats(flow.ms.clone());
+                serde_json::json!({
+                    "flow": flow.name, "p50_ms": timing.p50, "p95_ms": timing.p95, "max_ms": timing.max,
+                    "ops": median(&flow.ops), "wire_bytes": median(&flow.bytes), "nodes": flow.nodes,
+                })
+            })
+            .collect();
+        fs::write(&file, serde_json::json!({"nightshade": report}).to_string()).expect("write report");
+    }
+    println!();
+
     let budget_ms = std::env::var("CHEETAH_BENCH_BUDGET_MS")
         .ok()
         .and_then(|value| value.parse::<f64>().ok())
@@ -127,7 +203,10 @@ fn main() {
     for (name, value) in [
         ("scroll_p95", scroll_stats.p95),
         ("like_p95", like_stats.p95),
-    ] {
+    ]
+    .into_iter()
+    .chain(flow_p95)
+    {
         if value > budget_ms {
             eprintln!("benchmark budget exceeded: {name}={value:.2}ms > {budget_ms:.2}ms");
             failed = true;
@@ -182,7 +261,7 @@ fn temp_path() -> PathBuf {
     ))
 }
 
-fn elapsed_ms(start: Instant) -> f64 {
+pub(crate) fn elapsed_ms(start: Instant) -> f64 {
     start.elapsed().as_secs_f64() * 1000.0
 }
 

@@ -9,7 +9,7 @@ use crate::app::{Runtime, Viewport};
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedSender;
 
-pub use crate::bridge::Host;
+pub use crate::bridge::{FrameReport, Host};
 pub use crate::layout::TextRequest;
 pub use crate::live::{LiteralEdit, LiteralOverrides, LiteralValue};
 pub use crate::views::{ViewError, Views};

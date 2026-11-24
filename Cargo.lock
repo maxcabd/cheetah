@@ -90,6 +90,7 @@ name = "cheetah-bench"
 version = "0.1.0"
 dependencies = [
  "runtime",
+ "serde",
  "serde_json",
 ]
 

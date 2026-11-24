@@ -1,5 +1,5 @@
 use crate::app::{Action, Event, Runtime, Viewport};
-use crate::bridge::{CachedTextMeasurer, Host};
+use crate::bridge::{CachedTextMeasurer, FrameReport, Host};
 use crate::demo::ChatApp;
 use crate::gateway::{self, Gateway};
 #[cfg(not(feature = "devserver"))]
@@ -9,7 +9,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 
 pub(crate) enum Command {
@@ -102,7 +102,7 @@ pub(crate) fn spawn_with(
                 match command {
                     Command::Resize(viewport) => {
                         let ops = runtime.render(viewport);
-                        emit(host.as_ref(), ops);
+                        emit(host.as_ref(), &mut runtime, "resize", ops);
                     }
                     Command::Event { id, kind, payload } => {
                         runtime.apply_event(id, &kind, &payload);
@@ -118,7 +118,7 @@ pub(crate) fn spawn_with(
                             }
                         }
                         let ops = runtime.render_current();
-                        emit(host.as_ref(), ops);
+                        emit(host.as_ref(), &mut runtime, "", ops);
                         process_actions(
                             &mut runtime,
                             host.as_ref(),
@@ -138,7 +138,7 @@ pub(crate) fn spawn_with(
                             payload: format!("{author}\u{1f}{body}"),
                         };
                         let ops = runtime.dispatch(event);
-                        emit(host.as_ref(), ops);
+                        emit(host.as_ref(), &mut runtime, "", ops);
                     }
                     Command::Ack { id } => {
                         if paused {
@@ -151,7 +151,7 @@ pub(crate) fn spawn_with(
                             payload: id.to_string(),
                         };
                         let ops = runtime.dispatch(event);
-                        emit(host.as_ref(), ops);
+                        emit(host.as_ref(), &mut runtime, "", ops);
                     }
                     Command::SendTimeout { id } => {
                         if paused {
@@ -164,7 +164,7 @@ pub(crate) fn spawn_with(
                             payload: id.to_string(),
                         };
                         let ops = runtime.dispatch(event);
-                        emit(host.as_ref(), ops);
+                        emit(host.as_ref(), &mut runtime, "", ops);
 
                         if runtime.has_queued() {
                             spawn_retry(&tokio_runtime, actor_sender.clone());
@@ -181,7 +181,7 @@ pub(crate) fn spawn_with(
                             payload: String::new(),
                         };
                         let ops = runtime.dispatch(event);
-                        emit(host.as_ref(), ops);
+                        emit(host.as_ref(), &mut runtime, "", ops);
                         process_actions(
                             &mut runtime,
                             host.as_ref(),
@@ -201,7 +201,7 @@ pub(crate) fn spawn_with(
                             payload: if online { "online" } else { "offline" }.into(),
                         };
                         let ops = runtime.dispatch(event);
-                        emit(host.as_ref(), ops);
+                        emit(host.as_ref(), &mut runtime, "", ops);
                         process_actions(
                             &mut runtime,
                             host.as_ref(),
@@ -225,7 +225,7 @@ pub(crate) fn spawn_with(
                             payload: if active { "active" } else { "background" }.into(),
                         };
                         let ops = runtime.dispatch(lifecycle);
-                        emit(host.as_ref(), ops);
+                        emit(host.as_ref(), &mut runtime, "", ops);
                         let event = Event {
                             id: 0,
                             key: None,
@@ -233,21 +233,21 @@ pub(crate) fn spawn_with(
                             payload: if active { "connecting" } else { "offline" }.into(),
                         };
                         let ops = runtime.dispatch(event);
-                        emit(host.as_ref(), ops);
+                        emit(host.as_ref(), &mut runtime, "", ops);
                     }
                     Command::Rerender => {
                         let ops = runtime.rerender();
-                        emit(host.as_ref(), ops);
+                        emit(host.as_ref(), &mut runtime, "reload", ops);
                     }
                     #[cfg(feature = "devserver")]
                     Command::Literals(literals) => {
                         let ops = runtime.set_literals(literals);
-                        emit(host.as_ref(), ops);
+                        emit(host.as_ref(), &mut runtime, "reload", ops);
                     }
                     #[cfg(feature = "devserver")]
                     Command::Views(views) => {
                         let ops = runtime.set_views(views);
-                        emit(host.as_ref(), ops);
+                        emit(host.as_ref(), &mut runtime, "reload", ops);
                     }
                     Command::Shutdown => break,
                 }
@@ -261,11 +261,28 @@ pub(crate) fn spawn_with(
     }
 }
 
-fn emit(host: &dyn Host, ops: Vec<Op>) {
-    if ops.is_empty() {
-        return;
+/// Send a frame, and report what it cost. `cause` names frames no event
+/// caused ("resize").
+fn emit(host: &dyn Host, runtime: &mut Runtime, cause: &str, ops: Vec<Op>) {
+    let frame = runtime.take_frame();
+    let start = Instant::now();
+    let bytes = if ops.is_empty() {
+        Vec::new()
+    } else {
+        crate::wire::encode(&ops)
+    };
+    let encode_us = start.elapsed().as_micros() as u64;
+    if !bytes.is_empty() {
+        host.emit_ops(&bytes);
     }
-    host.emit_ops(&crate::wire::encode(&ops));
+    if let Some((metrics, trigger)) = frame.filter(|_| host.wants_frames()) {
+        host.frame(FrameReport {
+            trigger: trigger.unwrap_or_else(|| cause.to_string()),
+            metrics,
+            encode_us,
+            wire_bytes: bytes.len(),
+        });
+    }
 }
 
 fn process_actions(
@@ -293,7 +310,7 @@ fn process_actions(
                         payload: id.to_string(),
                     };
                     let ops = runtime.dispatch(event);
-                    emit(host, ops);
+                    emit(host, runtime, "", ops);
 
                     if runtime.has_queued() {
                         spawn_retry(tokio_runtime, sender.clone());

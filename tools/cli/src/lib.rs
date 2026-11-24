@@ -27,6 +27,11 @@ pub fn percent_encode(text: &str) -> String {
     out
 }
 
+/// Where the dev server running `app` keeps its frame metrics.
+pub fn metrics_path(app: &str) -> PathBuf {
+    std::env::temp_dir().join(format!("cheetah-metrics-{app}.json"))
+}
+
 /// This machine's address on the local network (the interface used for the
 /// default route; no packets are sent).
 pub fn lan_ip() -> Option<IpAddr> {

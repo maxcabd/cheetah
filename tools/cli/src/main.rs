@@ -55,6 +55,9 @@ cheetah: develop and ship Cheetah apps
       changes; Rust and .view edits never need one.
   cheetah doctor
       Check the tools each command needs.
+  cheetah metrics [--app NAME]
+      What each frame cost in the dev server's current or last session, by
+      what caused it (tap, scroll, results arriving).
   cheetah qr TEXT
       Print TEXT as a QR code, e.g. a dev link for the phone's camera.
 
@@ -179,6 +182,7 @@ fn main() -> ExitCode {
             _ => out.fail("setup", "name a platform: cheetah setup ios"),
         },
         "doctor" => doctor(&out),
+        "metrics" => metrics_command(&args, &out),
         "qr" => match args.positional.first().and_then(|text| qr(text)) {
             Some(code) => {
                 println!("{code}");
@@ -269,6 +273,85 @@ fn dev(args: &Args, out: &Out) -> ExitCode {
         Ok(status) => out.fail("dev", &format!("dev server exited with {status}")),
         Err(error) => out.fail("dev", &format!("cannot run cargo: {error}")),
     }
+}
+
+/// The dev server's frame metrics: a table, or the whole file with `--json`.
+fn metrics_command(args: &Args, out: &Out) -> ExitCode {
+    if let Some(flag) = args.unknown_flags(&["--app"]) {
+        return out.fail("metrics", &format!("unknown option {flag}"));
+    }
+    let app = args.value("--app").unwrap_or(DEFAULT_APP);
+    let path = cheetah_cli::metrics_path(app);
+    let Some(data) = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+    else {
+        return out.fail(
+            "metrics",
+            &format!("no metrics for {app} yet: connect a phone to `cheetah dev` and use the app"),
+        );
+    };
+    let age = std::fs::metadata(&path)
+        .and_then(|file| file.modified())
+        .ok()
+        .and_then(|at| at.elapsed().ok())
+        .map_or(0, |age| age.as_secs());
+    out.data(json!({"command": "metrics", "ok": true, "age_s": age, "metrics": data}));
+    out.say(metrics_table(&data, age));
+    ExitCode::SUCCESS
+}
+
+fn metrics_table(data: &Value, age: u64) -> String {
+    let ms = |value: &Value| format!("{:.1}", value.as_f64().unwrap_or(0.0) / 1000.0);
+    let count = |value: &Value| value.as_u64().unwrap_or(0);
+    let mut lines = vec![
+        format!(
+            "{} ({} build), updated {age} s ago; {} text measurements, {} timed out",
+            data["app"].as_str().unwrap_or("app"),
+            data["profile"].as_str().unwrap_or("?"),
+            count(&data["text_measuring"]["round_trips"]),
+            count(&data["text_measuring"]["timeouts"]),
+        ),
+        format!(
+            "{:<24}{:>7}{:>7}{:>9}{:>9}{:>9}{:>9}{:>8}{:>9}",
+            "ms, by cause", "frames", "slow", "p50", "p95", "max", "measure", "ops", "bytes"
+        ),
+    ];
+    let row = |name: &str, entry: &Value| {
+        format!(
+            "{name:<24}{:>7}{:>7}{:>9}{:>9}{:>9}{:>9}{:>8}{:>9}",
+            count(&entry["frames"]),
+            count(&entry["over_budget"]),
+            ms(&entry["work_us"]["p50"]),
+            ms(&entry["work_us"]["p95"]),
+            ms(&entry["work_us"]["max"]),
+            ms(&entry["measure_us"]["p95"]),
+            count(&entry["ops"]["p50"]),
+            count(&entry["wire_bytes"]["p50"]),
+        )
+    };
+    let mut triggers: Vec<(&String, &Value)> = data["triggers"]
+        .as_object()
+        .map(|entries| entries.iter().collect())
+        .unwrap_or_default();
+    triggers.sort_by_key(|(_, entry)| std::cmp::Reverse(count(&entry["work_us"]["p95"])));
+    lines.extend(triggers.iter().map(|(name, entry)| row(name, entry)));
+    lines.push(row("all", &data["total"]));
+    let mean = &data["total"]["mean_us"];
+    lines.push(format!(
+        "mean stage ms: update {} / build {} / diff {} / layout {} / encode {}",
+        ms(&mean["update"]),
+        ms(&mean["build"]),
+        ms(&mean["diff"]),
+        ms(&mean["layout"]),
+        ms(&mean["encode"]),
+    ));
+    lines.push(
+        "slow: over 16.7 ms of work. measure: p95 wait for the phone to measure text. \
+         Drawing on the phone isn't included."
+            .into(),
+    );
+    lines.join("\n")
 }
 
 /// White-on-dark half-block QR code for a terminal.

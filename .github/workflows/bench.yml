@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - "crates/**"
+      - "apps/nightshade/src/**"
       - "tools/bench/**"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -11,6 +12,7 @@ on:
   pull_request:
     paths:
       - "crates/**"
+      - "apps/nightshade/src/**"
       - "tools/bench/**"
       - "Cargo.toml"
       - "Cargo.lock"
@@ -37,7 +39,15 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          cargo run -p cheetah-bench --release 2>&1 | tee bench.txt
+          CHEETAH_BENCH_JSON=bench.json cargo run -p cheetah-bench --release 2>&1 | tee bench.txt
+
+      - name: Keep the numbers
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench
+          path: bench.json
+          if-no-files-found: ignore
 
       - name: Publish benchmark summary
         shell: bash

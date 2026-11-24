@@ -106,6 +106,11 @@ impl NightshadeApp {
         Self::with_backend(demo, backend)
     }
 
+    /// Searches `base_url`, whatever the build was made for (benchmarks).
+    pub fn remote(base_url: &str) -> Self {
+        Self::with_backend(false, Backend::remote(base_url))
+    }
+
     fn with_backend(demo: bool, backend: Backend) -> Self {
         let mut app = Self {
             host: HostInfo::default(),
