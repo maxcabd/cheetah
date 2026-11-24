@@ -4,8 +4,11 @@
 //! `work` is the runtime's own time (update, view, diff, layout, encode). It
 //! excludes `measure`, the wait for the device to measure new text: that is
 //! a network round trip here but an in-process call in an installed app.
-//! Neither includes drawing on the device. Times are from this machine and
-//! build profile, so compare them with each other, not with a phone.
+//! Times are from this machine and build profile, so compare them with each
+//! other, not with a phone.
+//!
+//! `device` is what the same frame cost on the phone, as it reports it:
+//! applying the ops, by kind of work, then UIKit's layout and commit.
 
 use runtime::dev::FrameReport;
 use serde_json::{json, Value};
@@ -25,6 +28,43 @@ struct Trigger {
     over_budget: u64,
     unchanged: u64,
     frames: VecDeque<FrameReport>,
+    device: VecDeque<DeviceFrame>,
+}
+
+/// Times a device reports for a frame, in the order they're listed there.
+const DEVICE_TIMES: [&str; 10] = [
+    "queue_us", "apply_us", "commit_us", "create_us", "props_us", "children_us", "layout_us",
+    "remove_us", "native_us", "map_us",
+];
+
+#[derive(Clone, Debug)]
+struct DeviceFrame([u64; DEVICE_TIMES.len()]);
+
+impl DeviceFrame {
+    fn read(message: &Value) -> Self {
+        Self(DEVICE_TIMES.map(|name| message[name].as_u64().unwrap_or(0)))
+    }
+
+    /// Main-thread time, from the first op to the commit.
+    fn main_us(&self) -> u64 {
+        self.0[1] + self.0[2]
+    }
+}
+
+fn summarize_device(frames: &[&DeviceFrame]) -> Value {
+    let parts: serde_json::Map<String, Value> = DEVICE_TIMES
+        .iter()
+        .enumerate()
+        .map(|(index, name)| {
+            let name = name.trim_end_matches("_us").to_string();
+            (name, mean(frames.iter().map(|frame| frame.0[index])).into())
+        })
+        .collect();
+    json!({
+        "frames": frames.len(),
+        "main_us": spread(frames.iter().map(|frame| frame.main_us())),
+        "mean_us": parts,
+    })
 }
 
 pub struct Metrics {
@@ -37,6 +77,8 @@ pub struct Metrics {
     measured_texts: u64,
     /// Waited for measurements since the last frame.
     waited_us: u64,
+    /// Frames sent and not yet reported applied: cause and size.
+    sent: VecDeque<(String, usize)>,
 }
 
 /// `report` with all `waited_us` counted as measuring. Texts known up front
@@ -111,11 +153,18 @@ impl Metrics {
             measure_timeouts: 0,
             measured_texts: 0,
             waited_us: 0,
+            sent: VecDeque::new(),
         }
     }
 
     pub fn frame(&mut self, report: FrameReport) {
         let report = without_waits(report, std::mem::take(&mut self.waited_us));
+        if report.wire_bytes > 0 {
+            if self.sent.len() == SAMPLES {
+                self.sent.pop_front();
+            }
+            self.sent.push_back((report.trigger.clone(), report.wire_bytes));
+        }
         let trigger = self.triggers.entry(report.trigger.clone()).or_default();
         trigger.count += 1;
         trigger.over_budget += u64::from(report.work_us() > FRAME_BUDGET_US);
@@ -127,6 +176,21 @@ impl Metrics {
         if self.written.is_none_or(|at| at.elapsed() > WRITE_EVERY) {
             self.write();
         }
+    }
+
+    /// The device applied a frame. Reports come in the order frames were
+    /// sent; the size skips over any that weren't ours (an alert).
+    pub fn applied(&mut self, message: &Value) {
+        let bytes = message["bytes"].as_u64().unwrap_or(0) as usize;
+        let Some(at) = self.sent.iter().position(|(_, size)| *size == bytes) else {
+            return;
+        };
+        let (name, _) = self.sent.drain(..=at).next_back().expect("found above");
+        let trigger = self.triggers.entry(name).or_default();
+        if trigger.device.len() == SAMPLES {
+            trigger.device.pop_front();
+        }
+        trigger.device.push_back(DeviceFrame::read(message));
     }
 
     pub fn measured(&mut self, texts: usize, waited: Duration, timed_out: bool) {
@@ -146,6 +210,9 @@ impl Metrics {
                 value["frames"] = trigger.count.into();
                 value["over_budget"] = trigger.over_budget.into();
                 value["unchanged"] = trigger.unchanged.into();
+                if !trigger.device.is_empty() {
+                    value["device"] = summarize_device(&trigger.device.iter().collect::<Vec<_>>());
+                }
                 (name.clone(), value)
             })
             .collect();
@@ -153,6 +220,10 @@ impl Metrics {
         total["frames"] = self.triggers.values().map(|t| t.count).sum::<u64>().into();
         total["over_budget"] = self.triggers.values().map(|t| t.over_budget).sum::<u64>().into();
         total["unchanged"] = self.triggers.values().map(|t| t.unchanged).sum::<u64>().into();
+        let device: Vec<&DeviceFrame> = self.triggers.values().flat_map(|t| &t.device).collect();
+        if !device.is_empty() {
+            total["device"] = summarize_device(&device);
+        }
         json!({
             "app": self.app,
             "profile": if cfg!(debug_assertions) { "debug" } else { "release" },
@@ -236,6 +307,31 @@ mod tests {
         metrics.frame(frame("scroll", 3_000, 0, 5));
         assert_eq!(metrics.summary()["triggers"]["scroll"]["work_us"]["max"], 3_010);
         let _ = std::fs::remove_file(path("metrics-wait-test"));
+    }
+
+    #[test]
+    fn device_reports_go_with_the_frames_they_are_for() {
+        let mut metrics = Metrics::new("metrics-device-test");
+        let sized = |trigger: &str, wire_bytes| FrameReport {
+            wire_bytes,
+            ..frame(trigger, 1_000, 0, 5)
+        };
+        metrics.frame(sized("click place", 300));
+        // Nothing was sent for this one, so nothing comes back.
+        metrics.frame(sized("scroll", 0));
+        metrics.frame(sized("native", 900));
+        metrics.applied(&json!({"bytes": 300, "apply_us": 2_000, "commit_us": 3_000, "map_us": 500}));
+        // Not one of the app's frames.
+        metrics.applied(&json!({"bytes": 77, "apply_us": 99_000}));
+        metrics.applied(&json!({"bytes": 900, "apply_us": 40_000, "commit_us": 10_000}));
+        let summary = metrics.summary();
+        let click = &summary["triggers"]["click place"]["device"];
+        assert_eq!(click["main_us"]["max"], 5_000);
+        assert_eq!(click["mean_us"]["map"], 500);
+        assert_eq!(summary["triggers"]["native"]["device"]["main_us"]["max"], 50_000);
+        assert!(summary["triggers"]["scroll"]["device"].is_null());
+        assert_eq!(summary["total"]["device"]["frames"], 2);
+        let _ = std::fs::remove_file(path("metrics-device-test"));
     }
 
     #[test]

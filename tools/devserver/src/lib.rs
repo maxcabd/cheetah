@@ -13,6 +13,7 @@
 //!   {"t":"event","id":0,"kind":"host","payload":"{...}"}
 //!   {"t":"lifecycle","active":true}
 //!   {"t":"measured","seq":7,"sizes":[w0,h0,w1,h1,...]}
+//!   {"t":"applied","bytes":812,"apply_us":940,"commit_us":2100,...}  per op frame
 //! server -> device:
 //!   binary: an op frame, byte-identical to what the FFI callback delivers
 //!   text:   {"t":"measure","seq":7,"items":[[text,size,bold,maxWidth],...]}
@@ -616,6 +617,7 @@ fn handle(runtime: &DevRuntime, host: &WsHost, text: &str) {
                 host.emit_ops(&runtime::encode_ops(&[alert]));
             }
         }
+        Some("applied") => host.metrics.lock().unwrap().applied(&message),
         Some("measured") => {
             let seq = message["seq"].as_u64().unwrap_or(u64::MAX);
             let sizes = message["sizes"]

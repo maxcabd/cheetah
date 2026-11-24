@@ -173,6 +173,12 @@ private final class DevRuntimeLink: NSObject, RuntimeLink, URLSessionWebSocketDe
         send(["t": "lifecycle", "active": active])
     }
 
+    func applied(_ report: [String: Any]) {
+        var message = report
+        message["t"] = "applied"
+        send(message)
+    }
+
     func free() {
         freed = true
         task?.cancel(with: .normalClosure, reason: nil)

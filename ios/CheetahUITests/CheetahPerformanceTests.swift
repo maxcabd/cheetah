@@ -75,6 +75,18 @@ final class CheetahPerformanceTests: XCTestCase {
 
     private let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
 
+    /// Cheetah's own signposts (HostMetrics): applying a frame's ops, and the
+    /// layout and drawing after. Only Cheetah has them.
+    private func metrics(_ app: XCUIApplication, host: Bool) -> [XCTMetric] {
+        var metrics: [XCTMetric] = [XCTCPUMetric(application: app)]
+        if host {
+            metrics += ["apply", "commit"].map {
+                XCTOSSignpostMetric(subsystem: "dev.cheetah.host", category: "frames", name: $0)
+            }
+        }
+        return metrics
+    }
+
     /// Long enough for every version's transition to finish.
     private let settle: TimeInterval = 2.5
 
@@ -136,7 +148,7 @@ final class CheetahPerformanceTests: XCTestCase {
 
     /// A tap on a suggestion to its result card.
     func testCheetahResults() throws {
-        results(cheetah("--nightshade"))
+        results(cheetah("--nightshade"), host: true)
     }
 
     func testNativeResults() throws {
@@ -151,7 +163,7 @@ final class CheetahPerformanceTests: XCTestCase {
         results(try react(tuned: true, suggestions: true))
     }
 
-    private func results(_ app: XCUIApplication) {
+    private func results(_ app: XCUIApplication, host: Bool = false) {
         app.launch()
         let suggestion = app.descendants(matching: .any)["Cafes within 12 min walk"].firstMatch
         XCTAssertTrue(suggestion.waitForExistence(timeout: 20), "suggestions should be visible")
@@ -173,7 +185,7 @@ final class CheetahPerformanceTests: XCTestCase {
             reset.tap()
             Thread.sleep(forTimeInterval: 1)
         }) { return }
-        measure(metrics: [XCTCPUMetric(application: app)], options: options) {
+        measure(metrics: metrics(app, host: host), options: options) {
             startMeasuring()
             show.tap()
             Thread.sleep(forTimeInterval: settle)
@@ -187,7 +199,7 @@ final class CheetahPerformanceTests: XCTestCase {
 
     /// A tap on a card to its page.
     func testCheetahPage() throws {
-        page(cheetah())
+        page(cheetah(), host: true)
     }
 
     func testNativePage() throws {
@@ -202,7 +214,7 @@ final class CheetahPerformanceTests: XCTestCase {
         page(try react(tuned: true))
     }
 
-    private func page(_ app: XCUIApplication) {
+    private func page(_ app: XCUIApplication, host: Bool = false) {
         app.launch()
         let card = app.descendants(matching: .any)["card-java"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 20), "result cards should be visible")
@@ -223,7 +235,7 @@ final class CheetahPerformanceTests: XCTestCase {
             back.tap()
             Thread.sleep(forTimeInterval: 1.5)
         }) { return }
-        measure(metrics: [XCTCPUMetric(application: app)], options: options) {
+        measure(metrics: metrics(app, host: host), options: options) {
             startMeasuring()
             open.tap()
             Thread.sleep(forTimeInterval: settle)

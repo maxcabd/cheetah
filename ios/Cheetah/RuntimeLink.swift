@@ -10,7 +10,13 @@ protocol RuntimeLink: AnyObject {
     func event(id: UInt32, kind: String, payload: String)
     func eventCode(id: UInt32, code: UInt32, payload: String)
     func lifecycle(active: Bool)
+    /// What a frame cost on this device (HostMetrics).
+    func applied(_ report: [String: Any])
     func free()
+}
+
+extension RuntimeLink {
+    func applied(_ report: [String: Any]) {}
 }
 
 final class NativeRuntimeLink: RuntimeLink {

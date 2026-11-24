@@ -348,7 +348,45 @@ fn metrics_table(data: &Value, age: u64) -> String {
     ));
     lines.push(
         "slow: over 16.7 ms of work. measure: p95 wait for the phone to measure text. \
-         Drawing on the phone isn't included."
+         These are this computer's times."
+            .into(),
+    );
+    if data["total"]["device"].is_null() {
+        lines.push("On the phone: no reports (needs a dev build from this version on).".into());
+        return lines.join("\n");
+    }
+    const PARTS: [&str; 9] = [
+        "apply", "commit", "create", "props", "children", "layout", "remove", "native", "map",
+    ];
+    let mut header = format!("{:<24}{:>7}{:>8}{:>8} |", "on the phone, ms", "frames", "p50", "p95");
+    for part in PARTS {
+        header.push_str(&format!("{part:>9}"));
+    }
+    lines.push(String::new());
+    lines.push(header);
+    let device_row = |name: &str, device: &Value| {
+        let mut line = format!(
+            "{name:<24}{:>7}{:>8}{:>8} |",
+            count(&device["frames"]),
+            ms(&device["main_us"]["p50"]),
+            ms(&device["main_us"]["p95"]),
+        );
+        for part in PARTS {
+            line.push_str(&format!("{:>9}", ms(&device["mean_us"][part])));
+        }
+        line
+    };
+    let mut on_device: Vec<(&String, &Value)> = triggers
+        .iter()
+        .filter(|(_, entry)| !entry["device"].is_null())
+        .map(|(name, entry)| (*name, &entry["device"]))
+        .collect();
+    on_device.sort_by_key(|(_, device)| std::cmp::Reverse(count(&device["main_us"]["p95"])));
+    lines.extend(on_device.iter().map(|(name, device)| device_row(name, device)));
+    lines.push(device_row("all", &data["total"]["device"]));
+    lines.push(
+        "p50, p95: main-thread time, apply + commit (UIKit's layout and drawing). \
+         The rest are means; create to map are parts of apply."
             .into(),
     );
     lines.join("\n")

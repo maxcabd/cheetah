@@ -202,6 +202,7 @@ final class RustHost: NSObject {
     /// Last insets, re-sent when a dev server reconnects.
     private var hostInfoArgs: (CGFloat, CGFloat, CGFloat, Bool)?
     private var disposed = false
+    private let metrics = HostMetrics()
     private var lastSize: CGSize = .zero
     private var lastSafeTop: CGFloat = -1
     private var lastSafeBottom: CGFloat = -1
@@ -402,16 +403,22 @@ final class RustHost: NSObject {
     }
 
     fileprivate func onOps(_ data: Data) {
+        let received = DispatchTime.now().uptimeNanoseconds
         DispatchQueue.main.async { [weak self] in
             guard let self, !self.disposed else {
                 return
             }
-            let started = CFAbsoluteTimeGetCurrent()
-            self.applyOps(data)
-            #if DEBUG
-            let elapsed = (CFAbsoluteTimeGetCurrent() - started) * 1_000_000
-            print("CheetahPerf apply_us=\(Int(elapsed)) op_bytes=\(data.count)")
-            #endif
+            self.metrics.frame(
+                bytes: data.count,
+                received: received,
+                done: { [weak self] report in
+                    #if DEBUG
+                    print("CheetahPerf apply_us=\(report["apply_us"] ?? 0) op_bytes=\(data.count)")
+                    #endif
+                    self?.link?.applied(report)
+                },
+                apply: { self.applyOps(data) }
+            )
         }
     }
 
@@ -427,6 +434,7 @@ final class RustHost: NSObject {
 
         for _ in 0..<count {
             guard let tag = reader.u8() else { return }
+            metrics.countOp()
             switch tag {
             case 1:
                 guard
@@ -459,17 +467,19 @@ final class RustHost: NSObject {
                 if let source {
                     op["source"] = source
                 }
-                create(op)
+                metrics.measure(.create) { create(op) }
             case 2:
                 guard let id = reader.u32(), let props = decodeProps(&reader) else { return }
-                update([
-                    "op": "update",
-                    "id": NSNumber(value: id),
-                    "props": props,
-                ])
+                metrics.measure(.props) {
+                    update([
+                        "op": "update",
+                        "id": NSNumber(value: id),
+                        "props": props,
+                    ])
+                }
             case 7:
                 guard let id = reader.u32(), let props = decodeProps(&reader) else { return }
-                updateProps(id: id, delta: props)
+                metrics.measure(.props) { updateProps(id: id, delta: props) }
             case 3:
                 guard let id = reader.u32(), let count = reader.u32() else { return }
                 var children: [NSNumber] = []
@@ -477,11 +487,13 @@ final class RustHost: NSObject {
                     guard let child = reader.u32() else { return }
                     children.append(NSNumber(value: child))
                 }
-                self.children([
-                    "op": "children",
-                    "id": NSNumber(value: id),
-                    "children": children,
-                ])
+                metrics.measure(.children) {
+                    self.children([
+                        "op": "children",
+                        "id": NSNumber(value: id),
+                        "children": children,
+                    ])
+                }
             case 4:
                 guard
                     let id = reader.u32(),
@@ -490,20 +502,22 @@ final class RustHost: NSObject {
                     let width = reader.f32(),
                     let height = reader.f32()
                 else { return }
-                layout([
-                    "op": "layout",
-                    "id": NSNumber(value: id),
-                    "x": NSNumber(value: x),
-                    "y": NSNumber(value: y),
-                    "width": NSNumber(value: width),
-                    "height": NSNumber(value: height),
-                ])
+                metrics.measure(.layout) {
+                    layout([
+                        "op": "layout",
+                        "id": NSNumber(value: id),
+                        "x": NSNumber(value: x),
+                        "y": NSNumber(value: y),
+                        "width": NSNumber(value: width),
+                        "height": NSNumber(value: height),
+                    ])
+                }
             case 5:
                 guard let id = reader.u32() else { return }
-                remove(["op": "remove", "id": NSNumber(value: id)])
+                metrics.measure(.remove) { remove(["op": "remove", "id": NSNumber(value: id)]) }
             case 6:
                 guard let id = reader.u32(), let text = reader.string() else { return }
-                applyText(id: id, text: text)
+                metrics.measure(.props) { applyText(id: id, text: text) }
             case 8:
                 guard
                     let module = reader.string(),
@@ -513,7 +527,9 @@ final class RustHost: NSObject {
                 else { return }
                 let object = try? JSONSerialization.jsonObject(with: data)
                 let payload = object as? [String: Any] ?? [:]
-                _ = nativeApis.invoke(module: module, method: method, args: payload)
+                metrics.measure(.native) {
+                    _ = nativeApis.invoke(module: module, method: method, args: payload)
+                }
             default:
                 return
             }
@@ -801,10 +817,12 @@ final class RustHost: NSObject {
         }
 
         if let map = view as? MKMapView, let node = tags[id] {
-            map.setNeedsLayout()
-            map.layoutIfNeeded()
-            if let props = node.mapProps {
-                applyMap(map, props: props)
+            metrics.measure(.map) {
+                map.setNeedsLayout()
+                map.layoutIfNeeded()
+                if let props = node.mapProps {
+                    applyMap(map, props: props)
+                }
             }
         }
     }
@@ -1195,10 +1213,12 @@ final class RustHost: NSObject {
             native.onEvent = { [weak self] kind, payload in
                 self?.event(id: node.id, kind: kind, payload: payload)
             }
-            native.configure(
-                name: props["native"] as? String ?? "",
-                props: props
-            )
+            metrics.measure(.native) {
+                native.configure(
+                    name: props["native"] as? String ?? "",
+                    props: props
+                )
+            }
         }
 
         if let pin = view.superview as? ViewAnnotationView {
@@ -1230,7 +1250,7 @@ final class RustHost: NSObject {
             // the first layout pass install it in the window before MapKit
             // initializes its Metal-backed map layer.
             if map.superview != nil {
-                applyMap(map, props: props)
+                metrics.measure(.map) { applyMap(map, props: props) }
             }
         }
 
