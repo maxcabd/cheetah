@@ -26,11 +26,14 @@ final class HostMetrics {
     func measure<T>(_ phase: Phase, _ work: () -> T) -> T {
         running.append((phase, DispatchTime.now().uptimeNanoseconds, 0))
         let result = work()
-        let total = DispatchTime.now().uptimeNanoseconds - running[running.count - 1].start
-        let inner = running.removeLast().inner
-        spent[phase.rawValue] += total - min(inner, total)
-        if !running.isEmpty {
-            running[running.count - 1].inner += total
+        // Gone if a frame began inside this one (a nested run loop): the
+        // numbers are off then, but nothing breaks.
+        guard let done = running.popLast() else { return result }
+        let now = DispatchTime.now().uptimeNanoseconds
+        let total = now - min(done.start, now)
+        spent[phase.rawValue] += total - min(done.inner, total)
+        if let outer = running.indices.last {
+            running[outer].inner += total
         }
         return result
     }
