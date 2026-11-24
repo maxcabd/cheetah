@@ -222,6 +222,13 @@ final class RustHost: NSObject {
         },
         presenter: { [weak self] in
             self?.container.window?.rootViewController
+        },
+        later: { [weak self] name, work in
+            if let self {
+                self.metrics.later(name, work)
+            } else {
+                work()
+            }
         }
     )
 
@@ -506,7 +513,7 @@ final class RustHost: NSObject {
                 else { return }
                 let object = try? JSONSerialization.jsonObject(with: data)
                 let payload = object as? [String: Any] ?? [:]
-                metrics.measure(.calls) {
+                metrics.measure(.calls, named: "call \(module).\(method)") {
                     _ = nativeApis.invoke(module: module, method: method, args: payload)
                 }
             default:
@@ -1181,7 +1188,7 @@ final class RustHost: NSObject {
             native.onEvent = { [weak self] kind, payload in
                 self?.event(id: node.id, kind: kind, payload: payload)
             }
-            metrics.measure(.modules) {
+            metrics.measure(.modules, named: "module \(props.string(.native) ?? "")") {
                 native.configure(
                     name: props.string(.native) ?? "",
                     props: props.dictionary

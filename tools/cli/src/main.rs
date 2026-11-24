@@ -355,9 +355,9 @@ fn metrics_table(data: &Value, age: u64) -> String {
         lines.push("On the phone: no reports (needs a dev build from this version on).".into());
         return lines.join("\n");
     }
-    const PARTS: [&str; 12] = [
+    const PARTS: [&str; 13] = [
         "apply", "commit", "create", "props", "children", "layout", "remove", "insert", "glass",
-        "modules", "calls", "map",
+        "modules", "calls", "map", "after",
     ];
     let mut header = format!("{:<24}{:>7}{:>8}{:>8} |", "on the phone, ms", "frames", "p50", "p95");
     for part in PARTS {
@@ -386,10 +386,32 @@ fn metrics_table(data: &Value, age: u64) -> String {
     lines.extend(on_device.iter().map(|(name, device)| device_row(name, device)));
     lines.push(device_row("all", &data["total"]["device"]));
     lines.push(
-        "p50, p95: main-thread time, apply + commit (UIKit's layout and drawing). \
-         The rest are means; create to map are parts of apply."
+        "p50, p95: main-thread time, apply + commit (UIKit's layout and drawing) + after \
+         (haptics). The rest are means; create to map are parts of apply."
             .into(),
     );
+    let mut named: Vec<(&String, &Value)> = data["named"]
+        .as_object()
+        .map(|entries| entries.iter().collect())
+        .unwrap_or_default();
+    if !named.is_empty() {
+        named.sort_by_key(|(_, work)| std::cmp::Reverse(count(&work["max_us"])));
+        lines.push(String::new());
+        lines.push(format!(
+            "{:<32}{:>7}{:>8}{:>8}  worst in",
+            "native work, ms per frame", "frames", "mean", "max"
+        ));
+        lines.extend(named.iter().take(20).map(|(name, work)| {
+            format!(
+                "{name:<32}{:>7}{:>8}{:>8}  {}",
+                count(&work["frames"]),
+                ms(&work["mean_us"]),
+                ms(&work["max_us"]),
+                work["worst"].as_str().unwrap_or(""),
+            )
+        }));
+        lines.push("late: ran after the frame before this one was on screen.".into());
+    }
     lines.join("\n")
 }
 

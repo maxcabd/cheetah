@@ -31,10 +31,24 @@ struct Trigger {
     device: VecDeque<DeviceFrame>,
 }
 
+/// Work a device timed by name: "call http.request", "module icon".
+#[derive(Default)]
+struct Named {
+    count: u64,
+    total_us: u64,
+    max_us: u64,
+    /// The cause of the frame it took longest in.
+    worst: String,
+}
+
+/// Names kept; a device can't grow this without end.
+const NAMES: usize = 100;
+
 /// Times a device reports for a frame, in the order they're listed there.
-const DEVICE_TIMES: [&str; 13] = [
+const DEVICE_TIMES: [&str; 14] = [
     "queue_us", "apply_us", "commit_us", "create_us", "props_us", "children_us", "layout_us",
     "remove_us", "insert_us", "glass_us", "modules_us", "calls_us", "map_us",
+    "after_us",
 ];
 
 #[derive(Clone, Debug)]
@@ -47,7 +61,7 @@ impl DeviceFrame {
 
     /// Main-thread time, from the first op to the commit.
     fn main_us(&self) -> u64 {
-        self.0[1] + self.0[2]
+        self.0[1] + self.0[2] + self.0[13]
     }
 }
 
@@ -79,6 +93,7 @@ pub struct Metrics {
     waited_us: u64,
     /// Frames sent and not yet reported applied: cause and size.
     sent: VecDeque<(String, usize)>,
+    named: BTreeMap<String, Named>,
 }
 
 /// `report` with all `waited_us` counted as measuring. Texts known up front
@@ -154,6 +169,7 @@ impl Metrics {
             measured_texts: 0,
             waited_us: 0,
             sent: VecDeque::new(),
+            named: BTreeMap::new(),
         }
     }
 
@@ -192,6 +208,19 @@ impl Metrics {
             return;
         };
         let (name, _) = self.sent.drain(..=at).next_back().expect("found above");
+        for (work, us) in message["named"].as_object().into_iter().flatten() {
+            if self.named.len() >= NAMES && !self.named.contains_key(work) {
+                continue;
+            }
+            let us = us.as_u64().unwrap_or(0);
+            let entry = self.named.entry(work.clone()).or_default();
+            entry.count += 1;
+            entry.total_us += us;
+            if entry.worst.is_empty() || us > entry.max_us {
+                entry.max_us = us;
+                entry.worst = name.clone();
+            }
+        }
         let trigger = self.triggers.entry(name).or_default();
         if trigger.device.len() == SAMPLES {
             trigger.device.pop_front();
@@ -237,6 +266,12 @@ impl Metrics {
             "budget_us": FRAME_BUDGET_US,
             "total": total,
             "triggers": triggers,
+            "named": self.named.iter().map(|(name, work)| (name.clone(), json!({
+                "frames": work.count,
+                "mean_us": work.total_us / work.count.max(1),
+                "max_us": work.max_us,
+                "worst": work.worst,
+            }))).collect::<serde_json::Map<String, Value>>(),
             "text_measuring": {
                 "round_trips": self.measures,
                 "texts": self.measured_texts,
@@ -329,7 +364,10 @@ mod tests {
         metrics.applied(&json!({"bytes": 300, "apply_us": 2_000, "commit_us": 3_000, "map_us": 500}));
         // Not one of the app's frames.
         metrics.applied(&json!({"bytes": 77, "apply_us": 99_000}));
-        metrics.applied(&json!({"bytes": 900, "apply_us": 40_000, "commit_us": 10_000}));
+        metrics.applied(&json!({
+            "bytes": 900, "apply_us": 40_000, "commit_us": 9_000, "after_us": 1_000,
+            "named": {"call http.request": 700, "late haptic impact": 300},
+        }));
         let summary = metrics.summary();
         let click = &summary["triggers"]["click place"]["device"];
         assert_eq!(click["main_us"]["max"], 5_000);
@@ -337,6 +375,10 @@ mod tests {
         assert_eq!(summary["triggers"]["native"]["device"]["main_us"]["max"], 50_000);
         assert!(summary["triggers"]["scroll"]["device"].is_null());
         assert_eq!(summary["total"]["device"]["frames"], 2);
+
+        let call = &summary["named"]["call http.request"];
+        assert_eq!(call["max_us"], 700);
+        assert_eq!(call["worst"], "native");
 
         // A new connection keeps what was measured, but not what it's owed.
         metrics.frame(sized("click place", 500));

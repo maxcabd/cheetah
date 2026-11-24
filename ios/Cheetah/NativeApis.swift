@@ -15,6 +15,8 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
 
     private let emit: Emit
     private let presenter: () -> UIViewController?
+    /// Runs named work put off until after the frame, timed.
+    private let later: (String, () -> Void) -> Void
     private var locationManager: CLLocationManager?
     private var locationRequested = false
     private var canGoBack = false
@@ -31,9 +33,14 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
     )
     private var linkObserver: NSObjectProtocol?
 
-    init(emit: @escaping Emit, presenter: @escaping () -> UIViewController?) {
+    init(
+        emit: @escaping Emit,
+        presenter: @escaping () -> UIViewController?,
+        later: @escaping (String, () -> Void) -> Void
+    ) {
         self.emit = emit
         self.presenter = presenter
+        self.later = later
         super.init()
         linkObserver = NotificationCenter.default.addObserver(
             forName: LinkInbox.notification,
@@ -134,10 +141,8 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
         case "heavy":
             impact(.heavy)
         case "selection":
-            after {
-                self.selectionHaptic.selectionChanged()
-                self.selectionHaptic.prepare()
-            }
+            after("selection") { self.selectionHaptic.selectionChanged() }
+            after("prepare") { self.selectionHaptic.prepare() }
         case "success":
             notice(.success)
         case "warning":
@@ -153,22 +158,20 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
     private func impact(_ style: UIImpactFeedbackGenerator.FeedbackStyle) {
         let generator = impactHaptics[style] ?? UIImpactFeedbackGenerator(style: style)
         impactHaptics[style] = generator
-        after {
-            generator.impactOccurred()
-            generator.prepare()
-        }
+        after("impact") { generator.impactOccurred() }
+        after("prepare") { generator.prepare() }
     }
 
     private func notice(_ type: UINotificationFeedbackGenerator.FeedbackType) {
-        after {
-            self.noticeHaptic.notificationOccurred(type)
-            self.noticeHaptic.prepare()
-        }
+        after("notice") { self.noticeHaptic.notificationOccurred(type) }
+        after("prepare") { self.noticeHaptic.prepare() }
     }
 
-    /// Once this frame is on screen: a haptic never holds it up.
-    private func after(_ work: @escaping () -> Void) {
-        DispatchQueue.main.async(execute: work)
+    /// After this frame's ops.
+    private func after(_ name: String, _ work: @escaping () -> Void) {
+        DispatchQueue.main.async { [later] in
+            later("haptic \(name)", work)
+        }
     }
 
     private func location(_ method: String) -> Bool {

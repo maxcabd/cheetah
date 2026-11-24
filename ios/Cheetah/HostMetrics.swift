@@ -22,9 +22,16 @@ final class HostMetrics {
     /// it went to phases inside it.
     private var running: [(phase: Phase, start: UInt64, inner: UInt64)] = []
     private var ops = 0
+    /// Time by name ("call http.request", "module icon"), within its phase.
+    private var named: [String: UInt64] = [:]
+    /// The same for work put off until after a frame's ops, and how much of
+    /// it ran before that frame's commit, which would otherwise count it.
+    private var putOff: [String: UInt64] = [:]
+    private var beforeCommit: UInt64 = 0
+    private var committing = false
 
     @inline(__always)
-    func measure<T>(_ phase: Phase, _ work: () -> T) -> T {
+    func measure<T>(_ phase: Phase, named name: String? = nil, _ work: () -> T) -> T {
         running.append((phase, DispatchTime.now().uptimeNanoseconds, 0))
         let result = work()
         // Gone if a frame began inside this one (a nested run loop): the
@@ -32,11 +39,27 @@ final class HostMetrics {
         guard let done = running.popLast() else { return result }
         let now = DispatchTime.now().uptimeNanoseconds
         let total = now - min(done.start, now)
-        spent[phase.rawValue] += total - min(done.inner, total)
+        let own = total - min(done.inner, total)
+        spent[phase.rawValue] += own
+        if let name {
+            named[name, default: 0] += own
+        }
         if let outer = running.indices.last {
             running[outer].inner += total
         }
         return result
+    }
+
+    /// Work put off until after the ops (haptics). What runs once the frame
+    /// is committed goes in the next frame's report.
+    func later(_ name: String, _ work: () -> Void) {
+        let start = DispatchTime.now().uptimeNanoseconds
+        work()
+        let spent = DispatchTime.now().uptimeNanoseconds - start
+        putOff[committing ? name : "late \(name)", default: 0] += spent
+        if committing {
+            beforeCommit += spent
+        }
     }
 
     func countOp() {
@@ -51,12 +74,18 @@ final class HostMetrics {
         }
         running.removeAll(keepingCapacity: true)
         ops = 0
+        named.removeAll(keepingCapacity: true)
+        beforeCommit = 0
+        committing = false
 
         let start = DispatchTime.now().uptimeNanoseconds
         let interval = Self.signposter.beginInterval("apply")
         apply()
         Self.signposter.endInterval("apply", interval)
         let applied = DispatchTime.now().uptimeNanoseconds
+
+        committing = true
+        let names = named
 
         var report: [String: Any] = [
             "bytes": bytes,
@@ -76,9 +105,19 @@ final class HostMetrics {
             CFRunLoopActivity.beforeWaiting.rawValue | CFRunLoopActivity.exit.rawValue,
             false,
             2_000_001
-        ) { _, _ in
+        ) { [weak self] _, _ in
             Self.signposter.endInterval("commit", commit)
-            report["commit_us"] = Self.micros(DispatchTime.now().uptimeNanoseconds - applied)
+            let total = DispatchTime.now().uptimeNanoseconds - applied
+            let after = min(self?.beforeCommit ?? 0, total)
+            report["commit_us"] = Self.micros(total - after)
+            report["after_us"] = Self.micros(after)
+            if let self {
+                report["named"] = names.merging(self.putOff, uniquingKeysWith: +)
+                    .mapValues(Self.micros)
+                self.putOff.removeAll(keepingCapacity: true)
+                self.beforeCommit = 0
+                self.committing = false
+            }
             done(report)
         }
         CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
