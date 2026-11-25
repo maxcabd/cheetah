@@ -179,20 +179,15 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
             return false
         }
 
-        let manager = locationManager ?? CLLocationManager()
-        locationManager = manager
-        manager.delegate = self
         locationRequested = true
-
-        switch manager.authorizationStatus {
-        case .notDetermined:
-            manager.requestWhenInUseAuthorization()
-        case .authorizedAlways, .authorizedWhenInUse:
-            manager.requestLocation()
-        case .denied, .restricted:
-            emitLocationError("permission_denied")
-        @unknown default:
-            emitLocationError("unavailable")
+        if let locationManager {
+            locate(locationManager)
+        } else {
+            // A new manager says what's allowed through its delegate; asking
+            // it now would make the main thread wait for the answer.
+            let manager = CLLocationManager()
+            locationManager = manager
+            manager.delegate = self
         }
         return true
     }
@@ -201,13 +196,19 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
         guard locationRequested else {
             return
         }
+        locate(manager)
+    }
+
+    /// Find the location, or ask to be allowed to; the delegate hears the
+    /// answer.
+    private func locate(_ manager: CLLocationManager) {
         switch manager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
             manager.requestLocation()
         case .denied, .restricted:
             emitLocationError("permission_denied")
         case .notDetermined:
-            break
+            manager.requestWhenInUseAuthorization()
         @unknown default:
             emitLocationError("unavailable")
         }

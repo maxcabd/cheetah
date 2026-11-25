@@ -50,6 +50,13 @@ final class CheetahPerformanceTests: XCTestCase {
     override func record(_ issue: XCTIssue) {
         let test = name.filter { $0.isLetter || $0.isNumber }
         print("CheetahPerf issue in \(test): \(issue.compactDescription)")
+        if let detail = issue.detailedDescription {
+            print("CheetahPerf detail: \(detail.prefix(3000))")
+        }
+        for frame in issue.sourceCodeContext.callStack.prefix(40) {
+            let symbol = try? frame.symbolInfo()
+            print("CheetahPerf frame: \(symbol?.symbolName ?? String(frame.address, radix: 16))")
+        }
         try? XCUIScreen.main.screenshot().pngRepresentation
             .write(to: URL(fileURLWithPath: "/tmp/cheetah-failed-\(test).png"))
         super.record(issue)
