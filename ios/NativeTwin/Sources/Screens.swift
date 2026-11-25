@@ -90,7 +90,9 @@ final class MapScreen: UIViewController {
                 return pin
             }
         )
-        if let first = places.first {
+        if places.count > 1 {
+            overview()
+        } else if let first = places.first {
             focus(first)
         }
         sheet.showsResults = true
@@ -105,10 +107,22 @@ final class MapScreen: UIViewController {
     private func focus(_ place: Place) {
         map.setRegion(
             MKCoordinateRegion(
-                center: CLLocationCoordinate2D(latitude: place.latitude, longitude: place.longitude),
-                span: MKCoordinateSpan(latitudeDelta: 0.004, longitudeDelta: 0.004)
+                // As Cheetah's: the pin in the middle of the map above the card.
+                center: CLLocationCoordinate2D(latitude: place.latitude - 0.00119, longitude: place.longitude),
+                span: MKCoordinateSpan(latitudeDelta: 0.00524, longitudeDelta: 0.00305)
             ),
             animated: true
+        )
+    }
+
+    /// All the sample places, as Cheetah's map fits them.
+    private func overview() {
+        map.setRegion(
+            MKCoordinateRegion(
+                center: CLLocationCoordinate2D(latitude: 37.73145, longitude: -122.4478),
+                span: MKCoordinateSpan(latitudeDelta: 0.17986, longitudeDelta: 0.10466)
+            ),
+            animated: false
         )
     }
 
