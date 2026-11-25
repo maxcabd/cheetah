@@ -36,10 +36,23 @@ final class MapScreen: UIViewController {
 
         sheet.onSuggestion = { [weak self] _ in self?.show(Array(Place.samples.prefix(1))) }
         sheet.onClear = { [weak self] in self?.clear() }
+        if ProcessInfo.processInfo.arguments.contains("--busy") {
+            stayBusy()
+        }
         if ProcessInfo.processInfo.arguments.contains("--suggestions") {
             clear()
         } else {
             show(Place.samples)
+        }
+    }
+
+    /// An animation that never ends, as some apps have (for `testNeverIdle`).
+    private func stayBusy() {
+        let dot = UIView(frame: CGRect(x: 0, y: 0, width: 2, height: 2))
+        dot.backgroundColor = .white
+        view.addSubview(dot)
+        UIView.animate(withDuration: 1, delay: 0, options: [.repeat, .autoreverse]) {
+            dot.transform = CGAffineTransform(translationX: 20, y: 0)
         }
     }
 

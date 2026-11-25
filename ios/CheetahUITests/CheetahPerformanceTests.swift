@@ -30,8 +30,55 @@ final class CheetahPerformanceTests: XCTestCase {
         return options
     }
 
+    private static var waitsOff = false
+
+    override class func setUp() {
+        super.setUp()
+        waitsOff = Quiescence.disable()
+    }
+
+    override class func tearDown() {
+        Quiescence.restore()
+        super.tearDown()
+    }
+
     override func setUpWithError() throws {
         continueAfterFailure = false
+    }
+
+    /// What was on screen when a test failed: an alert, the wrong screen.
+    override func record(_ issue: XCTIssue) {
+        let test = name.filter { $0.isLetter || $0.isNumber }
+        try? XCUIScreen.main.screenshot().pngRepresentation
+            .write(to: URL(fileURLWithPath: "/tmp/cheetah-failed-\(test).png"))
+        super.record(issue)
+    }
+
+    /// `waitForExistence` looks about once a second, too coarse for timing.
+    private func appears(_ element: XCUIElement, within seconds: TimeInterval) -> Bool {
+        let end = Date().addingTimeInterval(seconds)
+        while Date() < end {
+            if element.exists { return true }
+            Thread.sleep(forTimeInterval: 0.02)
+        }
+        return false
+    }
+
+    /// An app that never goes idle can be measured like any other.
+    func testNeverIdle() throws {
+        XCTAssertTrue(Self.waitsOff, "XCTest's waiting should be off")
+        let app = try twin(["--suggestions", "--busy"])
+        app.launch()
+        let suggestion = app.descendants(matching: .any)["Cafes within 12 min walk"].firstMatch
+        XCTAssertTrue(appears(suggestion, within: 20), "suggestions should be visible")
+        sleep(2)
+        let show = spot(center(suggestion), in: app)
+        let start = Date()
+        show.tap()
+        let took = Date().timeIntervalSince(start)
+        XCTAssertTrue(appears(app.staticTexts["Java Haven"], within: 10), "the tap should work")
+        XCTAssertLessThan(took, 5, "a tap shouldn't wait for the app to go idle")
+        print("CheetahPerf never-idle tap took \(took) s")
     }
 
     override func tearDown() {
@@ -139,7 +186,7 @@ final class CheetahPerformanceTests: XCTestCase {
             app.terminate()
             startMeasuring()
             app.launch()
-            XCTAssertTrue(app.staticTexts["Java Haven"].waitForExistence(timeout: 20), "a card should appear")
+            XCTAssertTrue(appears(app.staticTexts["Java Haven"], within: 20), "a card should appear")
             stopMeasuring()
         }
     }

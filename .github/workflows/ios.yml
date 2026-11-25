@@ -247,12 +247,20 @@ jobs:
             -only-testing:CheetahUITests/CheetahPerformanceTests \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO > /tmp/xcodebuild-perf.log 2>&1 || status=$?
-          grep -E "Test Case.*(passed|failed|skipped)|swift:[0-9]+: error|error: " /tmp/xcodebuild-perf.log | head -60 || true
+          grep -E "Test Case.*(passed|failed|skipped)|swift:[0-9]+: error|error: |CheetahPerf never" /tmp/xcodebuild-perf.log | head -60 || true
           {
             echo "## Cheetah and UIKit"
             python3 tools/profile/ios_compare.py /tmp/xcodebuild-perf.log
           } | tee -a "$GITHUB_STEP_SUMMARY"
           exit $status
+
+      - name: Upload screenshots of failed measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-measurements
+          path: /tmp/cheetah-failed-*.png
+          if-no-files-found: ignore
 
       - name: Publish performance report
         if: success()
