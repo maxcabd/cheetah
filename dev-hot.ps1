@@ -68,6 +68,13 @@ function Start-QuickTunnel([int]$Port) {
 
 $tunnels = @()
 if ($Tunnel) {
+    # Cloudflare deletes a quick tunnel while the PC sleeps, and its address
+    # with it: stay awake, screen included, until this script ends. (Closing
+    # the lid still sleeps.)
+    $power = Add-Type -PassThru -Namespace Cheetah -Name Power -MemberDefinition `
+        '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint flags);'
+    # ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED
+    [void]$power::SetThreadExecutionState([uint32]2147483651)
     if (-not (Get-Command cloudflared -ErrorAction SilentlyContinue)) {
         Write-Error "cloudflared not found. Install it with: scoop install cloudflared"
     }
