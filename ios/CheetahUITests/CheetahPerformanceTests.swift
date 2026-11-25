@@ -230,6 +230,12 @@ final class CheetahPerformanceTests: XCTestCase {
         // Until the card's name looks as it does now.
         let frame = title.frame
         let shown = look(frame)
+        if profile({
+            app.terminate()
+            Thread.sleep(forTimeInterval: 1)
+            app.launch()
+            Thread.sleep(forTimeInterval: 6)
+        }) { return }
         measure(metrics: [XCTClockMetric()], options: options) {
             app.terminate()
             Thread.sleep(forTimeInterval: 1)
@@ -408,6 +414,39 @@ final class CheetahPerformanceTests: XCTestCase {
             }
             stopMeasuring()
             stillInFront(app)
+        }
+    }
+
+    // MARK: The map after a swipe, for looking at
+
+    func testCheetahFilm() throws {
+        try film(cheetah())
+    }
+
+    func testNativeFilm() throws {
+        try film(try twin())
+    }
+
+    private func film(_ app: XCUIApplication) throws {
+        guard ProcessInfo.processInfo.environment["FILM"] == "1" else {
+            throw XCTSkip("only with TEST_RUNNER_FILM=1")
+        }
+        app.launch()
+        let card = app.descendants(matching: .any)["card-java"].firstMatch
+        XCTAssertTrue(card.waitForExistence(timeout: 20), "result cards should be visible")
+        sleep(6)
+        let width = springboard.frame.width
+        let y = center(card, 0.5, 0.68).y
+        let right = spot(CGPoint(x: width * 0.85, y: y), in: app)
+        let left = spot(CGPoint(x: width * 0.15, y: y), in: app)
+        right.press(forDuration: 0.01, thenDragTo: left, withVelocity: .fast, thenHoldForDuration: 0)
+        let start = Date()
+        for moment in [0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0, 5.0, 7.0, 10.0] {
+            let wait = moment - Date().timeIntervalSince(start)
+            if wait > 0 {
+                Thread.sleep(forTimeInterval: wait)
+            }
+            photograph("film-\(Int(moment * 10))")
         }
     }
 
