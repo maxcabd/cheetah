@@ -4,9 +4,11 @@ xcodebuild test log.
     python3 tools/profile/ios_compare.py /tmp/xcodebuild-perf.log
 
 Prints a Markdown table. Gaps are to UIKit; `noise` is the largest relative
-standard deviation, and a gap smaller than it says nothing.
+standard deviation, and a gap smaller than it says nothing. With several logs,
+medians over them.
 """
 import re
+import statistics
 import sys
 
 LINE = re.compile(
@@ -56,8 +58,26 @@ def table(found):
     return "\n".join(lines)
 
 
+def combine(runs):
+    """The median of each number over several runs; its noise is half the
+    spread between them."""
+    values = {}
+    for found in runs:
+        for key, row in found.items():
+            for side, (value, _) in row.items():
+                values.setdefault(key, {}).setdefault(side, []).append(value)
+    combined = {}
+    for key, row in values.items():
+        for side, numbers in row.items():
+            middle = statistics.median(numbers)
+            noise = (max(numbers) - min(numbers)) / 2 / middle * 100
+            combined.setdefault(key, {})[side] = (middle, noise)
+    return combined
+
+
 def main() -> int:
-    found = read(sys.argv[1])
+    runs = [read(path) for path in sys.argv[1:]]
+    found = runs[0] if len(runs) == 1 else combine(runs)
     if not found:
         print("No measurements in the log.")
         return 1

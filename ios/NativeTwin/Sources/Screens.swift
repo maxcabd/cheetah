@@ -15,7 +15,12 @@ final class MapScreen: UIViewController {
         map.frame = view.bounds
         map.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         map.accessibilityIdentifier = "twin-map"
-        map.preferredConfiguration = MKStandardMapConfiguration(emphasisStyle: .muted)
+        // As Cheetah's map: muted, dark, no places or buildings, the user's dot.
+        map.mapType = .mutedStandard
+        map.pointOfInterestFilter = .excludingAll
+        map.showsBuildings = false
+        map.showsUserLocation = true
+        map.overrideUserInterfaceStyle = .dark
         map.region = MKCoordinateRegion(
             center: CLLocationCoordinate2D(latitude: 37.7749, longitude: -122.4194),
             span: MKCoordinateSpan(latitudeDelta: 0.025, longitudeDelta: 0.025)

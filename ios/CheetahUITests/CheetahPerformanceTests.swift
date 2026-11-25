@@ -53,13 +53,15 @@ final class CheetahPerformanceTests: XCTestCase {
         if let detail = issue.detailedDescription {
             print("CheetahPerf detail: \(detail.prefix(3000))")
         }
-        for frame in issue.sourceCodeContext.callStack.prefix(40) {
-            let symbol = try? frame.symbolInfo()
-            print("CheetahPerf frame: \(symbol?.symbolName ?? String(frame.address, radix: 16))")
-        }
-        try? XCUIScreen.main.screenshot().pngRepresentation
-            .write(to: URL(fileURLWithPath: "/tmp/cheetah-failed-\(test).png"))
+        photograph("failed")
         super.record(issue)
+    }
+
+    /// To see that every version shows the same thing.
+    private func photograph(_ what: String) {
+        let test = name.filter { $0.isLetter || $0.isNumber }
+        try? XCUIScreen.main.screenshot().pngRepresentation
+            .write(to: URL(fileURLWithPath: "/tmp/cheetah-\(what)-\(test).png"))
     }
 
     /// `waitForExistence` looks about once a second, too coarse for timing.
@@ -102,7 +104,7 @@ final class CheetahPerformanceTests: XCTestCase {
 
     private func same(_ a: [UInt8], _ b: [UInt8]) -> Bool {
         let difference = zip(a, b).reduce(0) { $0 + abs(Int($1.0) - Int($1.1)) }
-        return difference / max(a.count, 1) < 10
+        return difference / max(a.count, 1) < 6
     }
 
     /// An app that never goes idle can be measured like any other.
@@ -377,6 +379,21 @@ final class CheetahPerformanceTests: XCTestCase {
         let y = center(card, 0.5, 0.68).y
         let right = spot(CGPoint(x: width * 0.85, y: y), in: app)
         let left = spot(CGPoint(x: width * 0.15, y: y), in: app)
+        let next = { right.press(forDuration: 0.01, thenDragTo: left, withVelocity: .fast, thenHoldForDuration: 0) }
+        let previous = { left.press(forDuration: 0.01, thenDragTo: right, withVelocity: .fast, thenHoldForDuration: 0) }
+
+        // The swipes have to turn the page, or their cost means nothing.
+        let frame = card.frame
+        let text = CGRect(x: frame.minX + 20, y: y - 20, width: frame.width * 0.5, height: 50)
+        let first = look(text)
+        next()
+        Thread.sleep(forTimeInterval: settle)
+        photograph("second-card")
+        XCTAssertFalse(same(look(text), first), "a swipe should show the next card")
+        previous()
+        Thread.sleep(forTimeInterval: settle)
+        XCTAssertTrue(same(look(text), first), "a swipe back should show the first card")
+
         let metrics: [XCTMetric] = [
             XCTOSSignpostMetric.scrollingAndDecelerationMetric,
             XCTCPUMetric(application: app),
@@ -384,10 +401,13 @@ final class CheetahPerformanceTests: XCTestCase {
         measure(metrics: metrics, options: options) {
             startMeasuring()
             for _ in 0..<3 {
-                right.press(forDuration: 0.01, thenDragTo: left, withVelocity: .fast, thenHoldForDuration: 0)
-                left.press(forDuration: 0.01, thenDragTo: right, withVelocity: .fast, thenHoldForDuration: 0)
+                next()
+                Thread.sleep(forTimeInterval: 1.2)
+                previous()
+                Thread.sleep(forTimeInterval: 1.2)
             }
             stopMeasuring()
+            stillInFront(app)
         }
     }
 
@@ -413,6 +433,9 @@ final class CheetahPerformanceTests: XCTestCase {
         app.launch()
         XCTAssertTrue(app.staticTexts["Java Haven"].waitForExistence(timeout: 30), "a card should appear")
         sleep(3)
+        // The map's tiles come over the network.
+        sleep(10)
+        photograph("idle")
         let metrics: [XCTMetric] = [XCTCPUMetric(application: app), XCTMemoryMetric(application: app)]
         measure(metrics: metrics, options: options) {
             startMeasuring()
