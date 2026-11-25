@@ -49,6 +49,7 @@ final class CheetahPerformanceTests: XCTestCase {
     /// What was on screen when a test failed: an alert, the wrong screen.
     override func record(_ issue: XCTIssue) {
         let test = name.filter { $0.isLetter || $0.isNumber }
+        print("CheetahPerf issue in \(test): \(issue.compactDescription)")
         try? XCUIScreen.main.screenshot().pngRepresentation
             .write(to: URL(fileURLWithPath: "/tmp/cheetah-failed-\(test).png"))
         super.record(issue)
@@ -62,6 +63,39 @@ final class CheetahPerformanceTests: XCTestCase {
             Thread.sleep(forTimeInterval: 0.02)
         }
         return false
+    }
+
+    /// Something over the app (a system banner a tap landed on) spoils the
+    /// numbers: fail, and the run tries again.
+    private func stillInFront(_ app: XCUIApplication) {
+        XCTAssertEqual(app.state, .runningForeground, "the app should still be in front")
+    }
+
+    /// A part of the screen as a few gray levels. Taken from outside the app,
+    /// which does nothing for it.
+    private func look(_ frame: CGRect) -> [UInt8] {
+        let image = XCUIScreen.main.screenshot().image
+        let width = 48, height = 16
+        var pixels = [UInt8](repeating: 0, count: width * height)
+        let area = CGRect(
+            x: frame.minX * image.scale, y: frame.minY * image.scale,
+            width: frame.width * image.scale, height: frame.height * image.scale
+        )
+        guard let part = image.cgImage?.cropping(to: area) else { return pixels }
+        pixels.withUnsafeMutableBytes { buffer in
+            let context = CGContext(
+                data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
+                bitmapInfo: CGImageAlphaInfo.none.rawValue
+            )
+            context?.draw(part, in: CGRect(x: 0, y: 0, width: width, height: height))
+        }
+        return pixels
+    }
+
+    private func same(_ a: [UInt8], _ b: [UInt8]) -> Bool {
+        let difference = zip(a, b).reduce(0) { $0 + abs(Int($1.0) - Int($1.1)) }
+        return difference / max(a.count, 1) < 10
     }
 
     /// An app that never goes idle can be measured like any other.
@@ -181,13 +215,25 @@ final class CheetahPerformanceTests: XCTestCase {
     private func startup(_ app: XCUIApplication) {
         // The first launch after an install is slower for both: not counted.
         app.launch()
-        XCTAssertTrue(app.staticTexts["Java Haven"].waitForExistence(timeout: 30), "a card should appear")
+        let title = app.staticTexts["Java Haven"].firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 30), "a card should appear")
+        sleep(3)
+        // Until the card's name looks as it does now.
+        let frame = title.frame
+        let shown = look(frame)
         measure(metrics: [XCTClockMetric()], options: options) {
             app.terminate()
+            Thread.sleep(forTimeInterval: 1)
+            XCTAssertFalse(same(look(frame), shown), "the card should be gone")
             startMeasuring()
             app.launch()
-            XCTAssertTrue(appears(app.staticTexts["Java Haven"], within: 20), "a card should appear")
+            let end = Date().addingTimeInterval(20)
+            var appeared = false
+            while !appeared, Date() < end {
+                appeared = same(look(frame), shown)
+            }
             stopMeasuring()
+            XCTAssertTrue(appeared, "a card should appear")
         }
     }
 
@@ -237,6 +283,7 @@ final class CheetahPerformanceTests: XCTestCase {
             show.tap()
             Thread.sleep(forTimeInterval: settle)
             stopMeasuring()
+            stillInFront(app)
             reset.tap()
             Thread.sleep(forTimeInterval: settle)
         }
@@ -287,6 +334,7 @@ final class CheetahPerformanceTests: XCTestCase {
             open.tap()
             Thread.sleep(forTimeInterval: settle)
             stopMeasuring()
+            stillInFront(app)
             back.tap()
             Thread.sleep(forTimeInterval: settle)
         }

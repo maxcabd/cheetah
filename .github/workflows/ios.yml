@@ -245,9 +245,10 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.device }}" \
             -derivedDataPath build/perf \
             -only-testing:CheetahUITests/CheetahPerformanceTests \
+            -retry-tests-on-failure -test-iterations 2 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO > /tmp/xcodebuild-perf.log 2>&1 || status=$?
-          grep -E "Test Case.*(passed|failed|skipped)|swift:[0-9]+: error|error: |CheetahPerf never" /tmp/xcodebuild-perf.log | head -60 || true
+          grep -E "Test Case.*(passed|failed|skipped)|swift:[0-9]+: error|error: |CheetahPerf (never|issue)" /tmp/xcodebuild-perf.log | head -90 || true
           {
             echo "## Cheetah and UIKit"
             python3 tools/profile/ios_compare.py /tmp/xcodebuild-perf.log
