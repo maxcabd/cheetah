@@ -35,6 +35,7 @@ impl NightshadeApp {
                     "safe_top": self.host.safe_top.max(20.0),
                 },
                 "carousel": carousel,
+                "drawer": self.drawer_model(context),
                 "pages": self.pages_model(context),
                 "sheet": self.sheet_model(context),
             }),

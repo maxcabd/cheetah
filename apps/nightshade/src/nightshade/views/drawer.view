@@ -1,0 +1,18 @@
+# The side drawer, under the map screen, uncovered as the menu button
+# slides the map aside (components/drawer.rs). Its rows close it and open
+# their page over the map.
+component Drawer
+  column absolute=true top=0 left=0 width=drawer.width height=-1 pad_h=16 gap=4
+    column width=-1 height=drawer.safe_top
+    text "Nightshade" size=28 font="brice-bold" color=TEXT pad_h=12 lines=1 height=48
+    column width=-1 height=12
+    use DrawerRow key="drawer:saved" icon="bookmark" label="Saved" detail=drawer.saved_detail
+    use DrawerRow key="drawer:settings" icon="gearshape" label="Settings" detail=""
+
+# One row: icon, label, and a count or such at the end.
+component DrawerRow
+  row key=key pressable=true width=-1 height=52 pad_h=12 gap=14 radius=16 align_items="center" label=label
+    use Icon name=icon size=19 color="#ffffff"
+    text label size=17 font="satoshi-bold" color="#ffffff" weight=1 lines=1 height=22
+    if detail
+      text detail size=15 font="satoshi-medium" color=MUTED lines=1 height=20

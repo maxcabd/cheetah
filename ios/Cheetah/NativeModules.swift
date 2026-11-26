@@ -662,6 +662,9 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, CheetahPre
     /// its look rarely, and setting a look again can lay the sheet out again.
     private var appliedRaw: String?
     private var appliedStyleKey: String?
+    /// `hidden` in native_props: the sheet slides away (a side drawer is
+    /// open) and comes back when it's false, its contents kept.
+    private var hidden = false
 
     var nativeView: UIView {
         placeholder
@@ -686,6 +689,16 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, CheetahPre
             sheetHeight = CGFloat(height.doubleValue)
         }
         readDetents()
+        let hide = style["hidden"] as? Bool ?? false
+        if hide != hidden {
+            hidden = hide
+            if hide, let controller {
+                self.controller = nil
+                controller.dismiss(animated: true)
+                return
+            }
+            // Shown again: the host presents it (`presentIfNeeded`).
+        }
         if let controller {
             applyStyle(controller)
             if let sheet = controller.sheetPresentationController {
@@ -874,7 +887,7 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, CheetahPre
     }
 
     func presentIfNeeded(owner: NativeModuleHostView) {
-        guard controller == nil else {
+        guard controller == nil, !hidden else {
             return
         }
         // The sheet's own view isn't on screen until it is presented, so

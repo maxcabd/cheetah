@@ -1506,14 +1506,13 @@ fn page_keys(app: &NightshadeApp) -> Vec<String> {
 #[test]
 fn saved_places_are_listed_and_open_over_the_list() {
     let mut app = NightshadeApp::new(true);
-    assert!(find(&render(&app), "sheet:saved").is_none(), "nothing saved: no way in");
     click(&mut app, "card:bookmark:java");
     click(&mut app, "card:bookmark:pizza");
 
     // After clearing, Java Haven isn't in any results, and is still listed.
     click(&mut app, "search:clear");
-    assert!(find(&render(&app), "sheet:saved").is_some());
-    click(&mut app, "sheet:saved");
+    click(&mut app, "drawer:open");
+    click(&mut app, "drawer:saved");
     let screen = render(&app);
     let rows: Vec<_> = ["saved:open:pizza", "saved:open:java"]
         .iter()
@@ -1565,7 +1564,8 @@ fn saved_places_survive_a_relaunch_without_their_search() {
 
     let mut app = NightshadeApp::new(false).with_state_file(&file);
     assert!(!app.has_results());
-    click(&mut app, "sheet:saved");
+    click(&mut app, "drawer:open");
+    click(&mut app, "drawer:saved");
     click(&mut app, "saved:open:sushi");
     assert!(format!("{:?}", render(&app)).contains("Sushi Zen"));
     let _ = std::fs::remove_file(&file);
@@ -1679,4 +1679,107 @@ fn in_ottawa_there_is_no_notice() {
     let body = serde_json::json!({"cards": [{"place_id": "s1", "name": "Sushi", "lat": 45.42, "lng": -75.69}]});
     http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}));
     assert_eq!(app.response().unwrap().notice, None);
+}
+
+fn timer(app: &mut NightshadeApp, name: &str) {
+    app.update(Event { id: 0, key: None, kind: "timer".into(), payload: name.into() });
+}
+
+fn sheet_props(screen: &crate::element::Element) -> String {
+    find(screen, "search-panel").and_then(|sheet| sheet.props.native_props.clone()).unwrap_or_default()
+}
+
+#[test]
+fn the_menu_slides_the_map_aside_to_show_the_drawer() {
+    let mut app = NightshadeApp::new(true);
+    let screen = render(&app);
+    assert!(find(&screen, "drawer:open").is_some(), "the menu button");
+    assert!(find(&screen, "drawer:saved").is_none(), "no drawer while closed");
+    // Closed, the map screen is as it always was: not moved, not clipped.
+    let map_screen = find(&screen, "screen").unwrap();
+    assert_eq!(map_screen.props.translate_x.unwrap_or(0.0), 0.0);
+    assert_eq!(map_screen.props.radius.unwrap_or(0.0), 0.0);
+    assert!(!map_screen.props.clip.unwrap_or(false));
+    assert!(sheet_props(&screen).contains(r#""hidden":false"#));
+
+    click(&mut app, "drawer:open");
+    let screen = render(&app);
+    let map_screen = find(&screen, "screen").unwrap();
+    assert!((map_screen.props.translate_x.unwrap() - 393.0 * 0.8).abs() < 0.5, "slid aside");
+    assert!(map_screen.props.radius.unwrap() > 0.0 && map_screen.props.clip == Some(true), "rounded");
+    assert!(find(&screen, "drawer:saved").is_some() && find(&screen, "drawer:settings").is_some());
+    assert!(find(&screen, "drawer:close").is_some(), "the slid map closes it");
+    assert!(sheet_props(&screen).contains(r#""hidden":true"#), "the sheet slides away");
+
+    // A swipe right does nothing; a swipe left, or a tap, closes it.
+    let swipe = |app: &mut NightshadeApp, direction: &str| {
+        app.update(Event {
+            id: 0,
+            key: Some("drawer:close".into()),
+            kind: "gesture".into(),
+            payload: format!(r#"{{"type":"swipe","state":"ended","direction":"{direction}"}}"#),
+        });
+    };
+    swipe(&mut app, "right");
+    assert!(app.drawer_open);
+    swipe(&mut app, "left");
+    assert!(!app.drawer_open);
+    let screen = render(&app);
+    let map_screen = find(&screen, "screen").unwrap();
+    assert_eq!(map_screen.props.translate_x.unwrap_or(0.0), 0.0, "sliding back");
+    assert!(map_screen.props.clip == Some(true), "still rounded while it slides");
+    assert!(sheet_props(&screen).contains(r#""hidden":false"#), "the sheet comes back");
+
+    timer(&mut app, "drawer");
+    let screen = render(&app);
+    let map_screen = find(&screen, "screen").unwrap();
+    assert!(!map_screen.props.clip.unwrap_or(false) && map_screen.props.radius.unwrap_or(0.0) == 0.0, "square again");
+    assert!(find(&screen, "drawer:saved").is_none());
+
+    click(&mut app, "drawer:open");
+    click(&mut app, "drawer:close");
+    assert!(!app.drawer_open, "a tap closes it too");
+}
+
+#[test]
+fn opening_the_drawer_takes_the_keyboard_and_sheet_down() {
+    let mut app = NightshadeApp::new(false);
+    click(&mut app, "sheet:toggle");
+    assert!(app.expanded);
+    let mount = app.field_mount;
+    click(&mut app, "drawer:open");
+    assert!(!app.expanded);
+    assert_eq!(app.field_mount, mount + 1);
+}
+
+#[test]
+fn settings_show_location_coverage_and_version() {
+    let mut app = NightshadeApp::new(false);
+    click(&mut app, "drawer:open");
+    click(&mut app, "drawer:settings");
+    assert!(!app.drawer_open, "a row closes the drawer");
+    let screen = render(&app);
+    assert!(format!("{screen:?}").contains("Sample places"), "the sample backend");
+    assert_eq!(
+        find(&screen, "settings:version").unwrap().props.text.as_deref(),
+        Some("Nightshade 1.0.0 (1)")
+    );
+    assert!(find(&screen, "settings:location").is_none(), "nothing to turn on");
+
+    native(
+        &mut app,
+        serde_json::json!({"module": "location", "method": "result", "ok": false, "error": "permission_denied"}),
+    );
+    let screen = render(&app);
+    assert_eq!(
+        find(&screen, "settings:location-status").unwrap().props.text.as_deref(),
+        Some("Off")
+    );
+    app.take_native_calls();
+    click(&mut app, "settings:location");
+    assert!(app.take_native_calls().iter().any(|call| call.args.contains("app-settings:")));
+
+    let mut remote = remote_app();
+    remote.router.push("/settings", "push", None);
+    assert!(format!("{:?}", render(&remote)).contains("Ottawa, for now"));
 }

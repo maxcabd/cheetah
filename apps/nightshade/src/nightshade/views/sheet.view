@@ -7,7 +7,7 @@
 # ours), and corner radius. The contents animate with the sheet.
 
 component Sheet
-  sheet key="search-panel" absolute=true bottom=0 left=0 width=-1 height=sheet.height radius=54 clip=true bg=sheet.glass ? CLEAR : SHEET_BG native_props="{{\"background\":\"#171717\",\"grabber\":false,\"cornerRadius\":54,\"keyboardView\":\"cheetah-search-bar\",\"keyboardGap\":12,\"detents\":[{{\"id\":\"rest\",\"height\":{sheet.rest_height}}},{{\"id\":\"expanded\",\"height\":{sheet.expanded_height}}}],\"selected\":\"{sheet.detent}\"}}"
+  sheet key="search-panel" absolute=true bottom=0 left=0 width=-1 height=sheet.height radius=54 clip=true bg=sheet.glass ? CLEAR : SHEET_BG native_props="{{\"background\":\"#171717\",\"grabber\":false,\"cornerRadius\":54,\"keyboardView\":\"cheetah-search-bar\",\"keyboardGap\":12,\"detents\":[{{\"id\":\"rest\",\"height\":{sheet.rest_height}}},{{\"id\":\"expanded\",\"height\":{sheet.expanded_height}}}],\"selected\":\"{sheet.detent}\",\"hidden\":{sheet.hidden}}}"
     column width=-1 height=sheet.height animate=true transition_ms=380 spring=true
       row key="sheet:toggle" pressable=true width=-1 height=24 .center
         row width=30 height=6 bg="#404040" radius=3
@@ -19,7 +19,7 @@ component Sheet
         if sheet.body == "searching"
           use SearchingBody query=sheet.query emoji=sheet.searching_emoji
         if sheet.body == "empty"
-          use EmptyBody suggestions=sheet.suggestions saved_count=sheet.saved_count market_note=sheet.market_note chips_height=sheet.chips_height glass=sheet.glass
+          use EmptyBody suggestions=sheet.suggestions market_note=sheet.market_note chips_height=sheet.chips_height glass=sheet.glass
         if sheet.body == "failed"
           use FailedBody query=sheet.query failure=sheet.failure glass=sheet.glass
         if sheet.body == "no_results"
@@ -67,13 +67,7 @@ component SearchField
 # first column lines up with the heading.
 component EmptyBody
   column width=-1 weight=1 gap=14
-    # With something saved, the saved list's way in sits beside the heading.
-    if saved_count
-      row width=-1 height=36 pad_h=24 justify="space-between" align_items="center"
-        text "Ready to discover?" .heading
-        use SavedChip glass=glass
-    else
-      text "Ready to discover?" .heading pad_h=24
+    text "Ready to discover?" .heading pad_h=24
     # Away from Ottawa: what searches cover.
     if market_note
       text market_note key="sheet:market" size=15 font="satoshi-medium" color=MUTED pad_h=24 lines=1 height=20
@@ -109,20 +103,6 @@ component ResultsBody
 component ShowOnMapLabel
   text "Show on map" .label bold=true lines=1 align="center"
   use Icon name="chevron-right" size=12 color="#ffffff"
-
-# Opens the saved list (/saved). Liquid Glass on iOS 26, a solid pill before.
-component SavedChip
-  if glass
-    glass key="sheet:saved" pressable=true height=36 pad_h=14 radius=18 glass_style="regular" glass_interactive=true label="Saved" .center
-      row height=36 gap=6 align_items="center"
-        use SavedChipLabel
-  else
-    row key="sheet:saved" pressable=true height=36 pad_h=14 gap=6 radius=18 .chip_frame align_items="center" label="Saved"
-      use SavedChipLabel
-
-component SavedChipLabel
-  use Icon name="bookmark.fill" size=13 color="#ffffff"
-  text "Saved" size=14 font="satoshi-bold" bold=true color="#ffffff" lines=1
 
 # A search that failed (offline, timed out, the server): what went wrong,
 # and the same search again.

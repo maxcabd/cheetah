@@ -33,6 +33,12 @@ final class MapScreen: UIViewController {
             button.autoresizingMask = .flexibleLeftMargin
             view.addSubview(button)
         }
+        // Cheetah's menu button (its side drawer isn't measured): the same
+        // glass, level with the street map button.
+        let menu = Theme.glassButton("line.3.horizontal", size: 48, label: "Menu")
+        menu.frame.origin = CGPoint(x: 16, y: 95)
+        menu.autoresizingMask = .flexibleRightMargin
+        view.addSubview(menu)
 
         carousel.autoresizingMask = [.flexibleWidth, .flexibleTopMargin]
         carousel.onPage = { [weak self] place in self?.focus(place) }

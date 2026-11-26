@@ -1,6 +1,7 @@
 //! Reusable view pieces: place card and carousel, bottom sheet, widgets.
 
 mod card;
+mod drawer;
 mod sheet;
 
 #[cfg(test)]

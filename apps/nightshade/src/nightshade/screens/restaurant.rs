@@ -49,6 +49,7 @@ impl NightshadeApp {
                 model["restaurant"] = self.restaurant_model(id, context);
             }
             "SavedPage" => model["saved"] = self.saved_model(context),
+            "SettingsPage" => model["settings"] = self.settings_model(),
             _ => {}
         }
         model

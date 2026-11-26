@@ -4,3 +4,4 @@
 mod map;
 mod restaurant;
 mod saved;
+mod settings;

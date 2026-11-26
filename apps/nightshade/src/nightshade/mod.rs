@@ -67,6 +67,11 @@ pub struct NightshadeApp {
     locate_taps: u32,
     /// The user said no to location: the locate button offers Settings.
     location_denied: bool,
+    /// The side drawer (the map's menu button): the map screen slides
+    /// aside to show it.
+    drawer_open: bool,
+    /// The map screen keeps its rounded corners until it has slid back.
+    drawer_rounded: bool,
     /// Result cards shrunk to small bars (swipe a card's handle down).
     cards_minimized: bool,
     /// First and last result cards built so far (`carousel_model`).
@@ -140,6 +145,8 @@ impl NightshadeApp {
             locating: false,
             locate_taps: 0,
             location_denied: false,
+            drawer_open: false,
+            drawer_rounded: false,
             cards_minimized: false,
             cards_built: Default::default(),
             cards_timer: false,
@@ -257,6 +264,7 @@ impl App for NightshadeApp {
             match event.payload.as_str() {
                 "searching" => self.searching_tick(),
                 "cards" => self.cards_tick(),
+                "drawer" => self.drawer_settled(),
                 _ => {}
             }
             return;
@@ -322,6 +330,14 @@ impl App for NightshadeApp {
                     self.photo_colors.insert(id.to_string(), color);
                 }
             }
+            // Swiping the slid-aside map back closes the drawer.
+            "gesture" if key == "drawer:close" => {
+                if crate::gesture::Gesture::parse(&event)
+                    .is_some_and(|gesture| gesture.kind == "swipe" && gesture.direction == "left")
+                {
+                    self.close_drawer();
+                }
+            }
             // A card's handle: swipe down to minimize the cards, up to restore.
             "gesture" if key.starts_with("handle:") => {
                 if let Some(gesture) = crate::gesture::Gesture::parse(&event) {
@@ -374,8 +390,18 @@ impl App for NightshadeApp {
                     self.clear_search();
                 } else if key == "search:retry" {
                     self.retry_search();
-                } else if key == "sheet:saved" {
+                } else if key == "drawer:open" {
+                    self.open_drawer();
+                } else if key == "drawer:close" {
+                    self.close_drawer();
+                } else if key == "drawer:saved" {
+                    self.close_drawer();
                     self.open_saved();
+                } else if key == "drawer:settings" {
+                    self.close_drawer();
+                    self.open_page(|router| router.push("/settings", "push", None));
+                } else if key == "settings:location" {
+                    self.open_settings();
                 } else if let Some(id) = key.strip_prefix("saved:open:") {
                     self.open_saved_place(&id.to_string());
                 } else if let Some(id) = key.strip_prefix("card:share:") {
@@ -689,5 +715,7 @@ fn view_files() -> Vec<(&'static str, &'static str)> {
             include_str!("views/pages/restaurant/[id].view"),
         ),
         ("views/pages/saved.view", include_str!("views/pages/saved.view")),
+        ("views/pages/settings.view", include_str!("views/pages/settings.view")),
+        ("views/drawer.view", include_str!("views/drawer.view")),
     ]
 }
