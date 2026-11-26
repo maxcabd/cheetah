@@ -1,0 +1,17 @@
+[package]
+name = "cheetah-render"
+version = "0.1.0"
+edition = "2021"
+description = "Render a Cheetah app's screen to a PNG on any machine, from the runtime's own views and layout"
+
+[[bin]]
+name = "cheetah-render"
+path = "src/main.rs"
+
+[dependencies]
+runtime = { path = "../../crates/runtime" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tiny-skia = "0.11.4"
+ab_glyph = "0.2.29"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }

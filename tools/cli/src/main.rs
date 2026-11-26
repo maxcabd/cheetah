@@ -58,6 +58,12 @@ cheetah: develop and ship Cheetah apps
   cheetah metrics [--app NAME]
       What each frame cost in the dev server's current or last session, by
       what caused it (tap, scroll, results arriving).
+  cheetah render [--app NAME] [--out PNG] [--tap KEY]... [--type KEY TEXT]
+                 [--event KIND KEY PAYLOAD] [--width N] [--height N]
+                 [--scale N] [--no-glass] [--tree]
+      The app's screen as a PNG, on this machine: its own views and layout,
+      no device or simulator. Taps and typing run first, in order. --tree
+      also lists what's on screen, with keys to tap. Always prints JSON.
   cheetah qr TEXT
       Print TEXT as a QR code, e.g. a dev link for the phone's camera.
 
@@ -165,6 +171,10 @@ fn main() -> ExitCode {
         println!("{USAGE}");
         return ExitCode::SUCCESS;
     };
+    // Its options are its own: passed through as given.
+    if command == "render" {
+        return render(&raw[1..]);
+    }
     let args = Args::parse(raw[1..].to_vec());
     let out = Out { json: args.json };
     if args.flag("--help") || command == "help" || command == "-h" {
@@ -197,6 +207,23 @@ fn main() -> ExitCode {
 // ---------------------------------------------------------------------------
 // cheetah dev
 // ---------------------------------------------------------------------------
+
+/// `cheetah render`: tools/render, which prints one JSON line itself.
+fn render(rest: &[String]) -> ExitCode {
+    let status = Command::new("cargo")
+        .current_dir(repo_root())
+        .args(["run", "-q", "-p", "cheetah-render", "--"])
+        .args(rest)
+        .status();
+    match status {
+        Ok(status) if status.success() => ExitCode::SUCCESS,
+        Ok(_) => ExitCode::FAILURE,
+        Err(error) => {
+            println!("{}", json!({"command": "render", "ok": false, "error": format!("cannot run cargo: {error}")}));
+            ExitCode::FAILURE
+        }
+    }
+}
 
 fn dev(args: &Args, out: &Out) -> ExitCode {
     if let Some(flag) = args.unknown_flags(&["--app", "--port", "--host", "--no-qr"]) {
