@@ -982,7 +982,12 @@ private final class IconNativeModule: CheetahNativeModule {
             imageView.tintColor = UIColor(hex: color)
         }
         let symbol = Self.symbols[iconName] ?? iconName
-        imageView.image = SymbolImages.image(symbol, size: size)
+        let image = HostMetrics.measure(.modules, named: "icon image") {
+            SymbolImages.image(symbol, size: size)
+        }
+        HostMetrics.measure(.modules, named: "icon shown") {
+            imageView.image = image
+        }
         imageView.accessibilityLabel = iconName
     }
 

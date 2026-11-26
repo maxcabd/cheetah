@@ -46,7 +46,7 @@ def main() -> int:
             if totals:
                 top = sorted(totals.items(), key=lambda n: -statistics.median(n[1]))[:8]
                 print(f"\n{ops}-op frames, {title}: " + ", ".join(
-                    f"{name} {statistics.median(v) / (1 if name.startswith('views') else 1000):.1f}" for name, v in top))
+                    f"{name} {statistics.median(v) / (1 if name == 'views' else 1000):.1f}" for name, v in top))
     named = {}
     for f in big:
         for name, us in (f.get("named") or {}).items():

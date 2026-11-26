@@ -15,6 +15,15 @@ final class HostMetrics {
         case create, props, children, layout, remove, insert, glass, modules, calls, map
     }
 
+    /// The metrics of the frame being applied, for code deep inside it.
+    private(set) static weak var active: HostMetrics?
+
+    /// Time `work` by name if a frame is being applied, else just run it.
+    static func measure<T>(_ phase: Phase, named name: String, _ work: () -> T) -> T {
+        guard let active else { return work() }
+        return active.measure(phase, named: name, work)
+    }
+
     /// Laid out by UIKit before the commit (see `frame`): `uikit_layout_us`.
     var layoutRoot: (() -> UIView?)?
 
@@ -88,7 +97,9 @@ final class HostMetrics {
 
         let start = DispatchTime.now().uptimeNanoseconds
         let interval = Self.signposter.beginInterval("apply")
+        Self.active = self
         apply()
+        Self.active = nil
         Self.signposter.endInterval("apply", interval)
         let applied = DispatchTime.now().uptimeNanoseconds
         // UIKit would lay out in the commit anyway; done here it can be told
@@ -158,7 +169,7 @@ final class HostMetrics {
     private static func layOutByPart(_ root: UIView) -> [String: Int] {
         var parts: [String: Int] = [:]
         var levels: [[UIView]] = [[root]]
-        for _ in 0..<4 {
+        while levels.count < 40 {
             let next = levels.last!.flatMap(\.subviews)
             if next.isEmpty { break }
             levels.append(next)
@@ -174,7 +185,7 @@ final class HostMetrics {
             }
         }
         let count = levels.dropFirst().reduce(0) { $0 + $1.count }
-        parts["views in the top \(levels.count - 1) levels"] = count
+        parts["views"] = count
         return parts
     }
 
