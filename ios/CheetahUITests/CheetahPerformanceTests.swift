@@ -131,10 +131,15 @@ final class CheetahPerformanceTests: XCTestCase {
         launched = nil
     }
 
-    private func cheetah(_ argument: String = "--nightshade-demo") -> XCUIApplication {
+    /// `reports`: each frame's report in the system log, for CI's "where
+    /// the slow frames go". Off when measuring: timing every view's layout
+    /// costs CPU the other apps don't spend.
+    private func cheetah(_ argument: String = "--nightshade-demo", reports: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [argument]
-        app.launchEnvironment["CHEETAH_FRAME_LOG"] = "1"
+        if reports {
+            app.launchEnvironment["CHEETAH_FRAME_LOG"] = "1"
+        }
         launched = app
         return app
     }
@@ -207,10 +212,7 @@ final class CheetahPerformanceTests: XCTestCase {
     // MARK: Startup: launch to a result card on screen
 
     func testCheetahStartup() throws {
-        // Without frame reports: the other apps log nothing while launching.
-        let app = cheetah()
-        app.launchEnvironment["CHEETAH_FRAME_LOG"] = nil
-        startup(app, name: "Cheetah")
+        startup(cheetah(), name: "Cheetah")
     }
 
     func testNativeStartup() throws {
@@ -271,6 +273,11 @@ final class CheetahPerformanceTests: XCTestCase {
         results(cheetah("--nightshade"), host: true)
     }
 
+    /// The same taps with frame reports, not compared (see `cheetah`).
+    func testFramesResults() throws {
+        results(cheetah("--nightshade", reports: true), host: true)
+    }
+
     func testNativeResults() throws {
         results(try twin(["--suggestions"]))
     }
@@ -321,6 +328,10 @@ final class CheetahPerformanceTests: XCTestCase {
     /// A tap on a card to its page.
     func testCheetahPage() throws {
         page(cheetah(), host: true)
+    }
+
+    func testFramesPage() throws {
+        page(cheetah(reports: true), host: true)
     }
 
     func testNativePage() throws {
