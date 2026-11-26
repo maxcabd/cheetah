@@ -112,13 +112,26 @@ final class NativeModuleHostView: UIView {
         pendingProps = nil
     }
 
+    /// Run `work` after Core Animation commits this turn of the run loop
+    /// (order 2,000,000), in a turn of its own.
+    private static func afterCommit(_ work: @escaping () -> Void) {
+        let observer = CFRunLoopObserverCreateWithHandler(
+            nil, CFRunLoopActivity.beforeWaiting.rawValue, false, 2_000_002
+        ) { _, _ in
+            DispatchQueue.main.async(execute: work)
+        }
+        CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         if module == nil, pendingName == "map", bounds.width > 1, bounds.height > 1,
            !mapScheduled
         {
             mapScheduled = true
-            DispatchQueue.main.async { [weak self] in
+            // Made once this frame is on screen: creating a map takes a fifth
+            // of a second, and the cards over it shouldn't wait for that.
+            Self.afterCommit { [weak self] in
                 guard let self else {
                     return
                 }

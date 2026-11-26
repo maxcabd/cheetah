@@ -16,6 +16,11 @@ final class HostMetrics {
     }
 
     private static let signposter = OSSignposter(subsystem: "dev.cheetah.host", category: "frames")
+    /// With CHEETAH_FRAME_LOG=1 (the performance tests): each frame's report
+    /// in the system log, where CI reads it; there is no dev server there.
+    private static let reports: Logger? = ProcessInfo.processInfo.environment["CHEETAH_FRAME_LOG"] == "1"
+        ? Logger(subsystem: "dev.cheetah.host", category: "report")
+        : nil
 
     private var spent = [UInt64](repeating: 0, count: Phase.allCases.count)
     /// Open phases, innermost last: the phase, when it began, and how much of
@@ -117,6 +122,12 @@ final class HostMetrics {
                 self.putOff.removeAll(keepingCapacity: true)
                 self.beforeCommit = 0
                 self.committing = false
+            }
+            if let reports = Self.reports,
+               let data = try? JSONSerialization.data(withJSONObject: report),
+               let line = String(data: data, encoding: .utf8)
+            {
+                reports.log("frame \(line, privacy: .public)")
             }
             done(report)
         }

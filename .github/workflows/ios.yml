@@ -255,6 +255,15 @@ jobs:
           } | tee -a "$GITHUB_STEP_SUMMARY"
           exit $status
 
+      - name: Where Cheetah's slow frames go
+        if: always() && steps.twin.outcome == 'success'
+        continue-on-error: true
+        shell: bash
+        run: |
+          xcrun simctl spawn "${{ steps.simulator.outputs.device }}" log show --last 60m --style compact \
+            --predicate 'subsystem == "dev.cheetah.host" AND category == "report"' > /tmp/frames.log || true
+          python3 tools/profile/frame_reports.py /tmp/frames.log | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Upload screenshots of failed measurements
         if: always()
         uses: actions/upload-artifact@v4

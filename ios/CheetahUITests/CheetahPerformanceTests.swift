@@ -134,6 +134,7 @@ final class CheetahPerformanceTests: XCTestCase {
     private func cheetah(_ argument: String = "--nightshade-demo") -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments = [argument]
+        app.launchEnvironment["CHEETAH_FRAME_LOG"] = "1"
         launched = app
         return app
     }
