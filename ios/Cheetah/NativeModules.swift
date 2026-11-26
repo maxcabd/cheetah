@@ -58,6 +58,19 @@ final class NativeModuleHostView: UIView {
     private var pendingProps: [String: Any]?
     private var mapScheduled = false
     private var hostedChildren: [(view: UIView, props: [String: Any])] = []
+    /// The module this host made, once made.
+    private(set) var moduleName: String?
+
+    /// Modules kept with their host when its element goes, for the next
+    /// element of the same module: they hold nothing but their props, and
+    /// cards and pins come and go by the dozen.
+    static let reusable: Set<String> = ["icon", "shape"]
+
+    /// Put away for reuse: keeps the module, forgets the element.
+    func recycle() {
+        onEvent = nil
+        hostedChildren = []
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -95,6 +108,7 @@ final class NativeModuleHostView: UIView {
     private func materialize(name: String, props: [String: Any]) {
         let created = NativeModuleRegistry.make(name: name, owner: self)
         module = created
+        moduleName = created == nil ? nil : name
         if !(created is CheetahPresenting), let native = created?.nativeView {
             addSubview(native)
         }
@@ -172,6 +186,7 @@ final class NativeModuleHostView: UIView {
     func destroy() {
         module?.destroy()
         module = nil
+        moduleName = nil
         pendingName = nil
         pendingProps = nil
         mapScheduled = false

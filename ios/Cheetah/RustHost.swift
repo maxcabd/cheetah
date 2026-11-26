@@ -571,7 +571,7 @@ final class RustHost: NSObject {
     }
 
     private func create(id: UInt32, kind: String, root: Bool, source: String?, props nodeProps: WireProps) {
-        let view = obtainView(kind)
+        let view = obtainView(kind, native: nodeProps.string(.native))
         view.tag = Int(id)
 
         let node = NodeTag(id: id, kind: kind, view: view)
@@ -986,20 +986,26 @@ final class RustHost: NSObject {
         if let scroll = view as? UIScrollView {
             scrollTags.removeValue(forKey: ObjectIdentifier(scroll))
         }
-        if let native = view as? NativeModuleHostView {
-            native.destroy()
+        var native: String?
+        if let host = view as? NativeModuleHostView {
+            if let name = host.moduleName, NativeModuleHostView.reusable.contains(name) {
+                host.recycle()
+                native = name
+            } else {
+                host.destroy()
+            }
         }
         view.removeFromSuperview()
         if let kind = tags[id]?.kind {
-            recycleView(view, kind: kind)
+            recycleView(view, kind: kind, native: native)
         }
         tags.removeValue(forKey: id)
     }
 
     /// Named in the frame report: what making each kind of view costs, new
     /// or from the pool.
-    private func obtainView(_ kind: String) -> UIView {
-        guard let key = poolKey(kind), var pool = viewPool[key], let view = pool.popLast() else {
+    private func obtainView(_ kind: String, native: String? = nil) -> UIView {
+        guard let key = poolKey(kind, native: native), var pool = viewPool[key], let view = pool.popLast() else {
             return metrics.measure(.create, named: "new \(kind)") { makeView(kind) }
         }
         viewPool[key] = pool
@@ -1007,17 +1013,22 @@ final class RustHost: NSObject {
         return view
     }
 
-    private func recycleView(_ view: UIView, kind: String) {
-        guard let key = poolKey(kind), viewPool[key, default: []].count < 64 else {
+    private func recycleView(_ view: UIView, kind: String, native: String? = nil) {
+        guard let key = poolKey(kind, native: native), viewPool[key, default: []].count < 64 else {
             return
         }
         viewPool[key, default: []].append(view)
     }
 
-    private func poolKey(_ kind: String) -> String? {
+    /// A native element's host is pooled by its module, and only for modules
+    /// that are kept (NativeModuleHostView.reusable).
+    private func poolKey(_ kind: String, native: String? = nil) -> String? {
         switch kind {
         case "text", "button", "column", "row", "space", "image":
             return kind
+        case "native":
+            guard let native, NativeModuleHostView.reusable.contains(native) else { return nil }
+            return "native \(native)"
         default:
             return nil
         }
