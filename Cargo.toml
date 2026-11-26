@@ -1,6 +1,6 @@
 ﻿# Workspace includes the runtime benchmark under tools/bench.
 [workspace]
-members = ["crates/runtime", "tools/gateway", "tools/bench", "tools/drive", "tools/devserver", "tools/cli", "tools/render", "apps/nightshade"]
+members = ["crates/runtime", "tools/gateway", "tools/bench", "tools/drive", "tools/devserver", "tools/cli", "tools/render", "tools/mcp", "apps/nightshade"]
 resolver = "2"
 
 [profile.release]

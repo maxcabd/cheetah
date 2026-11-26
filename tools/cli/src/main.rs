@@ -58,6 +58,9 @@ cheetah: develop and ship Cheetah apps
   cheetah metrics [--app NAME]
       What each frame cost in the dev server's current or last session, by
       what caused it (tap, scroll, results arriving).
+  cheetah mcp
+      Cheetah's tools for agents over MCP (stdio): render, elements, test,
+      metrics, doctor. .mcp.json starts it for Claude Code in this repo.
   cheetah render [--app NAME] [--out PNG] [--tap KEY]... [--type KEY TEXT]
                  [--event KIND KEY PAYLOAD] [--width N] [--height N]
                  [--scale N] [--no-glass] [--tree]
@@ -174,6 +177,13 @@ fn main() -> ExitCode {
     // Its options are its own: passed through as given.
     if command == "render" {
         return render(&raw[1..]);
+    }
+    // Speaks MCP on stdin and stdout, which it keeps for itself.
+    if command == "mcp" {
+        return match Command::new("cargo").current_dir(repo_root()).args(["run", "-q", "-p", "cheetah-mcp"]).status() {
+            Ok(status) if status.success() => ExitCode::SUCCESS,
+            _ => ExitCode::FAILURE,
+        };
     }
     let args = Args::parse(raw[1..].to_vec());
     let out = Out { json: args.json };

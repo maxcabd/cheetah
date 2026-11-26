@@ -190,6 +190,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "cheetah-mcp"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "serde_json",
+]
+
+[[package]]
 name = "cheetah-render"
 version = "0.1.0"
 dependencies = [

@@ -1,0 +1,13 @@
+[package]
+name = "cheetah-mcp"
+version = "0.1.0"
+edition = "2021"
+description = "An MCP server for Cheetah apps: render screens, list what's on them, run tests"
+
+[[bin]]
+name = "cheetah-mcp"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = "1"
+base64 = "0.22.1"

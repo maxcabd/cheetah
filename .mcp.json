@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cheetah": {
+      "command": "cargo",
+      "args": ["run", "-q", "-p", "cheetah-mcp"]
+    }
+  }
+}
