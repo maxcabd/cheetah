@@ -42,6 +42,7 @@ use tokio_tungstenite::tungstenite::Message;
 pub use subsecond;
 
 mod agent;
+pub use agent::token_file;
 pub mod live;
 pub mod metrics;
 
@@ -728,7 +729,16 @@ async fn serve(
         stream,
         move |request: &tokio_tungstenite::tungstenite::handshake::server::Request,
               response: tokio_tungstenite::tungstenite::handshake::server::Response| {
-            *seen.lock().unwrap() = request.uri().path().to_string();
+            let path = request.uri().path().to_string();
+            // An agent without the token gets no further than this.
+            if path == "/agent" && !agent::authorized(request) {
+                let mut refused = tokio_tungstenite::tungstenite::handshake::server::ErrorResponse::new(Some(
+                    "the agent endpoint needs this server's token: ?token=... (printed by cheetah dev)".into(),
+                ));
+                *refused.status_mut() = tokio_tungstenite::tungstenite::http::StatusCode::UNAUTHORIZED;
+                return Err(refused);
+            }
+            *seen.lock().unwrap() = path;
             Ok(response)
         },
     );
@@ -851,6 +861,11 @@ pub fn run(name: &str, options: Options, source: AppSource) {
             .into_owned();
         println!(
             "devserver: {name} on ws://{host}:{port} (Android: adb reverse tcp:{port} tcp:{port})",
+            port = options.port
+        );
+        let token = agent::start(options.port);
+        println!(
+            "devserver: agents: ws://{host}:{port}/agent?token={token} (cheetah-mcp on this machine finds it)",
             port = options.port
         );
 

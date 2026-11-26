@@ -1,7 +1,7 @@
 //! End to end: an agent on `/agent` sees the connected device's screen, taps
 //! it by key, and the device gets the new frame; the device stays connected.
 
-use cheetah_devserver::{run, AppSource, Options};
+use cheetah_devserver::{run, token_file, AppSource, Options};
 use futures_util::{SinkExt, StreamExt};
 use runtime::app::{App, Event, ViewContext};
 use runtime::{column, text, Element, Runtime};
@@ -114,8 +114,25 @@ async fn an_agent_sees_and_taps_the_connected_device() {
         );
     });
 
+    // Without the token, or with another, an agent can't connect at all.
+    let mut device = connect(&format!("ws://127.0.0.1:{port}")).await;
+    for url in [
+        format!("ws://127.0.0.1:{port}/agent"),
+        format!("ws://127.0.0.1:{port}/agent?token=guess"),
+    ] {
+        let error = tokio_tungstenite::connect_async(&url)
+            .await
+            .err()
+            .expect("refused");
+        assert!(error.to_string().contains("401"), "{error}");
+    }
+    let token = std::fs::read_to_string(token_file(port)).expect("the token, for tools here");
+    assert_eq!(token.len(), 32);
+
     // No device yet: the agent is told so.
-    let mut agent = connect(&format!("ws://127.0.0.1:{port}/agent")).await;
+    let _ = device.close(None).await;
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    let mut agent = connect(&format!("ws://127.0.0.1:{port}/agent?token={token}")).await;
     let early = ask(&mut agent, json!({"id": 1, "t": "elements"})).await;
     assert_eq!(early["ok"], false);
     assert!(early["error"].as_str().unwrap().contains("no device"));

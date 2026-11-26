@@ -70,9 +70,19 @@ impl Runner for Cargo {
     }
 
     fn agent(&self, server: &str, request: &Value) -> Result<Value, String> {
-        let url = agent_url(server);
-        let (mut socket, _) = tungstenite::connect(url.as_str())
-            .map_err(|error| format!("cannot reach the dev server at {url}: {error}"))?;
+        let address = agent_url(server, request["token"].as_str().unwrap_or(""));
+        // Messages name the server, never its token.
+        let url = address.split('?').next().unwrap_or("").to_string();
+        let mut request = request.clone();
+        if let Some(fields) = request.as_object_mut() {
+            fields.remove("token");
+        }
+        let (mut socket, _) = tungstenite::connect(address.as_str()).map_err(|error| match error {
+            tungstenite::Error::Http(response) if response.status() == 401 => format!(
+                "{url} wants its agent token: pass `token` (cheetah dev prints it) or set CHEETAH_AGENT_TOKEN"
+            ),
+            error => format!("cannot reach the dev server at {url}: {error}"),
+        })?;
         if let tungstenite::stream::MaybeTlsStream::Plain(stream) = socket.get_mut() {
             let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(30)));
         }
@@ -97,9 +107,10 @@ impl Runner for Cargo {
     }
 }
 
-/// The dev server to drive: as given, else CHEETAH_DEV_SERVER, else this
-/// machine's.
-fn agent_url(server: &str) -> String {
+/// The dev server to drive (as given, else CHEETAH_DEV_SERVER, else this
+/// machine's), with its token: as given, else CHEETAH_AGENT_TOKEN, else the
+/// one a dev server on this machine wrote for its port.
+fn agent_url(server: &str, token: &str) -> String {
     let server = if server.is_empty() {
         std::env::var("CHEETAH_DEV_SERVER").unwrap_or_else(|_| "ws://127.0.0.1:8787".into())
     } else {
@@ -110,7 +121,32 @@ fn agent_url(server: &str) -> String {
     } else {
         format!("ws://{server}")
     };
-    format!("{}/agent", server.trim_end_matches('/'))
+    let base = server.trim_end_matches('/').to_string();
+    let token = Some(token.to_string())
+        .filter(|token| !token.is_empty())
+        .or_else(|| {
+            std::env::var("CHEETAH_AGENT_TOKEN")
+                .ok()
+                .filter(|token| !token.is_empty())
+        })
+        .or_else(|| local_token(&base));
+    match token {
+        Some(token) => format!("{base}/agent?token={token}"),
+        None => format!("{base}/agent"),
+    }
+}
+
+/// The token a dev server on this machine wrote for its port
+/// (cheetah-devserver's `token_file`).
+fn local_token(base: &str) -> Option<String> {
+    let host_port = base.split("://").nth(1)?;
+    let (host, port) = host_port.rsplit_once(':')?;
+    if !matches!(host, "127.0.0.1" | "localhost" | "[::1]") {
+        return None;
+    }
+    let file = std::env::temp_dir().join(format!("cheetah-agent-token-{port}"));
+    let token = std::fs::read_to_string(file).ok()?;
+    Some(token.trim().to_string())
 }
 
 fn repo_root() -> PathBuf {
@@ -142,6 +178,10 @@ fn tools() -> Value {
     let server = json!({
         "type": "string",
         "description": "The dev server: ws://host:port. Default: CHEETAH_DEV_SERVER, else ws://127.0.0.1:8787."
+    });
+    let token = json!({
+        "type": "string",
+        "description": "The dev server's agent token, which `cheetah dev` prints. Default: CHEETAH_AGENT_TOKEN, else the one a dev server on this machine wrote."
     });
     json!([
         {
@@ -185,31 +225,31 @@ fn tools() -> Value {
             "name": "device_elements",
             "title": "List what's on the connected device",
             "description": "What the app on the device connected to a dev server (`cheetah dev`) is showing: keys, text, frames, what can be tapped. The server can be on another machine.",
-            "inputSchema": {"type": "object", "properties": {"server": server.clone()}}
+            "inputSchema": {"type": "object", "properties": {"server": server.clone(), "token": token.clone()}}
         },
         {
             "name": "device_screen",
             "title": "See the connected device's screen",
             "description": "The live screen of the app on the device connected to a dev server, painted from its live tree (native views are stand-ins; for a true screenshot of a device on this machine, use device_screenshot), with what's on it.",
-            "inputSchema": {"type": "object", "properties": {"server": server.clone(), "scale": size(1.0, "Pixels per point.")}}
+            "inputSchema": {"type": "object", "properties": {"server": server.clone(), "token": token.clone(), "scale": size(1.0, "Pixels per point.")}}
         },
         {
             "name": "device_tap",
             "title": "Tap on the connected device",
             "description": "Tap the element with `key` in the app on the device connected to a dev server; the device updates as if touched. Keys come from device_elements.",
-            "inputSchema": {"type": "object", "properties": {"key": {"type": "string"}, "server": server.clone()}, "required": ["key"]}
+            "inputSchema": {"type": "object", "properties": {"key": {"type": "string"}, "server": server.clone(), "token": token.clone()}, "required": ["key"]}
         },
         {
             "name": "device_type",
             "title": "Type on the connected device",
             "description": "Set the text of the input with `key` in the app on the device connected to a dev server.",
-            "inputSchema": {"type": "object", "properties": {"key": {"type": "string"}, "text": {"type": "string"}, "server": server.clone()}, "required": ["key", "text"]}
+            "inputSchema": {"type": "object", "properties": {"key": {"type": "string"}, "text": {"type": "string"}, "server": server.clone(), "token": token.clone()}, "required": ["key", "text"]}
         },
         {
             "name": "device_event",
             "title": "Send an event on the connected device",
             "description": "Any event (submit, select, gesture...) for the element with `key`, in the app on the device connected to a dev server.",
-            "inputSchema": {"type": "object", "properties": {"kind": {"type": "string"}, "key": {"type": "string"}, "payload": {"type": "string"}, "server": server.clone()}, "required": ["kind", "key"]}
+            "inputSchema": {"type": "object", "properties": {"kind": {"type": "string"}, "key": {"type": "string"}, "payload": {"type": "string"}, "server": server.clone(), "token": token.clone()}, "required": ["kind", "key"]}
         },
         {
             "name": "device_screenshot",
@@ -455,8 +495,12 @@ fn cli(runner: &dyn Runner, command: &[&str]) -> Value {
 
 /// A dev server's answer as a tool result: its PNG as an image, its
 /// elements as lines.
-fn device(runner: &dyn Runner, arguments: &Value, request: Value) -> Value {
+fn device(runner: &dyn Runner, arguments: &Value, mut request: Value) -> Value {
     let server = arguments["server"].as_str().unwrap_or("");
+    // For the client, which puts it on the URL; it isn't sent on.
+    if let Some(token) = arguments["token"].as_str() {
+        request["token"] = token.into();
+    }
     let reply = match runner.agent(server, &request) {
         Ok(reply) => reply,
         Err(error) => {
@@ -885,7 +929,32 @@ mod tests {
 
     #[test]
     fn the_agent_address_comes_from_the_server_given() {
-        assert_eq!(agent_url("ws://10.0.0.5:8787/"), "ws://10.0.0.5:8787/agent");
-        assert_eq!(agent_url("10.0.0.5:8787"), "ws://10.0.0.5:8787/agent");
+        assert_eq!(
+            agent_url("ws://10.0.0.5:8787/", "t0k"),
+            "ws://10.0.0.5:8787/agent?token=t0k"
+        );
+        assert_eq!(
+            agent_url("10.0.0.5:8787", "t0k"),
+            "ws://10.0.0.5:8787/agent?token=t0k"
+        );
+        // A dev server here wrote its token for its port.
+        let port = 40000 + std::process::id() % 20000;
+        let file = std::env::temp_dir().join(format!("cheetah-agent-token-{port}"));
+        std::fs::write(
+            &file,
+            "fromfile
+",
+        )
+        .unwrap();
+        assert_eq!(
+            agent_url(&format!("ws://127.0.0.1:{port}"), ""),
+            format!("ws://127.0.0.1:{port}/agent?token=fromfile")
+        );
+        // Not for a server elsewhere.
+        assert_eq!(
+            agent_url(&format!("ws://10.0.0.5:{port}"), ""),
+            format!("ws://10.0.0.5:{port}/agent")
+        );
+        let _ = std::fs::remove_file(file);
     }
 }
