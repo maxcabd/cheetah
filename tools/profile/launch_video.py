@@ -11,13 +11,16 @@ import subprocess
 import sys
 
 W, H = 60, 130  # Frames shrunk to this, in gray.
-CARD = (int(H * 0.52), int(H * 0.78))  # Rows where the result card sits.
+# The result card's name and details, inside the card: the map around it
+# loads its tiles for a while after, and that isn't the card appearing.
+CARD_ROWS = (int(H * 0.585), int(H * 0.70))
+CARD_COLUMNS = (int(W * 0.12), int(W * 0.62))
 
 
 def frames(path):
     run = subprocess.run(
         ["ffmpeg", "-v", "info", "-i", path, "-vf", f"scale={W}:{H},format=gray,showinfo",
-         "-vsync", "0", "-f", "rawvideo", "-"],
+         "-fps_mode", "passthrough", "-f", "image2pipe", "-vcodec", "rawvideo", "-pix_fmt", "gray", "-"],
         capture_output=True, check=True,
     )
     times = [float(t) for t in re.findall(rb"pts_time:([0-9.]+)", run.stderr)]
@@ -26,16 +29,20 @@ def frames(path):
     return [(times[i], data[i * size:(i + 1) * size]) for i in range(min(len(times), len(data) // size))]
 
 
-def differs(a, b, rows=(0, H)):
-    lo, hi = rows[0] * W, rows[1] * W
-    return sum(abs(x - y) for x, y in zip(a[lo:hi], b[lo:hi])) / (hi - lo)
+def differs(a, b, rows=(0, H), columns=(0, W)):
+    total = count = 0
+    for row in range(*rows):
+        lo, hi = row * W + columns[0], row * W + columns[1]
+        total += sum(abs(x - y) for x, y in zip(a[lo:hi], b[lo:hi]))
+        count += hi - lo
+    return total / count
 
 
 def launch_time(path):
     shown = frames(path)
     home, end = shown[0][1], shown[-1][1]
     start = next(t for t, f in shown if differs(f, home) > 3)
-    card = next(t for t, f in shown if t >= start and differs(f, end, CARD) < 4)
+    card = next(t for t, f in shown if t >= start and differs(f, end, CARD_ROWS, CARD_COLUMNS) < 6)
     return card - start
 
 
