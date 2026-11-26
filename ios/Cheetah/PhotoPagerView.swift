@@ -6,7 +6,9 @@ import UIKit
 final class PhotoPagerView: UIView, UIScrollViewDelegate {
     private let scroll = UIScrollView()
     private let overlay = PagerOverlayView()
-    private var imageViews: [UIImageView] = []
+    /// By page, made when its photo arrives: a card shows one page, and
+    /// loads only its neighbours.
+    private var imageViews: [Int: UIImageView] = [:]
     /// One source per page: asset://name or an http(s) URL.
     private var sources: [String] = []
     /// Pages whose photo has been asked for.
@@ -110,8 +112,8 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
 
     /// Put a loaded photo on its page, unless the photos changed meanwhile.
     private func show(_ image: UIImage, page: Int, source: String) {
-        guard page < sources.count, sources[page] == source, page < imageViews.count else { return }
-        imageViews[page].image = image
+        guard page < sources.count, sources[page] == source else { return }
+        imageView(for: page).image = image
         if page == 0 {
             reportDominantColor(image, source: source)
         }
@@ -134,13 +136,8 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
         let width = bounds.width
         let height = bounds.height
         scroll.contentSize = CGSize(width: width * CGFloat(pages), height: height)
-        for (index, imageView) in imageViews.enumerated() {
-            imageView.frame = CGRect(
-                x: CGFloat(index) * width,
-                y: 0,
-                width: width,
-                height: height
-            )
+        for (index, imageView) in imageViews {
+            imageView.frame = pageFrame(index)
         }
         overlay.frame = bounds
         overlay.pages = pages
@@ -153,19 +150,30 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
     }
 
     private func rebuild() {
-        imageViews.forEach { $0.removeFromSuperview() }
+        imageViews.values.forEach { $0.removeFromSuperview() }
         imageViews.removeAll(keepingCapacity: true)
-        for _ in 0..<pages {
-            let imageView = UIImageView()
-            imageView.contentMode = .scaleAspectFill
-            imageView.clipsToBounds = true
-            imageView.isUserInteractionEnabled = false
-            scroll.addSubview(imageView)
-            imageViews.append(imageView)
-        }
+        scroll.contentOffset = .zero
+        overlay.progress = 0
         overlay.pages = pages
+        // Laid out with the rest of the frame, not now.
         setNeedsLayout()
-        layoutIfNeeded()
+    }
+
+    private func pageFrame(_ index: Int) -> CGRect {
+        CGRect(x: CGFloat(index) * bounds.width, y: 0, width: bounds.width, height: bounds.height)
+    }
+
+    private func imageView(for page: Int) -> UIImageView {
+        if let known = imageViews[page] {
+            return known
+        }
+        let imageView = UIImageView(frame: pageFrame(page))
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        imageView.isUserInteractionEnabled = false
+        scroll.addSubview(imageView)
+        imageViews[page] = imageView
+        return imageView
     }
 }
 
