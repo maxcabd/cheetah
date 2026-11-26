@@ -38,15 +38,27 @@ extension UIColor {
     }
 }
 
-final class InsetLabel: UILabel {
-    var insets = UIEdgeInsets.zero
+/// A text element's label. It draws as a plain UILabel, as the UIKit twin
+/// does, until it has padding: only then does it become a `PaddedLabel`,
+/// whose `drawText` override moves the text in. A label that overrides its
+/// drawing may not get UIKit's own text drawing, so most labels don't.
+class InsetLabel: UILabel {
+    var insets = UIEdgeInsets.zero {
+        didSet {
+            if insets != oldValue {
+                drawsItself(insets != .zero)
+                setNeedsDisplay()
+            }
+        }
+    }
 
-    // drawText is overridden, so UIKit draws this label itself: keep it
-    // transparent or a redraw can leave a black box behind the text.
+    // A PaddedLabel draws its text itself: kept transparent, or a redraw can
+    // leave a black box behind the text.
     override init(frame: CGRect) {
         super.init(frame: frame)
         isOpaque = false
         backgroundColor = .clear
+        drawsItself(false)
     }
 
     required init?(coder: NSCoder) {
@@ -55,6 +67,17 @@ final class InsetLabel: UILabel {
         backgroundColor = .clear
     }
 
+    /// Same object, other class: PaddedLabel adds a method, not storage.
+    /// With the frame log, every label is timed as it draws.
+    private func drawsItself(_ padded: Bool) {
+        let wanted: AnyClass = padded || HostMetrics.timesDrawing ? PaddedLabel.self : InsetLabel.self
+        if ObjectIdentifier(type(of: self)) != ObjectIdentifier(wanted) {
+            object_setClass(self, wanted)
+        }
+    }
+}
+
+private final class PaddedLabel: InsetLabel {
     override func drawText(in rect: CGRect) {
         HostMetrics.drawn("text") {
             super.drawText(in: rect.inset(by: insets))

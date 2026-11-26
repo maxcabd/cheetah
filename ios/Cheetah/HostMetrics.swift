@@ -23,6 +23,11 @@ final class HostMetrics {
     private static var drawing: [String: UInt64] = [:]
     private static var drawCounts: [String: Int] = [:]
 
+    /// Whether views time their drawing (the frame log is on).
+    static var timesDrawing: Bool {
+        reports != nil
+    }
+
     /// Time a view's drawing by kind, for the commit's share of the report.
     static func drawn(_ name: String, _ work: () -> Void) {
         guard reports != nil else { return work() }
