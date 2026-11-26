@@ -754,7 +754,11 @@ final class RustHost: NSObject {
                     placed.remove(at: old)
                 }
                 let target = min(index, placed.count)
-                metrics.measure(.insert) { parent.insertSubview(child, at: target) }
+                // Named by where it goes: into a view on screen, UIKit
+                // tells the whole subtree it's in a window.
+                metrics.measure(.insert, named: parent.window != nil ? "insert on screen" : "insert off screen") {
+                    parent.insertSubview(child, at: target)
+                }
                 placed.insert(child, at: target)
             }
             index += 1
