@@ -41,6 +41,9 @@ pub(crate) enum Command {
     /// New `.view` templates from the dev server: swap and re-render.
     #[cfg(feature = "devserver")]
     Views(crate::views::Views),
+    /// The screen as last rendered, for the dev server's agents.
+    #[cfg(feature = "devserver")]
+    Snapshot(std::sync::mpsc::Sender<Option<crate::tree::Snapshot>>),
     Shutdown,
 }
 
@@ -240,6 +243,10 @@ pub(crate) fn spawn_with(
                     Command::Rerender => {
                         let ops = runtime.rerender();
                         emit(host.as_ref(), &mut runtime, "reload", ops);
+                    }
+                    #[cfg(feature = "devserver")]
+                    Command::Snapshot(reply) => {
+                        let _ = reply.send(runtime.snapshot());
                     }
                     #[cfg(feature = "devserver")]
                     Command::Literals(literals) => {

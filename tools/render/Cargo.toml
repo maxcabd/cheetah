@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 description = "Render a Cheetah app's screen to a PNG on any machine, from the runtime's own views and layout"
 
+[lib]
+name = "cheetah_render"
+path = "src/lib.rs"
+
 [[bin]]
 name = "cheetah-render"
 path = "src/main.rs"

@@ -20,6 +20,8 @@
 //!
 //! One device at a time; a new connection replaces the previous one. Each
 //! connection starts a fresh app, so the device clears its views on connect.
+//! Agents connect to `/agent` instead, which never replaces the device: see
+//! the `agent` module.
 
 use futures_util::{SinkExt, StreamExt};
 use runtime::app::{Action, App, Event, ViewContext};
@@ -39,6 +41,7 @@ use tokio_tungstenite::tungstenite::Message;
 
 pub use subsecond;
 
+mod agent;
 pub mod live;
 pub mod metrics;
 
@@ -716,13 +719,30 @@ async fn serve(
         .peer_addr()
         .map(|a| a.to_string())
         .unwrap_or_default();
-    let ws = match tokio_tungstenite::accept_async(stream).await {
+    // The path says who it is: `/agent` for agents, anything else a device.
+    let path = Arc::new(Mutex::new(String::new()));
+    let seen = Arc::clone(&path);
+    // The callback's error type is tungstenite's, large or not.
+    #[allow(clippy::result_large_err)]
+    let handshake = tokio_tungstenite::accept_hdr_async(
+        stream,
+        move |request: &tokio_tungstenite::tungstenite::handshake::server::Request,
+              response: tokio_tungstenite::tungstenite::handshake::server::Response| {
+            *seen.lock().unwrap() = request.uri().path().to_string();
+            Ok(response)
+        },
+    );
+    let ws = match handshake.await {
         Ok(ws) => ws,
         Err(error) => {
             eprintln!("devserver: handshake with {peer} failed: {error}");
             return;
         }
     };
+    if path.lock().unwrap().as_str() == "/agent" {
+        agent::serve(ws, peer).await;
+        return;
+    }
     *current.lock().unwrap() = id;
     println!("devserver: device connected ({peer})");
 

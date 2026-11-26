@@ -408,6 +408,12 @@ impl Runtime {
         });
     }
 
+    /// The screen as last rendered, if it has been.
+    pub fn snapshot(&self) -> Option<crate::tree::Snapshot> {
+        let tree = self.previous.as_ref()?;
+        Some(crate::tree::Snapshot::of(tree, &self.frames, self.viewport.width, self.viewport.height))
+    }
+
     pub fn render_current(&mut self) -> Vec<Op> {
         if self.viewport.width <= 0.0 || self.viewport.height <= 0.0 {
             return Vec::new();
@@ -537,6 +543,20 @@ mod tests {
         }
 
         fn update(&mut self, _: Event) {}
+    }
+
+    #[test]
+    fn a_snapshot_is_the_screen_as_last_rendered() {
+        let mut runtime = Runtime::new(StaticApp);
+        assert!(runtime.snapshot().is_none(), "nothing rendered yet");
+        runtime.render(Viewport { width: 300.0, height: 600.0 });
+        let snapshot = runtime.snapshot().expect("rendered");
+        assert_eq!((snapshot.width, snapshot.height), (300.0, 600.0));
+        let tree = snapshot.tree().expect("a root");
+        assert_eq!(tree.children.len(), 1);
+        assert_eq!(tree.children[0].props.text.as_deref(), Some("hello"));
+        let text = snapshot.frames[&tree.children[0].id];
+        assert!(text.width > 0.0 && text.height > 0.0);
     }
 
     #[test]

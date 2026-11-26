@@ -169,7 +169,9 @@ dependencies = [
 name = "cheetah-devserver"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "cheetah-cli",
+ "cheetah-render",
  "dioxus-devtools",
  "futures-util",
  "proc-macro2",
@@ -195,6 +197,7 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "serde_json",
+ "tungstenite 0.30.0",
 ]
 
 [[package]]

@@ -116,6 +116,24 @@ impl RerenderHandle {
     pub fn set_views(&self, views: Views) {
         let _ = self.0.send(Command::Views(views));
     }
+
+    /// An event for node `id`, as if the device sent it ("click" on a link
+    /// navigates, as a tap does).
+    pub fn event(&self, id: u32, kind: impl Into<String>, payload: impl Into<String>) {
+        let _ = self.0.send(Command::Event {
+            id,
+            kind: kind.into(),
+            payload: payload.into(),
+        });
+    }
+
+    /// The screen as last rendered. Waits for the app's thread, at most
+    /// `timeout`; `None` before the first render or if it's busy that long.
+    pub fn snapshot(&self, timeout: std::time::Duration) -> Option<crate::tree::Snapshot> {
+        let (reply, answer) = std::sync::mpsc::channel();
+        self.0.send(Command::Snapshot(reply)).ok()?;
+        answer.recv_timeout(timeout).ok().flatten()
+    }
 }
 
 impl Drop for DevRuntime {

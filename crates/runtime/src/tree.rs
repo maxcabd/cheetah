@@ -140,3 +140,67 @@ fn flatten_node(node: &UiNode, parent: Option<u32>, tree: &mut FlatTree) {
         flatten_node(child, Some(node.id), tree);
     }
 }
+
+/// A rendered screen as plain data, which can leave the thread the app runs
+/// on (`Runtime::snapshot`): for tools that look at the live app, such as
+/// the dev server answering an agent.
+#[derive(Clone, Debug)]
+pub struct Snapshot {
+    /// Every node, the root first.
+    pub nodes: Vec<SnapshotNode>,
+    /// Each node's frame, relative to its parent.
+    pub frames: std::collections::HashMap<u32, crate::layout::Frame>,
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Clone, Debug)]
+pub struct SnapshotNode {
+    pub id: u32,
+    pub key: Option<String>,
+    pub kind: Kind,
+    pub props: Props,
+    pub children: Vec<u32>,
+}
+
+impl Snapshot {
+    pub(crate) fn of(tree: &FlatTree, frames: &std::collections::HashMap<u32, crate::layout::Frame>, width: f32, height: f32) -> Self {
+        let mut nodes = Vec::with_capacity(tree.len());
+        let mut queue = vec![ROOT_ID];
+        while let Some(id) = queue.pop() {
+            let Some(node) = tree.get(&id) else { continue };
+            nodes.push(SnapshotNode {
+                id,
+                key: node.key.clone(),
+                kind: node.kind,
+                props: (*node.props).clone(),
+                children: node.children.clone(),
+            });
+            queue.extend(node.children.iter().rev());
+        }
+        Self { nodes, frames: frames.clone(), width, height }
+    }
+
+    /// The tree again, as layout and painting take it.
+    pub fn tree(&self) -> Option<UiNode> {
+        let by_id: std::collections::HashMap<u32, &SnapshotNode> =
+            self.nodes.iter().map(|node| (node.id, node)).collect();
+        fn build(id: u32, by_id: &std::collections::HashMap<u32, &SnapshotNode>) -> Option<UiNode> {
+            let node = by_id.get(&id)?;
+            Some(UiNode {
+                id,
+                key: node.key.clone(),
+                kind: node.kind,
+                props: Rc::new(node.props.clone()),
+                source: None,
+                children: node.children.iter().filter_map(|child| build(*child, by_id)).collect(),
+            })
+        }
+        build(self.nodes.first()?.id, &by_id)
+    }
+
+    /// The node with `key`, if it's on screen.
+    pub fn find(&self, key: &str) -> Option<&SnapshotNode> {
+        self.nodes.iter().find(|node| node.key.as_deref() == Some(key))
+    }
+}

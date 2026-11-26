@@ -63,10 +63,7 @@ mod layout {
 #[path = "../../../apps/nightshade/src/nightshade/mod.rs"]
 mod nightshade;
 
-mod icons;
-mod paint;
-mod svg;
-mod text;
+use cheetah_render::text;
 
 use runtime::app::{Action, App, Event, ViewContext, Viewport};
 use runtime::element::Element;
@@ -107,7 +104,7 @@ fn parse(mut args: impl Iterator<Item = String>) -> Result<Options, String> {
         scale: 2.0,
         glass: true,
         tree: false,
-        assets: repo_root().join("ios/Cheetah/Assets"),
+        assets: cheetah_render::default_assets(),
         steps: Vec::new(),
     };
     let value = |args: &mut dyn Iterator<Item = String>, flag: &str| {
@@ -228,20 +225,17 @@ fn run(options: Options) -> Result<serde_json::Value, String> {
     let screen = view(&app, &views, viewport, &measurer);
     let root = runtime::tree::build(screen);
     let frames = runtime::layout::compute(&root, options.width, options.height, Some(&measurer));
+    let (png, drawn) = cheetah_render::draw(&root, &frames, (options.width, options.height), options.scale, &options.assets)?;
     let (width, height) = ((options.width * options.scale).round() as u32, (options.height * options.scale).round() as u32);
-    let mut pixmap = tiny_skia::Pixmap::new(width, height).ok_or("bad size")?;
-    pixmap.fill(paint::color("#000000", 1.0));
-    let mut painter = paint::Painter::new(&fonts, &frames, options.assets.clone(), options.scale);
-    painter.paint(&mut pixmap, &root);
 
     let out = options.out.clone().unwrap_or_else(|| repo_root().join("target/render").join(format!("{}.png", options.app)));
     if let Some(parent) = out.parent() {
         std::fs::create_dir_all(parent).map_err(|error| format!("{}: {error}", parent.display()))?;
     }
-    pixmap.save_png(&out).map_err(|error| format!("{}: {error}", out.display()))?;
+    std::fs::write(&out, png).map_err(|error| format!("{}: {error}", out.display()))?;
     let mut report = json!({"ok": true, "png": out.display().to_string(), "size": [width, height]});
     if options.tree {
-        report["elements"] = painter.drawn.into();
+        report["elements"] = drawn.into();
     }
     Ok(report)
 }

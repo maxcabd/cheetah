@@ -8,6 +8,13 @@
 //!   metrics    what each frame cost in the dev server's last session
 //!   doctor     which tools each command needs, and what's missing
 //!
+//! And the real app on a phone or simulator, through a dev server on any
+//! machine (`cheetah dev`; its `/agent` endpoint), by key, as the user would:
+//!
+//!   device_elements, device_screen, device_tap, device_type, device_event
+//!   device_screenshot   a true screenshot, from a device on this machine
+//!                       (adb, or the iOS simulator on a Mac)
+//!
 //! Each call runs the current source through cargo (`cheetah-render`, the
 //! `cheetah` CLI), so it reflects an edit made a moment before; a compile
 //! error comes back as the tool's error, which is what an agent needs then.
@@ -31,9 +38,11 @@ pub struct Output {
     pub stderr: String,
 }
 
-/// Runs cargo; tests swap it for canned outputs.
+/// Runs cargo and talks to dev servers; tests swap it for canned answers.
 pub trait Runner {
     fn cargo(&self, args: &[String]) -> Output;
+    /// One request to a dev server's `/agent`, and its reply.
+    fn agent(&self, server: &str, request: &Value) -> Result<Value, String>;
 }
 
 pub struct Cargo {
@@ -59,6 +68,49 @@ impl Runner for Cargo {
             },
         }
     }
+
+    fn agent(&self, server: &str, request: &Value) -> Result<Value, String> {
+        let url = agent_url(server);
+        let (mut socket, _) = tungstenite::connect(url.as_str())
+            .map_err(|error| format!("cannot reach the dev server at {url}: {error}"))?;
+        if let tungstenite::stream::MaybeTlsStream::Plain(stream) = socket.get_mut() {
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(30)));
+        }
+        socket
+            .send(tungstenite::Message::text(request.to_string()))
+            .map_err(|error| error.to_string())?;
+        loop {
+            match socket
+                .read()
+                .map_err(|error| format!("no answer from {url}: {error}"))?
+            {
+                tungstenite::Message::Text(text) => {
+                    let _ = socket.close(None);
+                    return serde_json::from_str(text.as_str()).map_err(|error| error.to_string());
+                }
+                tungstenite::Message::Close(_) => {
+                    return Err(format!("{url} closed the connection"))
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// The dev server to drive: as given, else CHEETAH_DEV_SERVER, else this
+/// machine's.
+fn agent_url(server: &str) -> String {
+    let server = if server.is_empty() {
+        std::env::var("CHEETAH_DEV_SERVER").unwrap_or_else(|_| "ws://127.0.0.1:8787".into())
+    } else {
+        server.to_string()
+    };
+    let server = if server.contains("://") {
+        server
+    } else {
+        format!("ws://{server}")
+    };
+    format!("{}/agent", server.trim_end_matches('/'))
 }
 
 fn repo_root() -> PathBuf {
@@ -87,6 +139,10 @@ fn tools() -> Value {
         }
     });
     let size = |default: f64, description: &str| json!({"type": "number", "default": default, "description": description});
+    let server = json!({
+        "type": "string",
+        "description": "The dev server: ws://host:port. Default: CHEETAH_DEV_SERVER, else ws://127.0.0.1:8787."
+    });
     json!([
         {
             "name": "render",
@@ -124,6 +180,42 @@ fn tools() -> Value {
                     "filter": {"type": "string", "description": "Only tests whose names contain this."}
                 }
             }
+        },
+        {
+            "name": "device_elements",
+            "title": "List what's on the connected device",
+            "description": "What the app on the device connected to a dev server (`cheetah dev`) is showing: keys, text, frames, what can be tapped. The server can be on another machine.",
+            "inputSchema": {"type": "object", "properties": {"server": server.clone()}}
+        },
+        {
+            "name": "device_screen",
+            "title": "See the connected device's screen",
+            "description": "The live screen of the app on the device connected to a dev server, painted from its live tree (native views are stand-ins; for a true screenshot of a device on this machine, use device_screenshot), with what's on it.",
+            "inputSchema": {"type": "object", "properties": {"server": server.clone(), "scale": size(1.0, "Pixels per point.")}}
+        },
+        {
+            "name": "device_tap",
+            "title": "Tap on the connected device",
+            "description": "Tap the element with `key` in the app on the device connected to a dev server; the device updates as if touched. Keys come from device_elements.",
+            "inputSchema": {"type": "object", "properties": {"key": {"type": "string"}, "server": server.clone()}, "required": ["key"]}
+        },
+        {
+            "name": "device_type",
+            "title": "Type on the connected device",
+            "description": "Set the text of the input with `key` in the app on the device connected to a dev server.",
+            "inputSchema": {"type": "object", "properties": {"key": {"type": "string"}, "text": {"type": "string"}, "server": server.clone()}, "required": ["key", "text"]}
+        },
+        {
+            "name": "device_event",
+            "title": "Send an event on the connected device",
+            "description": "Any event (submit, select, gesture...) for the element with `key`, in the app on the device connected to a dev server.",
+            "inputSchema": {"type": "object", "properties": {"kind": {"type": "string"}, "key": {"type": "string"}, "payload": {"type": "string"}, "server": server.clone()}, "required": ["kind", "key"]}
+        },
+        {
+            "name": "device_screenshot",
+            "title": "Screenshot a device on this machine",
+            "description": "A true screenshot: an Android device or emulator over adb, or the booted iOS simulator (macOS only).",
+            "inputSchema": {"type": "object", "properties": {"platform": {"type": "string", "enum": ["android", "ios"], "default": "android"}}}
         },
         {
             "name": "metrics",
@@ -361,6 +453,81 @@ fn cli(runner: &dyn Runner, command: &[&str]) -> Value {
     json!({"content": [text(trim(&shown))], "isError": !output.ok})
 }
 
+/// A dev server's answer as a tool result: its PNG as an image, its
+/// elements as lines.
+fn device(runner: &dyn Runner, arguments: &Value, request: Value) -> Value {
+    let server = arguments["server"].as_str().unwrap_or("");
+    let reply = match runner.agent(server, &request) {
+        Ok(reply) => reply,
+        Err(error) => {
+            return failure(format!(
+                "{error}\nIs `cheetah dev` running there, with the dev build connected?"
+            ))
+        }
+    };
+    if reply["ok"] != true {
+        return failure(
+            reply["error"]
+                .as_str()
+                .unwrap_or("the dev server said no")
+                .to_string(),
+        );
+    }
+    let mut content = Vec::new();
+    if let Some(png) = reply["png"].as_str() {
+        content.push(json!({"type": "image", "data": png, "mimeType": "image/png"}));
+    }
+    if reply.get("elements").is_some() {
+        content.push(text(element_lines(&reply)));
+    } else {
+        content.push(text("done; the device shows the result"));
+    }
+    json!({"content": content, "isError": false})
+}
+
+/// A real screenshot from a device or simulator on this machine.
+fn screenshot(runner: &dyn Runner, arguments: &Value) -> Value {
+    let platform = arguments["platform"].as_str().unwrap_or("android");
+    if platform != "android" && platform != "ios" {
+        return failure("platform: android or ios");
+    }
+    static CALLS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let call = CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let out = std::env::temp_dir().join(format!(
+        "cheetah-mcp-shot-{}-{call}.png",
+        std::process::id()
+    ));
+    let args: Vec<String> = [
+        "run",
+        "-q",
+        "-p",
+        "cheetah-drive",
+        "--",
+        platform,
+        "screenshot",
+    ]
+    .map(String::from)
+    .into_iter()
+    .chain([out.display().to_string()])
+    .collect();
+    let output = runner.cargo(&args);
+    let png = match std::fs::read(&out) {
+        Ok(png) if output.ok => png,
+        _ => {
+            return failure(trim(&format!(
+                "no screenshot from {platform}:\n{}{}",
+                output.stdout, output.stderr
+            )))
+        }
+    };
+    let _ = std::fs::remove_file(&out);
+    json!({"content": [{
+        "type": "image",
+        "data": base64::engine::general_purpose::STANDARD.encode(png),
+        "mimeType": "image/png"
+    }], "isError": false})
+}
+
 fn call(runner: &dyn Runner, params: &Value) -> Value {
     let arguments = params
         .get("arguments")
@@ -378,6 +545,34 @@ fn call(runner: &dyn Runner, params: &Value) -> Value {
             cli(runner, &["metrics", "--app", &app])
         }
         "doctor" => cli(runner, &["doctor"]),
+        "device_elements" => device(runner, &arguments, json!({"id": 1, "t": "elements"})),
+        "device_screen" => device(
+            runner,
+            &arguments,
+            json!({"id": 1, "t": "screen", "scale": arguments["scale"].as_f64().unwrap_or(1.0)}),
+        ),
+        "device_tap" => device(
+            runner,
+            &arguments,
+            json!({"id": 1, "t": "tap", "key": arguments["key"]}),
+        ),
+        "device_type" => device(
+            runner,
+            &arguments,
+            json!({"id": 1, "t": "type", "key": arguments["key"], "text": arguments["text"]}),
+        ),
+        "device_event" => device(
+            runner,
+            &arguments,
+            json!({
+                "id": 1,
+                "t": "event",
+                "kind": arguments["kind"],
+                "key": arguments["key"],
+                "payload": arguments["payload"].as_str().unwrap_or("")
+            }),
+        ),
+        "device_screenshot" => screenshot(runner, &arguments),
         other => failure(format!("no tool named {other}")),
     }
 }
@@ -398,7 +593,7 @@ pub fn handle(runner: &dyn Runner, message: &Value) -> Option<Value> {
                 "protocolVersion": version,
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": "cheetah", "title": "Cheetah", "version": env!("CARGO_PKG_VERSION")},
-                "instructions": "Cheetah apps are Rust with .view files. To see a change, call `render` (an image) or `elements` (what's on screen, with keys); tap by key in `steps`. `test` runs the app's tests, where its views render too."
+                "instructions": "Cheetah apps are Rust with .view files. To see a change, call `render` (an image) or `elements` (what's on screen, with keys); tap by key in `steps`. `test` runs the app's tests, where its views render too. With a phone connected to `cheetah dev`, the device_* tools see and tap the real app."
             })
         }
         "ping" => json!({}),
@@ -459,6 +654,22 @@ mod tests {
             self.calls.borrow_mut().push(args.to_vec());
             (self.output)(args)
         }
+
+        fn agent(&self, server: &str, request: &Value) -> Result<Value, String> {
+            self.calls
+                .borrow_mut()
+                .push(vec![server.to_string(), request.to_string()]);
+            match request["t"].as_str() {
+                Some("screen") => Ok(json!({"ok": true, "png": "iVBORw0KGgo=", "elements": [
+                    {"kind": "text", "key": "more", "text": "more", "frame": [0.0, 22.0, 60.0, 22.0], "pressable": true}
+                ]})),
+                Some("tap") if request["key"] == "nope" => {
+                    Ok(json!({"ok": false, "error": "nothing on screen with key nope"}))
+                }
+                Some(_) => Ok(json!({"ok": true})),
+                None => Err("cannot reach".into()),
+            }
+        }
     }
 
     fn canned(output: fn(&[String]) -> Output) -> Canned {
@@ -517,7 +728,22 @@ mod tests {
             .iter()
             .map(|tool| tool["name"].as_str().unwrap())
             .collect();
-        assert_eq!(names, ["render", "elements", "test", "metrics", "doctor"]);
+        assert_eq!(
+            names,
+            [
+                "render",
+                "elements",
+                "test",
+                "device_elements",
+                "device_screen",
+                "device_tap",
+                "device_type",
+                "device_event",
+                "device_screenshot",
+                "metrics",
+                "doctor"
+            ]
+        );
         let unknown = handle(&runner, &request("resources/list", json!({}))).unwrap();
         assert_eq!(unknown["error"]["code"], -32601);
     }
@@ -621,5 +847,45 @@ mod tests {
         let long = format!("{}the end", "x".repeat(MAX_TEXT * 2));
         let cut = trim(&long);
         assert!(cut.len() < MAX_TEXT + 20 && cut.ends_with("the end"));
+    }
+
+    #[test]
+    fn device_tools_talk_to_the_dev_server() {
+        let runner = canned(rendered);
+        let arguments =
+            json!({"name": "device_screen", "arguments": {"server": "ws://10.0.0.5:8787"}});
+        let screen = handle(&runner, &request("tools/call", arguments)).unwrap();
+        assert_eq!(screen["result"]["isError"], false);
+        assert_eq!(screen["result"]["content"][0]["type"], "image");
+        let listing = screen["result"]["content"][1]["text"].as_str().unwrap();
+        assert!(
+            listing.contains("more | text | \"more\" | [0, 22, 60, 22] | tap"),
+            "{listing}"
+        );
+
+        let arguments = json!({"name": "device_tap", "arguments": {"key": "more"}});
+        let tap = handle(&runner, &request("tools/call", arguments)).unwrap();
+        assert_eq!(tap["result"]["isError"], false);
+        {
+            let calls = runner.calls.borrow();
+            assert_eq!(calls[0][0], "ws://10.0.0.5:8787");
+            assert!(
+                calls[1][1].contains("\"t\":\"tap\"") && calls[1][1].contains("\"key\":\"more\"")
+            );
+        }
+
+        let arguments = json!({"name": "device_tap", "arguments": {"key": "nope"}});
+        let missing = handle(&runner, &request("tools/call", arguments)).unwrap();
+        assert_eq!(missing["result"]["isError"], true);
+        assert!(missing["result"]["content"][0]["text"]
+            .as_str()
+            .unwrap()
+            .contains("nope"));
+    }
+
+    #[test]
+    fn the_agent_address_comes_from_the_server_given() {
+        assert_eq!(agent_url("ws://10.0.0.5:8787/"), "ws://10.0.0.5:8787/agent");
+        assert_eq!(agent_url("10.0.0.5:8787"), "ws://10.0.0.5:8787/agent");
     }
 }
