@@ -25,8 +25,13 @@ enum NativeProps {
     }
 }
 
-/// SF Symbols as template images, made once per name and size. Main thread.
+/// SF Symbols as template bitmaps, made once per name and size: an image
+/// view showing a symbol as drawn by the system rasterizes it itself, in the
+/// commit, where nothing times it. A bitmap is drawn once and only shown.
+/// Tinted by the image view, as before.
 enum SymbolImages {
+    /// The screen's scale, read on the main thread for drawing off it.
+    private static var scale: CGFloat = 3
     private static var images: [String: UIImage] = [:]
     private static let lock = NSLock()
     /// The icons ("symbol|size") drawn last time, made again at launch.
@@ -37,6 +42,7 @@ enum SymbolImages {
     /// Make the icons the app drew last time before it needs them, off the
     /// main thread: each new symbol cost up to 80 ms of the frame showing it.
     static func warmUp() {
+        scale = UIScreen.main.scale
         let keys = UserDefaults.standard.stringArray(forKey: usedKey) ?? []
         used = Set(keys)
         DispatchQueue.global(qos: .userInitiated).async {
@@ -80,8 +86,15 @@ enum SymbolImages {
 
     private static func make(_ symbol: String, size: CGFloat) -> UIImage? {
         let config = UIImage.SymbolConfiguration(pointSize: size, weight: .regular)
-        return UIImage(systemName: symbol, withConfiguration: config)?
-            .withRenderingMode(.alwaysTemplate)
+        guard let vector = UIImage(systemName: symbol, withConfiguration: config) else {
+            return nil
+        }
+        let format = UIGraphicsImageRendererFormat(for: UITraitCollection(displayScale: scale))
+        format.opaque = false
+        let bitmap = UIGraphicsImageRenderer(size: vector.size, format: format).image { _ in
+            vector.draw(at: .zero)
+        }
+        return bitmap.withRenderingMode(.alwaysTemplate)
     }
 
     /// Saved a little later, once for all the icons of a screen.
