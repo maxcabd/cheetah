@@ -1,6 +1,7 @@
 use crate::element::{Kind, Props, SourceLocation};
 use crate::tree::FlatTree;
 use serde::Serialize;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "op", rename_all = "lowercase")]
@@ -52,6 +53,26 @@ fn only_text_diff(previous: &Props, next: &Props) -> bool {
     candidate == *next
 }
 
+/// How many parents `id` has, remembered for the nodes on the way up.
+fn depth(tree: &FlatTree, id: u32, known: &mut HashMap<u32, usize>) -> usize {
+    let mut chain = Vec::new();
+    let mut base = 0;
+    let mut current = Some(id);
+    while let Some(node) = current {
+        if let Some(&depth) = known.get(&node) {
+            base = depth + 1;
+            break;
+        }
+        chain.push(node);
+        current = tree.get(&node).and_then(|n| n.parent);
+    }
+    let top = chain.len().saturating_sub(1);
+    for (index, node) in chain.iter().enumerate() {
+        known.insert(*node, base + top - index);
+    }
+    known[&id]
+}
+
 pub fn diff(old: Option<&FlatTree>, new: &FlatTree) -> Vec<Op> {
     let mut creates = Vec::new();
     let mut updates = Vec::new();
@@ -89,6 +110,11 @@ pub fn diff(old: Option<&FlatTree>, new: &FlatTree) -> Vec<Op> {
         }
     }
 
+    // Deepest first: a new subtree is put together before it's attached, so
+    // the platform puts each into the window once, not view by view (which
+    // costs UIKit a trait and accessibility update per view). The map's own
+    // order would be random.
+    let mut depths = HashMap::new();
     let mut child_updates = Vec::new();
     for (id, node) in new {
         let changed = old
@@ -96,12 +122,13 @@ pub fn diff(old: Option<&FlatTree>, new: &FlatTree) -> Vec<Op> {
             .map(|previous| previous.children != node.children)
             .unwrap_or(true);
         if changed {
-            child_updates.push(Op::Children {
-                id: *id,
-                children: node.children.clone(),
-            });
+            child_updates.push((depth(new, *id, &mut depths), *id, node.children.clone()));
         }
     }
+    child_updates.sort_unstable_by(|a, b| b.0.cmp(&a.0).then(a.1.cmp(&b.1)));
+    let child_updates = child_updates
+        .into_iter()
+        .map(|(_, id, children)| Op::Children { id, children });
 
     let mut removes = Vec::new();
     if let Some(old) = old {
@@ -121,4 +148,47 @@ pub fn diff(old: Option<&FlatTree>, new: &FlatTree) -> Vec<Op> {
     ops.extend(child_updates);
     ops.extend(removes);
     ops
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::tree::FlatNode;
+    use std::rc::Rc;
+
+    fn node(id: u32, parent: Option<u32>, children: Vec<u32>) -> (u32, FlatNode) {
+        (
+            id,
+            FlatNode {
+                id,
+                key: None,
+                kind: Kind::Column,
+                props: Rc::new(Props::default()),
+                source: None,
+                children,
+                parent,
+            },
+        )
+    }
+
+    #[test]
+    fn attaches_subtrees_deepest_first() {
+        let tree: FlatTree = [
+            node(1, None, vec![2, 5]),
+            node(2, Some(1), vec![3]),
+            node(3, Some(2), vec![4]),
+            node(4, Some(3), vec![]),
+            node(5, Some(1), vec![]),
+        ]
+        .into_iter()
+        .collect();
+        let order: Vec<u32> = diff(None, &tree)
+            .into_iter()
+            .filter_map(|op| match op {
+                Op::Children { id, .. } => Some(id),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(order, vec![4, 3, 2, 5, 1]);
+    }
 }
