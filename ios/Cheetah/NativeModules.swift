@@ -66,6 +66,12 @@ final class NativeModuleHostView: UIView {
     /// cards and pins come and go by the dozen.
     static let reusable: Set<String> = ["icon", "shape"]
 
+    /// Whether the module shows this host in a screen of its own (a page, a
+    /// sheet): it isn't put on the screen it's declared in.
+    var presents: Bool {
+        module is CheetahPresenting
+    }
+
     /// Put away for reuse: keeps the module, forgets the element.
     func recycle() {
         onEvent = nil

@@ -749,6 +749,12 @@ final class RustHost: NSObject {
                 }
                 continue
             }
+            // A page goes straight to the screen it presents: put here
+            // first, its whole subtree would join this window, then move
+            // to the page's a turn later.
+            if let host = child as? NativeModuleHostView, host.presents {
+                continue
+            }
             if index >= placed.count || placed[index] !== child {
                 if let old = placed.firstIndex(where: { $0 === child }) {
                     placed.remove(at: old)
