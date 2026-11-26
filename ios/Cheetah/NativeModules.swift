@@ -652,6 +652,10 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, CheetahPre
     private var searchBar: UIView?
     private var keyboardTop: CGFloat = 0
     private var keyboardObservers: [NSObjectProtocol] = []
+    /// What was last applied: the sheet's element changes on most frames,
+    /// its look rarely, and setting a look again can lay the sheet out again.
+    private var appliedRaw: String?
+    private var appliedStyleKey: String?
 
     var nativeView: UIView {
         placeholder
@@ -663,11 +667,11 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, CheetahPre
     }
 
     func apply(props: [String: Any]) {
-        if let raw = props["nativeProps"] as? String,
-           let data = raw.data(using: .utf8),
-           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        if let raw = props["nativeProps"] as? String, raw != appliedRaw,
+           let parsed = NativeProps.parse(raw)
         {
             style = parsed
+            appliedRaw = raw
         }
         if let radius = props["radius"] as? NSNumber {
             sheetRadius = CGFloat(radius.doubleValue)
@@ -842,6 +846,15 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, CheetahPre
     }
 
     private func applyStyle(_ controller: UIViewController) {
+        let key = [
+            style["background"] as? String ?? "",
+            "\((style["grabber"] as? Bool) ?? false)",
+            "\((style["cornerRadius"] as? NSNumber)?.doubleValue ?? Double(sheetRadius))",
+        ].joined(separator: "|")
+        guard key != appliedStyleKey else {
+            return
+        }
+        appliedStyleKey = key
         controller.view.backgroundColor = UIColor(hex: style["background"] as? String ?? "#171717")
         if let sheet = controller.sheetPresentationController {
             sheet.prefersGrabberVisible = (style["grabber"] as? Bool) ?? false
@@ -898,6 +911,7 @@ private final class SheetNativeModule: NSObject, CheetahNativeModule, CheetahPre
             appliedDetentKey = nil
             applyDetents(sheet, animated: false)
         }
+        appliedStyleKey = nil
         applyStyle(controller)
         // The sheet can't be dismissed, so a drag down only "attempts" it.
         controller.presentationController?.delegate = self
