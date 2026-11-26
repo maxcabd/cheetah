@@ -37,6 +37,35 @@ final class HostMetrics {
         drawCounts[name, default: 0] += 1
     }
 
+    /// With the frame log: every layer drawn in a commit, timed by its kind
+    /// of view ("display UILabel"), through CALayer's `display`. Layers
+    /// whose class draws without it aren't seen.
+    private static let timedDisplays: Void = {
+        guard reports != nil,
+              let original = class_getInstanceMethod(CALayer.self, #selector(CALayer.display)),
+              let timed = class_getInstanceMethod(CALayer.self, #selector(CALayer.cheetahTimedDisplay))
+        else {
+            return
+        }
+        method_exchangeImplementations(original, timed)
+    }()
+
+    init() {
+        _ = Self.timedDisplays
+    }
+
+    fileprivate static func displayed(_ layer: CALayer, since start: UInt64) {
+        // The report is the main thread's: a layer drawn on another (a
+        // map's tiles) isn't its time.
+        guard Thread.isMainThread else { return }
+        let spent = DispatchTime.now().uptimeNanoseconds - start
+        let kind = layer.delegate.map { String(describing: type(of: $0)) }
+            ?? String(describing: type(of: layer))
+        let name = "display \(kind)"
+        drawing[name, default: 0] += spent
+        drawCounts[name, default: 0] += 1
+    }
+
     /// Time `work` by name if a frame is being applied, else just run it.
     static func measure<T>(_ phase: Phase, named name: String, _ work: () -> T) -> T {
         guard let active else { return work() }
@@ -232,5 +261,15 @@ final class HostMetrics {
 
     private static func micros(_ nanoseconds: UInt64) -> Int {
         Int(nanoseconds / 1000)
+    }
+}
+
+extension CALayer {
+    /// Swapped with `display` by HostMetrics when the frame log is on: this
+    /// name then runs the original.
+    @objc dynamic func cheetahTimedDisplay() {
+        let start = DispatchTime.now().uptimeNanoseconds
+        cheetahTimedDisplay()
+        HostMetrics.displayed(self, since: start)
     }
 }
