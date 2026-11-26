@@ -96,6 +96,8 @@ final class GlassView: UIView {
     private var interactive = false
     private var fallback: String?
     private var applied = false
+    /// The radius the glass has: nil until set.
+    private var shapeRadius: CGFloat?
     private var transparencyObserver: NSObjectProtocol?
 
     override init(frame: CGRect) {
@@ -125,7 +127,9 @@ final class GlassView: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        effectView.frame = bounds
+        if effectView.frame != bounds {
+            effectView.frame = bounds
+        }
         updateShape(radius: layer.cornerRadius)
     }
 
@@ -149,12 +153,25 @@ final class GlassView: UIView {
     /// Its look is set again by the next element's props.
     func prepareForReuse() {
         applied = false
+        shapeRadius = nil
     }
 
+    /// Set on the glass only when it changes: setting it again, as each
+    /// layout and props apply did, makes the glass lay itself out again. The
+    /// glass clips its content, as the UIKit twin's does; this view doesn't
+    /// clip too.
     func updateShape(radius: CGFloat) {
-        layer.cornerRadius = radius
+        if layer.cornerRadius != radius {
+            layer.cornerRadius = radius
+        }
+        if clipsToBounds {
+            clipsToBounds = false
+        }
+        guard radius != shapeRadius else {
+            return
+        }
+        shapeRadius = radius
         layer.cornerCurve = .continuous
-        clipsToBounds = radius > 0
         effectView.layer.cornerRadius = radius
         effectView.layer.cornerCurve = .continuous
         effectView.clipsToBounds = radius > 0
