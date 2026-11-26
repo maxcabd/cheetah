@@ -1024,7 +1024,7 @@ final class RustHost: NSObject {
     /// that are kept (NativeModuleHostView.reusable).
     private func poolKey(_ kind: String, native: String? = nil) -> String? {
         switch kind {
-        case "text", "button", "column", "row", "space", "image":
+        case "text", "button", "column", "row", "space", "image", "glass":
             return kind
         case "native":
             guard let native, NativeModuleHostView.reusable.contains(native) else { return nil }
@@ -1043,6 +1043,10 @@ final class RustHost: NSObject {
         view.backgroundColor = nil
         view.layer.cornerRadius = 0
         view.clipsToBounds = false
+        // Taps and gestures were the last element's: a reused view would
+        // send them for the new one (taps go by tag).
+        view.gestureRecognizers?.forEach { view.removeGestureRecognizer($0) }
+        view.isUserInteractionEnabled = !(view is UILabel || view is UIImageView)
         view.setNeedsLayout()
         switch kind {
         case "text":
@@ -1063,6 +1067,11 @@ final class RustHost: NSObject {
             }
         case "column", "row":
             view.subviews.forEach { $0.removeFromSuperview() }
+        case "glass":
+            if let glass = view as? GlassView {
+                glass.contentView.subviews.forEach { $0.removeFromSuperview() }
+                glass.prepareForReuse()
+            }
         case "image":
             if let image = view as? UIImageView {
                 image.image = nil

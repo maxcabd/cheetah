@@ -146,6 +146,11 @@ final class GlassView: UIView {
         refresh()
     }
 
+    /// Its look is set again by the next element's props.
+    func prepareForReuse() {
+        applied = false
+    }
+
     func updateShape(radius: CGFloat) {
         layer.cornerRadius = radius
         layer.cornerCurve = .continuous
@@ -175,8 +180,16 @@ final class GlassView: UIView {
             }
             backgroundColor = .clear
             effectView.contentView.backgroundColor = .clear
-            UIView.animate(withDuration: 0.2) {
-                self.effectView.effect = effect
+            // A change on screen is animated in. A new view's glass is just
+            // there, as in UIKit: animating it costs each card's chips.
+            if window != nil {
+                UIView.animate(withDuration: 0.2) {
+                    self.effectView.effect = effect
+                }
+            } else {
+                UIView.performWithoutAnimation {
+                    effectView.effect = effect
+                }
             }
             return
         }
