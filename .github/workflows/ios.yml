@@ -270,6 +270,7 @@ jobs:
         with:
           name: failed-measurements
           path: |
+            /tmp/frames.log
             /tmp/cheetah-failed-*.png
             /tmp/cheetah-idle-*.png
             /tmp/cheetah-second-card-*.png

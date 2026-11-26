@@ -33,7 +33,12 @@ enum SymbolImages {
     /// symbol took over 100 ms of the first frame.
     static func warmUp() {
         DispatchQueue.global(qos: .userInitiated).async {
-            _ = UIImage(systemName: "circle", withConfiguration: UIImage.SymbolConfiguration(pointSize: 16))
+            // Drawn, not only looked up: the cost is the first symbol drawn.
+            let config = UIImage.SymbolConfiguration(pointSize: 16, weight: .regular)
+            guard let symbol = UIImage(systemName: "circle", withConfiguration: config) else { return }
+            _ = UIGraphicsImageRenderer(size: symbol.size).image { _ in
+                symbol.withTintColor(.white).draw(at: .zero)
+            }
         }
     }
 

@@ -93,7 +93,14 @@ final class HostMetrics {
         let applied = DispatchTime.now().uptimeNanoseconds
         // UIKit would lay out in the commit anyway; done here it can be told
         // apart from drawing.
-        layoutRoot?()?.layoutIfNeeded()
+        var layoutParts: [String: Int] = [:]
+        if let root = layoutRoot?() {
+            if Self.reports != nil {
+                layoutParts = Self.layOutByPart(root)
+            } else {
+                root.layoutIfNeeded()
+            }
+        }
         let laidOut = DispatchTime.now().uptimeNanoseconds
 
         committing = true
@@ -106,6 +113,9 @@ final class HostMetrics {
             "apply_us": Self.micros(applied - start),
             "uikit_layout_us": Self.micros(laidOut - applied),
         ]
+        if !layoutParts.isEmpty {
+            report["layout_parts"] = layoutParts
+        }
         for phase in Phase.allCases {
             report["\(phase)_us"] = Self.micros(spent[phase.rawValue])
         }
@@ -140,6 +150,43 @@ final class HostMetrics {
             done(report)
         }
         CFRunLoopAddObserver(CFRunLoopGetMain(), observer, .commonModes)
+    }
+
+    /// Lay out `root` a part at a time, deepest first, timing each: which
+    /// part of the screen UIKit's layout goes to. Parts are named by their
+    /// test id, or their kind of view; only the frame log asks for this.
+    private static func layOutByPart(_ root: UIView) -> [String: Int] {
+        var parts: [String: Int] = [:]
+        var levels: [[UIView]] = [[root]]
+        for _ in 0..<4 {
+            let next = levels.last!.flatMap(\.subviews)
+            if next.isEmpty { break }
+            levels.append(next)
+        }
+        for level in levels.reversed() {
+            for view in level {
+                let start = DispatchTime.now().uptimeNanoseconds
+                view.layoutIfNeeded()
+                let spent = micros(DispatchTime.now().uptimeNanoseconds - start)
+                if spent >= 50 {
+                    parts[part(view), default: 0] += spent
+                }
+            }
+        }
+        let count = levels.dropFirst().reduce(0) { $0 + $1.count }
+        parts["views in the top \(levels.count - 1) levels"] = count
+        return parts
+    }
+
+    private static func part(_ view: UIView) -> String {
+        var current: UIView? = view
+        while let candidate = current {
+            if let id = candidate.accessibilityIdentifier, !id.isEmpty {
+                return id
+            }
+            current = candidate.superview
+        }
+        return String(describing: type(of: view))
     }
 
     private static func micros(_ nanoseconds: UInt64) -> Int {

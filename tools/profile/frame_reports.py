@@ -36,6 +36,17 @@ def main() -> int:
         med = lambda key: statistics.median(f.get(key, 0) for f in group) / 1000  # noqa: E731
         cells = [f"{med(p + '_us'):.1f}" for p in PARTS]
         print(f"| {ops} | {len(group)} | {med('apply_us'):.1f} | {med('uikit_layout_us'):.1f} | {med('commit_us'):.1f} | " + " | ".join(cells) + " |")
+    # The biggest kinds of frame: what their modules and UIKit layout go to.
+    for ops, group in sorted(groups.items(), key=lambda g: -len(g[1]))[:4]:
+        for field, title in (("named", "native work"), ("layout_parts", "UIKit layout")):
+            totals = {}
+            for f in group:
+                for name, us in (f.get(field) or {}).items():
+                    totals.setdefault(name, []).append(us)
+            if totals:
+                top = sorted(totals.items(), key=lambda n: -statistics.median(n[1]))[:8]
+                print(f"\n{ops}-op frames, {title}: " + ", ".join(
+                    f"{name} {statistics.median(v) / (1 if name.startswith('views') else 1000):.1f}" for name, v in top))
     named = {}
     for f in big:
         for name, us in (f.get("named") or {}).items():
