@@ -207,22 +207,25 @@ final class CheetahPerformanceTests: XCTestCase {
     // MARK: Startup: launch to a result card on screen
 
     func testCheetahStartup() throws {
-        startup(cheetah())
+        // Without frame reports: the other apps log nothing while launching.
+        let app = cheetah()
+        app.launchEnvironment["CHEETAH_FRAME_LOG"] = nil
+        startup(app, name: "Cheetah")
     }
 
     func testNativeStartup() throws {
-        startup(try twin())
+        startup(try twin(), name: "UIKit")
     }
 
     func testReactStartup() throws {
-        startup(try react())
+        startup(try react(), name: "React")
     }
 
     func testTunedStartup() throws {
-        startup(try react(tuned: true))
+        startup(try react(tuned: true), name: "Tuned")
     }
 
-    private func startup(_ app: XCUIApplication) {
+    private func startup(_ app: XCUIApplication, name: String) {
         // The first launch after an install is slower for both: not counted.
         app.launch()
         let title = app.staticTexts["Java Haven"].firstMatch
@@ -242,13 +245,21 @@ final class CheetahPerformanceTests: XCTestCase {
             Thread.sleep(forTimeInterval: 1)
             XCTAssertFalse(same(look(frame), shown), "the card should be gone")
             startMeasuring()
+            let start = Date()
             app.launch()
+            // XCTest's launch returns once the app answers it, which can be
+            // after the card is on screen: told apart here.
+            let returned = Date().timeIntervalSince(start)
             let end = Date().addingTimeInterval(20)
             var appeared = false
             while !appeared, Date() < end {
                 appeared = same(look(frame), shown)
             }
             stopMeasuring()
+            print(String(
+                format: "CheetahPerf startup %@: launch returned %.2f s, card seen %.2f s",
+                name, returned, Date().timeIntervalSince(start)
+            ))
             XCTAssertTrue(appeared, "a card should appear")
         }
     }
