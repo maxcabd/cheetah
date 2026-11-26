@@ -1066,28 +1066,45 @@ final class RustHost: NSObject {
         let font = uiFont(size: size, bold: bold, family: fontFamily)
 
         if let label = view as? UILabel {
-            if let text {
+            // All of a node's props come again when one changes (its frame,
+            // its opacity): set only what differs, or each label is laid
+            // out and drawn again in the commit.
+            let lineHeight = props.number(.lineHeight)
+            if let text, lineHeight == nil, label.text != text || Self.hasLineHeight(label) {
                 label.text = text
             }
-            label.font = font
+            if label.font != font {
+                label.font = font
+            }
             if let color = props.string(.color) {
-                label.textColor = UIColor(hex: color)
+                let color = UIColor(hex: color)
+                if label.textColor != color {
+                    label.textColor = color
+                }
             }
             if let align = props.string(.align) {
-                label.textAlignment = textAlignment(align)
+                let alignment = textAlignment(align)
+                if label.textAlignment != alignment {
+                    label.textAlignment = alignment
+                }
             }
             if let lines = props.number(.lines) {
                 let count = Int(lines)
-                label.numberOfLines = count
-                label.lineBreakMode = count == 1 ? .byTruncatingTail : .byWordWrapping
+                let mode: NSLineBreakMode = count == 1 ? .byTruncatingTail : .byWordWrapping
+                if label.numberOfLines != count {
+                    label.numberOfLines = count
+                }
+                if label.lineBreakMode != mode {
+                    label.lineBreakMode = mode
+                }
             }
-            if let lineHeight = props.number(.lineHeight), let text {
+            if let lineHeight, let text {
                 let paragraph = NSMutableParagraphStyle()
                 paragraph.minimumLineHeight = lineHeight
                 paragraph.maximumLineHeight = lineHeight
                 paragraph.alignment = label.textAlignment
                 paragraph.lineBreakMode = label.lineBreakMode
-                label.attributedText = NSAttributedString(
+                let attributed = NSAttributedString(
                     string: text,
                     attributes: [
                         .font: font,
@@ -1095,6 +1112,9 @@ final class RustHost: NSObject {
                         .paragraphStyle: paragraph,
                     ]
                 )
+                if label.attributedText != attributed {
+                    label.attributedText = attributed
+                }
             }
         }
 
@@ -1368,6 +1388,17 @@ final class RustHost: NSObject {
         let font = makeFont(size: size, bold: bold, family: family)
         fonts[key] = font
         return font
+    }
+
+    /// Whether a label still has a line height that its props no longer ask
+    /// for: plain text clears it.
+    private static func hasLineHeight(_ label: UILabel) -> Bool {
+        guard let attributed = label.attributedText, attributed.length > 0,
+              let paragraph = attributed.attribute(.paragraphStyle, at: 0, effectiveRange: nil) as? NSParagraphStyle
+        else {
+            return false
+        }
+        return paragraph.minimumLineHeight > 0 || paragraph.maximumLineHeight > 0
     }
 
     private func makeFont(size: CGFloat, bold: Bool, family: String?) -> UIFont {
