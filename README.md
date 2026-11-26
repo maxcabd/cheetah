@@ -1,4 +1,4 @@
-Rust runtime that drives native Android and iOS views with no JavaScript.
+Build iOS and Android apps in Rust, with real native views and no JavaScript.
 
 ## Performance
 
