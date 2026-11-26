@@ -166,78 +166,98 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
         overlay.pages = pages
         setNeedsLayout()
         layoutIfNeeded()
-        overlay.setNeedsDisplay()
     }
 }
 
+/// The photo's bottom fade and page dots, as layers: nothing is drawn on
+/// the main thread, also not while paging, when the dots change each frame.
 private final class PagerOverlayView: UIView {
-    var pages = 5
-    var progress: CGFloat = 0 {
-        didSet { setNeedsDisplay() }
+    var pages = 5 {
+        didSet {
+            if pages != oldValue { rebuildDots() }
+        }
     }
+
+    var progress: CGFloat = 0 {
+        didSet {
+            if progress != oldValue { updateDots() }
+        }
+    }
+
+    private let fade = CAGradientLayer()
+    private var dots: [CALayer] = []
+    private static let fadeHeight: CGFloat = 45
+    private static let dotRadius: CGFloat = 2.5
+    private static let dotSpacing: CGFloat = 11
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .clear
+        fade.colors = [
+            UIColor(hex: "#0b0b0f00").cgColor,
+            UIColor(hex: "#0b0b0f59").cgColor,
+            UIColor(hex: "#0b0b0fb3").cgColor,
+            UIColor(hex: "#1f1f1f").cgColor,
+        ]
+        fade.locations = [0, 0.5, 0.8, 1]
+        layer.addSublayer(fade)
+        rebuildDots()
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override func draw(_ rect: CGRect) {
-        HostMetrics.drawn("photo overlay") {
-            drawOverlay()
-        }
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fade.frame = CGRect(
+            x: 0, y: bounds.height - Self.fadeHeight,
+            width: bounds.width, height: Self.fadeHeight
+        )
+        placeDots()
+        CATransaction.commit()
     }
 
-    private func drawOverlay() {
-        guard let context = UIGraphicsGetCurrentContext(), bounds.width > 0 else {
-            return
-        }
-        let gradientHeight = 45.0
-        let colors = [
-            UIColor(hex: "#0b0b0f00").cgColor,
-            UIColor(hex: "#0b0b0f59").cgColor,
-            UIColor(hex: "#0b0b0fb3").cgColor,
-            UIColor(hex: "#1f1f1f").cgColor,
-        ] as CFArray
-        let locations: [CGFloat] = [0, 0.5, 0.8, 1]
-        if let gradient = CGGradient(
-            colorsSpace: CGColorSpaceCreateDeviceRGB(),
-            colors: colors,
-            locations: locations
-        ) {
-            let start = CGPoint(x: 0, y: bounds.height - gradientHeight)
-            let end = CGPoint(x: 0, y: bounds.height)
-            context.drawLinearGradient(
-                gradient,
-                start: start,
-                end: end,
-                options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
-            )
-        }
+    private func rebuildDots() {
+        dots.forEach { $0.removeFromSuperlayer() }
+        dots = pages > 1 ? (0..<pages).map { _ in
+            let dot = CALayer()
+            dot.backgroundColor = UIColor.white.cgColor
+            dot.bounds = CGRect(x: 0, y: 0, width: Self.dotRadius * 2, height: Self.dotRadius * 2)
+            dot.cornerRadius = Self.dotRadius
+            layer.addSublayer(dot)
+            return dot
+        } : []
+        setNeedsLayout()
+    }
 
-        guard pages > 1 else { return }
-        let radius: CGFloat = 2.5
-        let spacing: CGFloat = 11
-        let total = spacing * CGFloat(pages - 1)
+    private func placeDots() {
+        let total = Self.dotSpacing * CGFloat(pages - 1)
         let startX = bounds.midX - total / 2
         let y = bounds.height - 12
-        for index in 0..<pages {
+        for (index, dot) in dots.enumerated() {
+            dot.position = CGPoint(x: startX + CGFloat(index) * Self.dotSpacing, y: y)
+        }
+        styleDots()
+    }
+
+    private func updateDots() {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        styleDots()
+        CATransaction.commit()
+    }
+
+    /// The dot nearest the page shown grows and brightens.
+    private func styleDots() {
+        for (index, dot) in dots.enumerated() {
             let distance = abs(progress - CGFloat(index))
             let influence = max(0, min(1, 1 - distance / 0.75))
             let scale = 1 + 0.55 * influence
-            let dot = UIBezierPath(
-                ovalIn: CGRect(
-                    x: startX + CGFloat(index) * spacing - radius * scale,
-                    y: y - radius * scale,
-                    width: radius * 2 * scale,
-                    height: radius * 2 * scale
-                )
-            )
-            UIColor.white.withAlphaComponent(0.22 + 0.78 * influence).setFill()
-            dot.fill()
+            dot.transform = CATransform3DMakeScale(scale, scale, 1)
+            dot.opacity = Float(0.22 + 0.78 * influence)
         }
     }
 }
