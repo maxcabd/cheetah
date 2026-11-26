@@ -7,8 +7,16 @@ component MapScreen
     # Everything over the map slides with it; its corners round while it's
     # aside. Square and unclipped the rest of the time: clipping a full
     # screen map costs every frame.
-    column key="screen" absolute=true top=0 left=0 width=-1 height=-1 translate_x=drawer.offset radius=drawer.radius clip=drawer.shown animate=true transition_ms=450 spring=true
+    column key="screen" absolute=true top=0 left=0 width=-1 height=-1 translate_x=drawer.offset radius=drawer.radius clip=drawer.shown animate=drawer.animate transition_ms=450 spring=true
       use MapContent region=region carousel=carousel drawer=drawer
+    # Drags that move the map screen sit still above it, outside it: a pan is
+    # measured in its parent, which mustn't move with the finger. The
+    # slid-aside map closes the drawer (a tap, or a drag back); closed, the
+    # map's left edge drags it open.
+    if drawer.open
+      column key="drawer:close" pressable=true gestures="pan" absolute=true top=0 left=drawer.width width=drawer.rest height=-1 label="Close menu"
+    else
+      column key="drawer:edge" gestures="pan" absolute=true top=0 left=0 width=14 height=-1
     use Sheet sheet=sheet
     for page in pages
       use PageHost page=page
@@ -17,21 +25,18 @@ component MapContent
   map key="map" width=-1 height=-1 bg="#101826" test_id="nightshade-map" map_latitude=region.lat map_longitude=region.lng map_latitude_delta=region.lat_delta map_longitude_delta=region.lng_delta map_dark=true map_shows_user=true native_props=region.satellite ? "{{\"mapType\":\"hybrid\",\"recenter\":{region.recenter}}}" : "{{\"mapType\":\"muted\",\"recenter\":{region.recenter}}}"
     for pin in region.pins
       use MapPin pin=pin
-  # Map controls, top right from 36pt under the status bar: street map /
+  # Map controls, top right from 8pt under the status bar: street map /
   # satellite (showing the mode it switches to), then locate me (filled
   # while the map follows you). Liquid Glass on iOS 26, a blur before.
-  column absolute=true top=region.safe_top right=16 width=48 height=140 gap=8 justify="end"
+  column absolute=true top=region.safe_top right=16 width=48 height=112 gap=8 justify="end"
     use MapButton key="map:type" icon=region.satellite ? "map.fill" : "globe.americas.fill" label=region.satellite ? "Street map" : "Satellite"
     use MapButton key="map:locate" icon=region.locate_icon label="Show my location"
   # The menu: opens the drawer. Level with the street map button.
-  column absolute=true top=region.safe_top left=16 width=48 height=140 justify="end"
+  column absolute=true top=region.safe_top left=16 width=48 height=112 justify="end"
     use MapButton key="drawer:open" icon="line.3.horizontal" label="Menu"
     column width=48 height=56
   if carousel
     use Carousel carousel=carousel
-  # The slid-aside map closes the drawer: a tap, or a swipe back.
-  if drawer.open
-    column key="drawer:close" pressable=true gestures="swipe" absolute=true top=0 left=0 width=-1 height=-1 label="Close menu"
 
 # A map pin: any child of `map` with map_latitude/map_longitude is placed at
 # that coordinate. Glass is Liquid Glass on iOS 26 and a blur before.

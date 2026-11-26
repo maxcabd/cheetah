@@ -72,6 +72,11 @@ pub struct NightshadeApp {
     drawer_open: bool,
     /// The map screen keeps its rounded corners until it has slid back.
     drawer_rounded: bool,
+    /// How far the map screen is slid while a finger drags it, open or shut.
+    drawer_drag: Option<f32>,
+    /// The drawer's width on the last screen drawn: drags are measured
+    /// against it.
+    drawer_width: std::cell::Cell<f32>,
     /// Result cards shrunk to small bars (swipe a card's handle down).
     cards_minimized: bool,
     /// First and last result cards built so far (`carousel_model`).
@@ -147,6 +152,8 @@ impl NightshadeApp {
             location_denied: false,
             drawer_open: false,
             drawer_rounded: false,
+            drawer_drag: None,
+            drawer_width: std::cell::Cell::new(393.0 * 0.8),
             cards_minimized: false,
             cards_built: Default::default(),
             cards_timer: false,
@@ -330,12 +337,12 @@ impl App for NightshadeApp {
                     self.photo_colors.insert(id.to_string(), color);
                 }
             }
-            // Swiping the slid-aside map back closes the drawer.
-            "gesture" if key == "drawer:close" => {
-                if crate::gesture::Gesture::parse(&event)
-                    .is_some_and(|gesture| gesture.kind == "swipe" && gesture.direction == "left")
-                {
-                    self.close_drawer();
+            // Dragging the slid-aside map back, or the map's left edge open.
+            "gesture" if key == "drawer:close" || key == "drawer:edge" => {
+                if let Some(gesture) = crate::gesture::Gesture::parse(&event) {
+                    if gesture.kind == "pan" {
+                        self.drag_drawer(&gesture, key == "drawer:close");
+                    }
                 }
             }
             // A card's handle: swipe down to minimize the cards, up to restore.

@@ -6,7 +6,7 @@ component SettingsPage
     row width=-1 height=52 pad_h=16 gap=12 align_items="center"
       glass key="page:back" pressable=true width=44 height=44 radius=22 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Close" .center
         use Icon name="chevron.down" size=18 color="#ffffff"
-      text "Settings" size=26 font="brice-bold" color=TEXT lines=1 height=32
+      text "Settings" size=26 font="brice-bold" color=TEXT weight=1 lines=1 height=32
     column width=-1 pad_h=20 pad_v=16 gap=12
       # Location: whether it's on, and a way to turn it on.
       column width=-1 pad=16 gap=10 radius=20 .chip_frame

@@ -1717,7 +1717,7 @@ fn the_menu_slides_the_map_aside_to_show_the_drawer() {
             id: 0,
             key: Some("drawer:close".into()),
             kind: "gesture".into(),
-            payload: format!(r#"{{"type":"swipe","state":"ended","direction":"{direction}"}}"#),
+            payload: if direction == "left" { r#"{"type":"pan","state":"ended","dx":-200,"vx":-900}"#.to_string() } else { r#"{"type":"pan","state":"ended","dx":40,"vx":900}"#.to_string() },
         });
     };
     swipe(&mut app, "right");

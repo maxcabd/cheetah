@@ -7,7 +7,7 @@ component SavedPage
     row width=-1 height=52 pad_h=16 gap=12 align_items="center"
       glass key="page:back" pressable=true width=44 height=44 radius=22 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Close" .center
         use Icon name="chevron.down" size=18 color="#ffffff"
-      text "Saved" size=26 font="brice-bold" color=TEXT lines=1 height=32
+      text "Saved" size=26 font="brice-bold" color=TEXT weight=1 lines=1 height=32
     if saved.rows
       scroll key="saved:list" width=-1 weight=1 content_height=saved.list_height
         column width=-1 pad_h=20 pad_v=12 gap=10
