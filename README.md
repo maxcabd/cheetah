@@ -12,7 +12,6 @@ Rust runtime that drives native Android and iOS views with no JavaScript.
 | Memory | **133 MB** | 131 MB | 230 MB |
 | CPU while scrolling | **2.9 s** | 2.6 s | 5.9 s |
 
-</div>
+<sub><a href="https://github.com/maxcabd/nightshade-react-bench">How it's measured</a></sub>
 
-<sub>iOS 26 simulator on GitHub Actions. Same screens, data and taps in all three.
-[How it's measured](https://github.com/maxcabd/nightshade-react-bench).</sub>
+</div>
