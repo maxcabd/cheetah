@@ -65,6 +65,8 @@ pub struct NightshadeApp {
     locating: bool,
     /// Locate taps, so each one moves the map even if it hasn't changed.
     locate_taps: u32,
+    /// The user said no to location: the locate button offers Settings.
+    location_denied: bool,
     /// Result cards shrunk to small bars (swipe a card's handle down).
     cards_minimized: bool,
     /// First and last result cards built so far (`carousel_model`).
@@ -137,6 +139,7 @@ impl NightshadeApp {
             satellite: false,
             locating: false,
             locate_taps: 0,
+            location_denied: false,
             cards_minimized: false,
             cards_built: Default::default(),
             cards_timer: false,
@@ -231,6 +234,10 @@ impl App for NightshadeApp {
             } else if event.payload == "active" {
                 // The time of day may have moved on.
                 self.load_suggestions();
+                // Back from Settings, location may be allowed now.
+                if self.location_denied {
+                    self.calls.push(NativeCall::new("location", "request", "{}"));
+                }
             }
             return;
         }

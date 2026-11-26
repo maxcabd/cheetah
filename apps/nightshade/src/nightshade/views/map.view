@@ -9,7 +9,7 @@ component MapScreen
     # while the map follows you). Liquid Glass on iOS 26, a blur before.
     column absolute=true top=region.safe_top right=16 width=48 height=140 gap=8 justify="end"
       use MapButton key="map:type" icon=region.satellite ? "map.fill" : "globe.americas.fill"
-      use MapButton key="map:locate" icon=region.locating ? "location.fill" : "location"
+      use MapButton key="map:locate" icon=region.locate_icon
     if carousel
       use Carousel carousel=carousel
     use Sheet sheet=sheet

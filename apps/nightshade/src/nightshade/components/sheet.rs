@@ -88,6 +88,12 @@ impl NightshadeApp {
             "field_key": format!("search-field:{}", self.field_mount),
             "can_send": !self.draft.trim().is_empty(),
             "results": results,
+            // Away from Ottawa, the empty sheet says what searches cover;
+            // the chips make room for the line.
+            "market_note": self
+                .outside_market()
+                .then_some("Nightshade only covers Ottawa for now."),
+            "chips_height": if self.outside_market() { 166 } else { 200 },
             // The saved list's way in, once there's something in it.
             "saved_count": self.saved_places().len(),
             "other_searches": other_searches,

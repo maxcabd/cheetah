@@ -12,6 +12,9 @@ pub(crate) const SEARCH_TIMEOUT_MS: u32 = 60_000;
 /// emulator's default location) the backend's own Ottawa default is used.
 pub(crate) const MARKET_CENTER: (f32, f32) = (45.4215, -75.6972);
 pub(crate) const MARKET_RADIUS_KM: f32 = 60.0;
+/// Results shown to someone outside the market.
+pub(crate) const MARKET_NOTICE: &str =
+    "Nightshade only covers Ottawa for now, so these are Ottawa spots.";
 
 /// Great-circle distance in kilometres.
 pub(crate) fn distance_km((lat1, lng1): (f32, f32), (lat2, lng2): (f32, f32)) -> f32 {

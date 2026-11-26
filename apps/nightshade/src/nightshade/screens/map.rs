@@ -29,6 +29,7 @@ impl NightshadeApp {
                     "lng_delta": longitude_delta,
                     "satellite": self.satellite,
                     "locating": self.locating,
+                    "locate_icon": self.locate_icon(),
                     "recenter": self.locate_taps,
                     "pins": self.pins(),
                     "safe_top": self.host.safe_top.max(20.0),
@@ -58,7 +59,9 @@ impl NightshadeApp {
     /// The points the map fits: the user (when locating) and the places.
     fn region_points(&self) -> Vec<(f32, f32)> {
         let user = self.center.filter(|_| self.locating);
-        if !self.has_results() {
+        // Results far from you (outside Ottawa): you alone, not a map from
+        // you to them.
+        if !self.has_results() || self.outside_market() {
             return user.into_iter().collect();
         }
         let places = self.visible_places();
@@ -86,7 +89,7 @@ impl NightshadeApp {
     fn fitted_region(&self, width: f32, height: f32) -> (f32, f32, f32, f32) {
         let points = self.region_points();
         if points.is_empty() {
-            let (latitude, longitude) = self.center.unwrap_or((INITIAL_LAT, INITIAL_LNG));
+            let (latitude, longitude) = self.home();
             return (latitude, longitude, 0.025, 0.025);
         }
         let min_lat = points.iter().map(|p| p.0).fold(f32::MAX, f32::min);
@@ -129,9 +132,65 @@ impl NightshadeApp {
         (latitude, longitude, latitude_delta, longitude_delta)
     }
 
+    /// Where the map rests with nothing to show: you, or where the places
+    /// are. Searches only cover Ottawa, so away from it, Ottawa; the
+    /// sample places are in San Francisco.
+    fn home(&self) -> (f32, f32) {
+        if matches!(self.backend, Backend::Local(_)) {
+            return self.center.unwrap_or((INITIAL_LAT, INITIAL_LNG));
+        }
+        self.center
+            .filter(|_| !self.outside_market())
+            .unwrap_or(MARKET_CENTER)
+    }
+
+    /// The user is somewhere searches don't cover (Ottawa only, for now).
+    pub(crate) fn outside_market(&self) -> bool {
+        matches!(self.backend, Backend::Remote { .. })
+            && self
+                .center
+                .is_some_and(|center| distance_km(center, MARKET_CENTER) > MARKET_RADIUS_KM)
+    }
+
+    /// The locate button's icon: following you, not, or not allowed.
+    pub(crate) fn locate_icon(&self) -> &'static str {
+        if self.location_denied {
+            "location.slash"
+        } else if self.locating {
+            "location.fill"
+        } else {
+            "location"
+        }
+    }
+
+    /// Nightshade's page in Settings, to allow location.
+    pub(crate) fn open_settings(&mut self) {
+        self.calls.push(NativeCall::new(
+            "system",
+            "openUrl",
+            serde_json::json!({"url": "app-settings:"}).to_string(),
+        ));
+    }
+
     /// The locate button: center on the user (with the nearest results).
-    /// Without a location yet, ask for one again.
+    /// Without a location yet, ask for one again; turned off, say how to
+    /// turn it on.
     pub(crate) fn locate(&mut self) {
+        if self.location_denied {
+            self.calls.push(NativeCall::new(
+                "dialog",
+                "alert",
+                serde_json::json!({
+                    "id": "location:denied",
+                    "title": "Location is off",
+                    "message": "Allow Nightshade to use your location in Settings to see places near you.",
+                    "buttons": ["Not now", "Open Settings"],
+                })
+                .to_string(),
+            ));
+            self.haptic("light");
+            return;
+        }
         if self.center.is_none() {
             self.calls.push(NativeCall::new("location", "request", "{}"));
             return;

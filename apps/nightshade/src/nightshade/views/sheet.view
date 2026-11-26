@@ -19,7 +19,7 @@ component Sheet
         if sheet.body == "searching"
           use SearchingBody query=sheet.query emoji=sheet.searching_emoji
         if sheet.body == "empty"
-          use EmptyBody suggestions=sheet.suggestions saved_count=sheet.saved_count glass=sheet.glass
+          use EmptyBody suggestions=sheet.suggestions saved_count=sheet.saved_count market_note=sheet.market_note chips_height=sheet.chips_height glass=sheet.glass
         if sheet.body == "failed"
           use FailedBody query=sheet.query failure=sheet.failure glass=sheet.glass
         if sheet.body == "no_results"
@@ -74,8 +74,11 @@ component EmptyBody
         use SavedChip glass=glass
     else
       text "Ready to discover?" .heading pad_h=24
-    hscroll width=-1 height=200 content_width=648
-      column width=648 height=200 pad_h=24 justify="center"
+    # Away from Ottawa: what searches cover.
+    if market_note
+      text market_note key="sheet:market" size=15 font="satoshi-medium" color=MUTED pad_h=24 lines=1 height=20
+    hscroll width=-1 height=chips_height content_width=648
+      column width=648 height=chips_height pad_h=24 justify="center"
         row width=600 wrap=true gap=10 align_items="center"
           for chip in suggestions
             use Chip label=chip.label key=chip.key glass=glass

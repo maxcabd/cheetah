@@ -1587,3 +1587,96 @@ fn bookmarks_from_before_the_list_are_listed_once_found_again() {
     assert_eq!(app.saved_places().len(), 1);
     assert_eq!(app.saved_places()[0].name, "Pizza Paradise");
 }
+
+fn native(app: &mut NightshadeApp, payload: serde_json::Value) {
+    app.update(Event { id: 0, key: None, kind: "native".into(), payload: payload.to_string() });
+}
+
+fn location(app: &mut NightshadeApp, latitude: f64, longitude: f64) {
+    native(
+        app,
+        serde_json::json!({"module": "location", "method": "result", "ok": true,
+            "latitude": latitude, "longitude": longitude, "accuracy": 10}),
+    );
+}
+
+#[test]
+fn location_turned_off_offers_settings() {
+    let mut app = NightshadeApp::new(false);
+    native(
+        &mut app,
+        serde_json::json!({"module": "location", "method": "result", "ok": false, "error": "permission_denied"}),
+    );
+    assert_eq!(app.locate_icon(), "location.slash");
+    assert!(format!("{:?}", render(&app)).contains("location.slash"));
+
+    app.take_native_calls();
+    click(&mut app, "map:locate");
+    let calls = app.take_native_calls();
+    let alert = calls.iter().find(|call| call.module == "dialog" && call.method == "alert").expect("says why");
+    assert!(alert.args.contains("Open Settings"));
+
+    let answer = |app: &mut NightshadeApp, index: i64| {
+        native(app, serde_json::json!({"module": "dialog", "method": "result", "id": "location:denied", "index": index}));
+        app.take_native_calls()
+    };
+    assert!(answer(&mut app, 0).iter().all(|call| call.method != "openUrl"), "not now");
+    let settings = answer(&mut app, 1);
+    assert!(settings.iter().any(|call| call.method == "openUrl" && call.args.contains("app-settings:")));
+
+    // Back in the app: maybe allowed now, so ask again.
+    app.update(Event { id: 0, key: None, kind: "lifecycle".into(), payload: "active".into() });
+    assert!(app.take_native_calls().iter().any(|call| call.module == "location" && call.method == "request"));
+    location(&mut app, 45.42, -75.69);
+    assert_eq!(app.locate_icon(), "location");
+}
+
+#[test]
+fn a_location_with_no_fix_yet_is_not_turned_off() {
+    let mut app = NightshadeApp::new(false);
+    native(
+        &mut app,
+        serde_json::json!({"module": "location", "method": "result", "ok": false, "error": "unavailable"}),
+    );
+    assert_eq!(app.locate_icon(), "location");
+    app.take_native_calls();
+    click(&mut app, "map:locate");
+    assert!(app.take_native_calls().iter().any(|call| call.module == "location" && call.method == "request"));
+}
+
+#[test]
+fn away_from_ottawa_the_app_says_what_it_covers() {
+    let mut app = remote_app();
+    let (width, height) = (393.0, 852.0);
+    // No location yet: the map rests on Ottawa, where the places are.
+    let (lat, lng, ..) = app.region(width, height);
+    assert!(super::distance_km((lat, lng), super::MARKET_CENTER) < 1.0);
+    assert!(find(&render(&app), "sheet:market").is_none());
+
+    location(&mut app, 43.6532, -79.3832); // Toronto
+    let (lat, lng, ..) = app.region(width, height);
+    assert!(super::distance_km((lat, lng), super::MARKET_CENTER) < 1.0, "still Ottawa, not Toronto");
+    let screen = render(&app);
+    let note = find(&screen, "sheet:market").expect("the empty sheet says so");
+    assert_eq!(note.props.text.as_deref(), Some("Nightshade only covers Ottawa for now."));
+
+    submit(&mut app, "sushi");
+    let id = request_id(&mut app);
+    let body = serde_json::json!({"cards": [{"place_id": "s1", "name": "Sushi", "lat": 45.42, "lng": -75.69}]});
+    http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}));
+    assert_eq!(app.response().unwrap().notice.as_deref(), Some(super::MARKET_NOTICE));
+}
+
+#[test]
+fn in_ottawa_there_is_no_notice() {
+    let mut app = remote_app();
+    location(&mut app, 45.40, -75.68);
+    assert!(find(&render(&app), "sheet:market").is_none());
+    let (lat, lng, ..) = app.region(393.0, 852.0);
+    assert!(super::distance_km((lat, lng), (45.40, -75.68)) < 1.0, "the map rests on you");
+    submit(&mut app, "sushi");
+    let id = request_id(&mut app);
+    let body = serde_json::json!({"cards": [{"place_id": "s1", "name": "Sushi", "lat": 45.42, "lng": -75.69}]});
+    http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}));
+    assert_eq!(app.response().unwrap().notice, None);
+}

@@ -87,7 +87,12 @@ impl NightshadeApp {
                 self.expanded = false;
                 self.haptic("warning");
             }
-            Ok(response) => {
+            Ok(mut response) => {
+                // Away from Ottawa, results are Ottawa's: say so, unless the
+                // backend has something to say.
+                if self.outside_market() && response.notice.is_none() {
+                    response.notice = Some(MARKET_NOTICE.into());
+                }
                 // New results start with full cards, the map zoomed in on
                 // the first (as if its card was swiped to).
                 self.cards_minimized = false;
@@ -175,8 +180,14 @@ impl NightshadeApp {
         if self.router.handle_native(&event) {
             return;
         }
-        // A maps app picked for directions.
+        // A maps app picked for directions, or Settings for location.
         if event.is("dialog", "result") {
+            if event.data["id"] == "location:denied" {
+                if event.data["index"] == 1 {
+                    self.open_settings();
+                }
+                return;
+            }
             if let Some(id) = event.data["id"].as_str().and_then(|id| id.strip_prefix("directions:")) {
                 let choice = event.data["index"].as_i64().unwrap_or(-1);
                 self.directions_chosen(&id.to_string(), choice);
@@ -211,9 +222,19 @@ impl NightshadeApp {
             return;
         }
 
-        if !event.is("location", "result") || event.data["ok"] != true {
+        if !event.is("location", "result") {
             return;
         }
+        if event.data["ok"] != true {
+            // Turned off for Nightshade: the locate button says so. Other
+            // failures (no fix yet) ask again on the next tap.
+            if event.data["error"] == "permission_denied" {
+                self.location_denied = true;
+                self.locating = false;
+            }
+            return;
+        }
+        self.location_denied = false;
         let latitude = event.data["latitude"].as_f64();
         let longitude = event.data["longitude"].as_f64();
         if let (Some(latitude), Some(longitude)) = (latitude, longitude) {
