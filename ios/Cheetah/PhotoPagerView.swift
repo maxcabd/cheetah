@@ -186,6 +186,12 @@ private final class PagerOverlayView: UIView {
     }
 
     override func draw(_ rect: CGRect) {
+        HostMetrics.drawn("photo overlay") {
+            drawOverlay()
+        }
+    }
+
+    private func drawOverlay() {
         guard let context = UIGraphicsGetCurrentContext(), bounds.width > 0 else {
             return
         }

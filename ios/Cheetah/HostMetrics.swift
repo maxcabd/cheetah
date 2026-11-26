@@ -18,6 +18,20 @@ final class HostMetrics {
     /// The metrics of the frame being applied, for code deep inside it.
     private(set) static weak var active: HostMetrics?
 
+    /// Drawing in Cheetah's own views ("text", "button"), which UIKit does
+    /// inside the commit, and how many were drawn: only with the frame log.
+    private static var drawing: [String: UInt64] = [:]
+    private static var drawCounts: [String: Int] = [:]
+
+    /// Time a view's drawing by kind, for the commit's share of the report.
+    static func drawn(_ name: String, _ work: () -> Void) {
+        guard reports != nil else { return work() }
+        let start = DispatchTime.now().uptimeNanoseconds
+        work()
+        drawing[name, default: 0] += DispatchTime.now().uptimeNanoseconds - start
+        drawCounts[name, default: 0] += 1
+    }
+
     /// Time `work` by name if a frame is being applied, else just run it.
     static func measure<T>(_ phase: Phase, named name: String, _ work: () -> T) -> T {
         guard let active else { return work() }
@@ -94,6 +108,8 @@ final class HostMetrics {
         named.removeAll(keepingCapacity: true)
         beforeCommit = 0
         committing = false
+        Self.drawing.removeAll(keepingCapacity: true)
+        Self.drawCounts.removeAll(keepingCapacity: true)
 
         let start = DispatchTime.now().uptimeNanoseconds
         let interval = Self.signposter.beginInterval("apply")
@@ -149,6 +165,12 @@ final class HostMetrics {
                 report["named"] = names.merging(self.putOff, uniquingKeysWith: +)
                     .mapValues(Self.micros)
                 self.putOff.removeAll(keepingCapacity: true)
+                if !Self.drawing.isEmpty {
+                    report["drawn"] = Self.drawing.mapValues(Self.micros)
+                    report["drawn_count"] = Self.drawCounts
+                    Self.drawing.removeAll(keepingCapacity: true)
+                    Self.drawCounts.removeAll(keepingCapacity: true)
+                }
                 self.beforeCommit = 0
                 self.committing = false
             }

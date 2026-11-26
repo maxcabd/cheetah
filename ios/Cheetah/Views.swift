@@ -56,7 +56,9 @@ final class InsetLabel: UILabel {
     }
 
     override func drawText(in rect: CGRect) {
-        super.drawText(in: rect.inset(by: insets))
+        HostMetrics.drawn("text") {
+            super.drawText(in: rect.inset(by: insets))
+        }
     }
 }
 
@@ -215,6 +217,12 @@ final class CheetahButton: UIControl {
     }
 
     override func draw(_ rect: CGRect) {
+        HostMetrics.drawn("button") {
+            drawTitle(rect)
+        }
+    }
+
+    private func drawTitle(_ rect: CGRect) {
         super.draw(rect)
 
         guard let title, !title.isEmpty else {
