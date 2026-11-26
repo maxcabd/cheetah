@@ -77,16 +77,36 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
             }.resume()
             return
         }
+        // Bundled too: finding, decoding and shrinking a full-size photo took
+        // 20 ms or more of the main thread for each card.
         let name = source.replacingOccurrences(of: "asset://", with: "")
-        guard let image = UIImage(named: name)
-            ?? UIImage(named: (name as NSString).deletingPathExtension)
-            ?? UIImage(contentsOfFile: name)
-        else {
-            return
+        let size = bounds.size == .zero ? CGSize(width: 320, height: 180) : bounds.size
+        let pixels = CGSize(
+            width: size.width * UIScreen.main.scale,
+            height: size.height * UIScreen.main.scale
+        )
+        Self.decoding.async { [weak self] in
+            guard let loaded = UIImage(named: name)
+                ?? UIImage(named: (name as NSString).deletingPathExtension)
+                ?? UIImage(contentsOfFile: name)
+            else {
+                return
+            }
+            // Big enough to fill the page, no bigger.
+            let scale = max(pixels.width / loaded.size.width, pixels.height / loaded.size.height, 0.01)
+            let image = scale < 1
+                ? loaded.preparingThumbnail(of: CGSize(
+                    width: loaded.size.width * scale, height: loaded.size.height * scale
+                )) ?? loaded
+                : loaded.preparingForDisplay() ?? loaded
+            Self.cache.setObject(image, forKey: source as NSString)
+            DispatchQueue.main.async {
+                self?.show(image, page: page, source: source)
+            }
         }
-        Self.cache.setObject(image, forKey: source as NSString)
-        show(image, page: page, source: source)
     }
+
+    private static let decoding = DispatchQueue(label: "dev.cheetah.photos", qos: .userInitiated)
 
     /// Put a loaded photo on its page, unless the photos changed meanwhile.
     private func show(_ image: UIImage, page: Int, source: String) {
