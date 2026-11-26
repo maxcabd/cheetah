@@ -39,6 +39,10 @@ pub fn plan(root: &Path, app: &str, config: &AppConfig, dev: bool) -> Result<Vec
     });
 
     outputs.push(Output {
+        path: root.join("ios/Cheetah/Assets.xcassets/LaunchBackground.colorset/Contents.json"),
+        contents: launch_color(config)?,
+    });
+    outputs.push(Output {
         path: root.join("ios/Cheetah/Generated/Cheetah.entitlements"),
         contents: entitlements(config),
     });
@@ -217,6 +221,22 @@ fn plist_schemes(config: &AppConfig) -> Vec<String> {
         "    </array>".into(),
         "</dict>".into(),
     ]
+}
+
+/// The launch screen's color (Info.plist's UILaunchScreen names it).
+fn launch_color(config: &AppConfig) -> Result<String, String> {
+    let hex = config.launch_background.as_deref().unwrap_or("#000000");
+    let digits = hex.trim_start_matches('#');
+    if digits.len() != 6 || !digits.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(format!("launch_background {hex:?} isn't #rrggbb"));
+    }
+    let channel = |i: usize| format!("0x{}", digits[i..i + 2].to_ascii_uppercase());
+    Ok(format!(
+        "{{\n  \"colors\" : [\n    {{\n      \"color\" : {{\n        \"color-space\" : \"srgb\",\n        \"components\" : {{\n          \"alpha\" : \"1.000\",\n          \"blue\" : \"{}\",\n          \"green\" : \"{}\",\n          \"red\" : \"{}\"\n        }}\n      }},\n      \"idiom\" : \"universal\"\n    }}\n  ],\n  \"info\" : {{\n    \"author\" : \"cheetah prebuild\",\n    \"version\" : 1\n  }}\n}}\n",
+        channel(4),
+        channel(2),
+        channel(0),
+    ))
 }
 
 fn entitlements(config: &AppConfig) -> String {
@@ -431,6 +451,17 @@ android = "com.nightshade.ChartView"
         assert!(replace_block(text, "y", &[])
             .unwrap_err()
             .contains("missing"));
+    }
+
+    #[test]
+    fn launch_color_is_checked() {
+        let mut config = config();
+        assert!(launch_color(&config).unwrap().contains("\"red\" : \"0x00\""));
+        config.launch_background = Some("#0b0b0f".into());
+        let color = launch_color(&config).unwrap();
+        assert!(color.contains("\"red\" : \"0x0B\"") && color.contains("\"blue\" : \"0x0F\""));
+        config.launch_background = Some("dark".into());
+        assert!(launch_color(&config).is_err());
     }
 
     #[test]

@@ -29,6 +29,14 @@ enum NativeProps {
 enum SymbolImages {
     private static var images: [String: UIImage] = [:]
 
+    /// Load the symbol catalog before the first icon needs it: the first
+    /// symbol took over 100 ms of the first frame.
+    static func warmUp() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = UIImage(systemName: "circle", withConfiguration: UIImage.SymbolConfiguration(pointSize: 16))
+        }
+    }
+
     static func image(_ symbol: String, size: CGFloat) -> UIImage? {
         let key = "\(symbol)|\(size)"
         if let known = images[key] {

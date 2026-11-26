@@ -45,10 +45,10 @@ struct Named {
 const NAMES: usize = 100;
 
 /// Times a device reports for a frame, in the order they're listed there.
-const DEVICE_TIMES: [&str; 14] = [
+const DEVICE_TIMES: [&str; 15] = [
     "queue_us", "apply_us", "commit_us", "create_us", "props_us", "children_us", "layout_us",
     "remove_us", "insert_us", "glass_us", "modules_us", "calls_us", "map_us",
-    "after_us",
+    "after_us", "uikit_layout_us",
 ];
 
 #[derive(Clone, Debug)]
@@ -61,7 +61,7 @@ impl DeviceFrame {
 
     /// Main-thread time, from the first op to the commit.
     fn main_us(&self) -> u64 {
-        self.0[1] + self.0[2] + self.0[13]
+        self.0[1] + self.0[2] + self.0[13] + self.0[14]
     }
 }
 

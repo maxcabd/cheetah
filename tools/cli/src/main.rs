@@ -355,9 +355,9 @@ fn metrics_table(data: &Value, age: u64) -> String {
         lines.push("On the phone: no reports (needs a dev build from this version on).".into());
         return lines.join("\n");
     }
-    const PARTS: [&str; 13] = [
+    const PARTS: [&str; 14] = [
         "apply", "commit", "create", "props", "children", "layout", "remove", "insert", "glass",
-        "modules", "calls", "map", "after",
+        "modules", "calls", "map", "after", "uikit_layout",
     ];
     let mut header = format!("{:<24}{:>7}{:>8}{:>8} |", "on the phone, ms", "frames", "p50", "p95");
     for part in PARTS {
@@ -386,7 +386,7 @@ fn metrics_table(data: &Value, age: u64) -> String {
     lines.extend(on_device.iter().map(|(name, device)| device_row(name, device)));
     lines.push(device_row("all", &data["total"]["device"]));
     lines.push(
-        "p50, p95: main-thread time, apply + commit (UIKit's layout and drawing) + after \
+        "p50, p95: main-thread time: apply + uikit_layout + commit (drawing) + after \
          (haptics). The rest are means; create to map are parts of apply."
             .into(),
     );

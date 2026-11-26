@@ -7,6 +7,7 @@
 //! version = "1.0.0"
 //! build = 1
 //! scheme = "nightshade"                # nightshade://… deep links
+//! launch_background = "#0b0b0f"        # behind the launch, before the app draws
 //! links = ["nightshade.app"]           # https universal / app links
 //! ios_bundle_id = "com.nightshade.cheetah"
 //! android_package = "com.example.rustui"
@@ -44,6 +45,9 @@ pub struct AppConfig {
     pub app: Option<String>,
     #[serde(default)]
     pub scheme: Option<String>,
+    /// "#rrggbb" shown while the app launches (default black).
+    #[serde(default)]
+    pub launch_background: Option<String>,
     #[serde(default)]
     pub links: Vec<String>,
     pub ios_bundle_id: String,

@@ -15,6 +15,9 @@ final class HostMetrics {
         case create, props, children, layout, remove, insert, glass, modules, calls, map
     }
 
+    /// Laid out by UIKit before the commit (see `frame`): `uikit_layout_us`.
+    var layoutRoot: (() -> UIView?)?
+
     private static let signposter = OSSignposter(subsystem: "dev.cheetah.host", category: "frames")
     /// With CHEETAH_FRAME_LOG=1 (the performance tests): each frame's report
     /// in the system log, where CI reads it; there is no dev server there.
@@ -88,6 +91,10 @@ final class HostMetrics {
         apply()
         Self.signposter.endInterval("apply", interval)
         let applied = DispatchTime.now().uptimeNanoseconds
+        // UIKit would lay out in the commit anyway; done here it can be told
+        // apart from drawing.
+        layoutRoot?()?.layoutIfNeeded()
+        let laidOut = DispatchTime.now().uptimeNanoseconds
 
         committing = true
         let names = named
@@ -97,6 +104,7 @@ final class HostMetrics {
             "ops": ops,
             "queue_us": Self.micros(start - min(received, start)),
             "apply_us": Self.micros(applied - start),
+            "uikit_layout_us": Self.micros(laidOut - applied),
         ]
         for phase in Phase.allCases {
             report["\(phase)_us"] = Self.micros(spent[phase.rawValue])
@@ -112,7 +120,7 @@ final class HostMetrics {
             2_000_001
         ) { [weak self] _, _ in
             Self.signposter.endInterval("commit", commit)
-            let total = DispatchTime.now().uptimeNanoseconds - applied
+            let total = DispatchTime.now().uptimeNanoseconds - laidOut
             let after = min(self?.beforeCommit ?? 0, total)
             report["commit_us"] = Self.micros(total - after)
             report["after_us"] = Self.micros(after)

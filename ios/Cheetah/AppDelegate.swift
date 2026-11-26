@@ -8,6 +8,7 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     ) -> Bool {
         // Before launch finishes, so a tap that launched the app is seen.
         NotificationRelay.shared.install()
+        SymbolImages.warmUp()
         return true
     }
 

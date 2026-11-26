@@ -413,6 +413,9 @@ final class RustHost: NSObject {
             guard let self, !self.disposed else {
                 return
             }
+            if self.metrics.layoutRoot == nil {
+                self.metrics.layoutRoot = { [weak self] in self?.container.window }
+            }
             self.metrics.frame(
                 bytes: data.count,
                 received: received,
@@ -808,6 +811,21 @@ final class RustHost: NSObject {
     private func place(_ view: UIView, _ rect: CGRect) {
         view.bounds.size = rect.size
         view.center = CGPoint(x: rect.midX, y: rect.midY)
+        updateShadowPath(view)
+    }
+
+    /// A shadow's outline, given: without it Core Animation draws the view
+    /// off screen to find it, each time the view changes. Only for views with
+    /// a background, whose outline is their rounded rectangle.
+    private func updateShadowPath(_ view: UIView) {
+        let layer = view.layer
+        guard layer.shadowOpacity > 0, view.backgroundColor != nil else {
+            layer.shadowPath = nil
+            return
+        }
+        layer.shadowPath = UIBezierPath(
+            roundedRect: view.bounds, cornerRadius: layer.cornerRadius
+        ).cgPath
     }
 
     private func placement(of view: UIView) -> CGRect {
@@ -1263,6 +1281,7 @@ final class RustHost: NSObject {
             view.layer.shadowOpacity = 0.3
             view.layer.shadowRadius = 8
             view.layer.shadowOffset = CGSize(width: 0, height: 4)
+            updateShadowPath(view)
             view.layer.masksToBounds = false
         } else {
             view.layer.shadowOpacity = 0
