@@ -598,7 +598,9 @@ final class RustHost: NSObject {
             container.addSubview(view)
         }
 
-        applyProps(view, node: node, props: nodeProps)
+        metrics.measure(.create, named: "props of new \(kind)") {
+            applyProps(view, node: node, props: nodeProps)
+        }
         if nodeProps.bool(.animate) {
             let target = view.alpha
             view.alpha = 0
@@ -994,12 +996,14 @@ final class RustHost: NSObject {
         tags.removeValue(forKey: id)
     }
 
+    /// Named in the frame report: what making each kind of view costs, new
+    /// or from the pool.
     private func obtainView(_ kind: String) -> UIView {
         guard let key = poolKey(kind), var pool = viewPool[key], let view = pool.popLast() else {
-            return makeView(kind)
+            return metrics.measure(.create, named: "new \(kind)") { makeView(kind) }
         }
         viewPool[key] = pool
-        resetView(view, kind: kind)
+        metrics.measure(.create, named: "reused \(kind)") { resetView(view, kind: kind) }
         return view
     }
 

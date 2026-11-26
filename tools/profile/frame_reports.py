@@ -38,7 +38,7 @@ def main() -> int:
         print(f"| {ops} | {len(group)} | {med('apply_us'):.1f} | {med('uikit_layout_us'):.1f} | {med('commit_us'):.1f} | " + " | ".join(cells) + " |")
     # The biggest kinds of frame: what their modules and UIKit layout go to.
     for ops, group in sorted(groups.items(), key=lambda g: -len(g[1]))[:4]:
-        for field, title in (("named", "native work"), ("layout_parts", "UIKit layout"),
+        for field, title in (("named", "named work"), ("layout_parts", "UIKit layout"),
                              ("drawn", "drawn in the commit"), ("drawn_count", "views drawn")):
             totals = {}
             for f in group:
@@ -54,7 +54,7 @@ def main() -> int:
         for name, us in (f.get("named") or {}).items():
             named.setdefault(name, []).append(us)
     if named:
-        print("\n| native work | frames | median ms | max ms |\n|---|---|---|---|")
+        print("\n| named work | frames | median ms | max ms |\n|---|---|---|---|")
         for name, values in sorted(named.items(), key=lambda n: -max(n[1]))[:12]:
             print(f"| {name} | {len(values)} | {statistics.median(values) / 1000:.1f} | {max(values) / 1000:.1f} |")
     return 0
