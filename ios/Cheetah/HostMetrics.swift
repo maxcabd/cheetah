@@ -189,15 +189,18 @@ final class HostMetrics {
         return parts
     }
 
+    /// The nearest named view, and the kind of view inside it that took the
+    /// time ("card-java PhotoPagerView"): a card is many kinds of view.
     private static func part(_ view: UIView) -> String {
+        let kind = String(describing: type(of: view))
         var current: UIView? = view
         while let candidate = current {
             if let id = candidate.accessibilityIdentifier, !id.isEmpty {
-                return id
+                return candidate === view ? id : "\(id) \(kind)"
             }
             current = candidate.superview
         }
-        return String(describing: type(of: view))
+        return kind
     }
 
     private static func micros(_ nanoseconds: UInt64) -> Int {

@@ -19,6 +19,7 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
     private let later: (String, () -> Void) -> Void
     private var locationManager: CLLocationManager?
     private var locationRequested = false
+    private var creatingLocationManager = false
     private var canGoBack = false
     private var backGesture: UIScreenEdgePanGestureRecognizer?
     private lazy var secureStore = SecureStoreApi(emit: { [weak self] values in
@@ -83,6 +84,7 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
             backGesture.view?.removeGestureRecognizer(backGesture)
         }
         backGesture = nil
+        locationRequested = false
         locationManager?.stopUpdatingLocation()
         locationManager?.delegate = nil
         locationManager = nil
@@ -182,12 +184,23 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
         locationRequested = true
         if let locationManager {
             locate(locationManager)
-        } else {
+        } else if !creatingLocationManager {
             // A new manager says what's allowed through its delegate; asking
-            // it now would make the main thread wait for the answer.
-            let manager = CLLocationManager()
-            locationManager = manager
-            manager.delegate = self
+            // it now would make the main thread wait for the answer. Made
+            // after the frame: making one took up to 114 ms. It must be made
+            // on the main thread, whose run loop calls its delegate.
+            creatingLocationManager = true
+            DispatchQueue.main.async { [weak self, later] in
+                later("location manager") {
+                    guard let self else { return }
+                    self.creatingLocationManager = false
+                    // Not if the host was torn down meanwhile.
+                    guard self.locationRequested else { return }
+                    let manager = CLLocationManager()
+                    self.locationManager = manager
+                    manager.delegate = self
+                }
+            }
         }
         return true
     }
