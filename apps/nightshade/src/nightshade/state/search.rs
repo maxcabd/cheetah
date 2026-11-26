@@ -11,7 +11,11 @@ impl NightshadeApp {
 
         // A search typed or tapped over results is a follow-up: it refines
         // the shown results ("with seating") rather than starting over.
-        let previous_plan = self.response().and_then(|response| response.plan.clone());
+        // After a search that found nothing, there's nothing to refine.
+        let previous_plan = self
+            .response()
+            .filter(|response| !response.places.is_empty())
+            .and_then(|response| response.plan.clone());
         if previous_plan.is_none() {
             self.remember_search(query);
         }
@@ -72,6 +76,17 @@ impl NightshadeApp {
 
     pub(crate) fn finish_search(&mut self, result: Result<SearchResponse, String>) {
         match result {
+            Ok(response) if response.places.is_empty() => {
+                // Nothing found: the sheet says so (`sheet_model`), with
+                // other searches to try.
+                self.drop_keyboard();
+                self.search = Resource::Ready(response);
+                self.cards_built.set(None);
+                self.selected = 0;
+                self.focused = false;
+                self.expanded = false;
+                self.haptic("warning");
+            }
             Ok(response) => {
                 // New results start with full cards, the map zoomed in on
                 // the first (as if its card was swiped to).
@@ -91,11 +106,30 @@ impl NightshadeApp {
                 self.build_ahead();
             }
             Err(error) => {
+                // The sheet shows what went wrong, with a way to try again.
+                self.drop_keyboard();
                 self.search = Resource::Failed(error);
                 self.selected = 0;
                 self.focused = false;
                 self.expanded = false;
+                self.haptic("error");
             }
+        }
+    }
+
+    /// The sheet is about to shrink; iOS won't shrink it while the keyboard
+    /// is up, so drop it (remounting the field).
+    fn drop_keyboard(&mut self) {
+        if self.expanded {
+            self.field_mount += 1;
+        }
+    }
+
+    /// "Try again" after a failed search: the same search.
+    pub(crate) fn retry_search(&mut self) {
+        if self.search.error().is_some() {
+            let query = self.query.clone();
+            self.run_search(&query);
         }
     }
 

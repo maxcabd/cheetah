@@ -181,8 +181,11 @@ impl NightshadeApp {
         self.search.ready()
     }
 
+    /// Places to show: a search that found nothing has none, and shows
+    /// its own state in the sheet instead of empty cards.
     fn has_results(&self) -> bool {
-        self.search.is_ready()
+        self.response()
+            .is_some_and(|response| !response.places.is_empty())
     }
 }
 
@@ -357,6 +360,8 @@ impl App for NightshadeApp {
                     self.send_draft();
                 } else if key == "search:clear" {
                     self.clear_search();
+                } else if key == "search:retry" {
+                    self.retry_search();
                 } else if let Some(id) = key.strip_prefix("card:share:") {
                     self.share_place(&id.to_string());
                 } else if let Some(id) = key.strip_prefix("card:directions:") {

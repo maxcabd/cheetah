@@ -4,4 +4,7 @@ mod card;
 mod sheet;
 
 #[cfg(test)]
+pub(crate) use sheet::failure_message;
+
+#[cfg(test)]
 pub(crate) use card::is_light;

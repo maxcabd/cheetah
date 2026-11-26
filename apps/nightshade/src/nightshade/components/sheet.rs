@@ -49,14 +49,21 @@ impl NightshadeApp {
     pub(crate) fn sheet_model(&self, context: &ViewContext) -> Value {
         let height = self.sheet_height(context);
         let results = self.has_results();
-        let body = if results && !self.expanded {
-            "collapsed"
-        } else {
-            match &self.search {
-                Resource::Ready(_) => "results",
-                Resource::Loading => "searching",
-                _ => "empty",
+        let body = match &self.search {
+            Resource::Ready(response) if response.places.is_empty() => "no_results",
+            Resource::Ready(_) if !self.expanded => "collapsed",
+            Resource::Ready(_) => "results",
+            Resource::Loading => "searching",
+            Resource::Failed(_) => "failed",
+            Resource::Idle => "empty",
+        };
+        // Searches to try after one that found nothing: the backend's
+        // follow-ups, else the usual suggestions.
+        let other_searches = match self.response() {
+            Some(response) if !response.followups.is_empty() => {
+                Self::chips(&response.followups, "followup")
             }
+            _ => Self::chips(&self.suggestions(), "suggest"),
         };
         let followups = self
             .response()
@@ -81,6 +88,11 @@ impl NightshadeApp {
             "field_key": format!("search-field:{}", self.field_mount),
             "can_send": !self.draft.trim().is_empty(),
             "results": results,
+            "other_searches": other_searches,
+            "failure": self.search.error().map(failure_message),
+            // Clear goes back to the suggestions from results, and from a
+            // search that failed or found nothing.
+            "can_clear": !matches!(self.search, Resource::Idle | Resource::Loading),
             "glass": self.host.glass,
         })
     }
@@ -98,5 +110,20 @@ impl NightshadeApp {
                 })
             })
             .collect()
+    }
+}
+
+/// What a failed search tells the user: the typed errors from `parse_search`
+/// and the place sources, as sentences.
+pub(crate) fn failure_message(error: &str) -> String {
+    match error {
+        "Search timed out" => "That took too long to answer. Try again in a moment.".into(),
+        "Can't reach Nightshade" => {
+            "Can't reach Nightshade. Check your connection and try again.".into()
+        }
+        _ if error.starts_with("Search failed") || error == "Unexpected search response" => {
+            "Something went wrong on our end. Try again in a moment.".into()
+        }
+        _ => format!("{error}. Try again in a moment."),
     }
 }

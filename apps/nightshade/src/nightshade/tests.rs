@@ -635,7 +635,7 @@ fn follow_ups_send_the_previous_plan() {
     let mut app = remote_app();
     submit(&mut app, "bakery");
     let id = request_id(&mut app);
-    let body = serde_json::json!({"cards": [], "plan": {"categories": ["bakery"]}});
+    let body = serde_json::json!({"cards": [{"place_id": "b1", "name": "Bread Co", "lat": 45.4, "lng": -75.7}], "plan": {"categories": ["bakery"]}});
     http_response(
         &mut app,
         serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}),
@@ -986,7 +986,7 @@ fn a_backend_notice_replaces_the_results_line() {
     submit(&mut app, "halal tacos");
     let id = request_id(&mut app);
     let notice = "No taco spots nearby are labelled halal, so here are taco places. Check before you go.";
-    let body = serde_json::json!({"cards": [], "notice": notice});
+    let body = serde_json::json!({"cards": [{"place_id": "b1", "name": "Bread Co", "lat": 45.4, "lng": -75.7}], "notice": notice});
     http_response(
         &mut app,
         serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}),
@@ -995,6 +995,22 @@ fn a_backend_notice_replaces_the_results_line() {
     click(&mut app, "sheet:toggle");
     let tree = render(&app);
     assert!(format!("{tree:?}").contains("labelled halal"), "shown in the sheet");
+}
+
+#[test]
+fn finding_nothing_shows_the_backend_notice() {
+    let mut app = remote_app();
+    submit(&mut app, "halal tacos");
+    let id = request_id(&mut app);
+    let notice = "No taco spots nearby are labelled halal.";
+    let body = serde_json::json!({"cards": [], "notice": notice});
+    http_response(
+        &mut app,
+        serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}),
+    );
+    let screen = render(&app);
+    let line = find(&screen, "search:none").expect("no results");
+    assert_eq!(line.props.text.as_deref(), Some(notice));
 }
 
 #[test]
@@ -1374,4 +1390,100 @@ fn only_cards_near_the_selected_one_are_built() {
     let id = request_id(&mut app);
     http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body}));
     assert_eq!(built(&app), [0, 1]);
+}
+
+#[test]
+fn a_failed_search_says_why_and_tries_again() {
+    let mut app = remote_app();
+    submit(&mut app, "sushi");
+    let id = request_id(&mut app);
+    http_response(
+        &mut app,
+        serde_json::json!({"id": id, "ok": false, "error": "network"}),
+    );
+
+    let screen = render(&app);
+    let failure = find(&screen, "search:failure").expect("what went wrong");
+    assert_eq!(
+        failure.props.text.as_deref(),
+        Some("Can't reach Nightshade. Check your connection and try again.")
+    );
+    assert!(find(&screen, "search:retry").is_some(), "try again");
+    assert!(find(&screen, "search:clear").is_some(), "back to suggestions");
+    assert!(find(&screen, "suggest:0").is_none(), "not the empty sheet");
+    assert!(find(&screen, "places").is_none());
+
+    click(&mut app, "search:retry");
+    assert!(app.search.is_loading());
+    assert_eq!(app.query, "sushi");
+    let calls = app.take_native_calls();
+    let call = calls.iter().find(|call| call.module == "http").expect("the search again");
+    let args: serde_json::Value = serde_json::from_str(&call.args).unwrap();
+    assert_eq!(args["body"], r#"{"text":"sushi"}"#);
+}
+
+#[test]
+fn failures_read_as_sentences() {
+    use super::components::failure_message;
+    assert_eq!(
+        failure_message("Search timed out"),
+        "That took too long to answer. Try again in a moment."
+    );
+    assert_eq!(
+        failure_message("Search failed (500)"),
+        "Something went wrong on our end. Try again in a moment."
+    );
+    assert_eq!(
+        failure_message("Place search is unavailable"),
+        "Place search is unavailable. Try again in a moment."
+    );
+}
+
+#[test]
+fn a_search_that_finds_nothing_offers_others() {
+    let mut app = remote_app();
+    submit(&mut app, "unicorn tacos");
+    let id = request_id(&mut app);
+    let body = serde_json::json!({
+        "cards": [], "followups": ["tacos nearby"], "plan": {"query_text": "unicorn tacos"}
+    });
+    http_response(
+        &mut app,
+        serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}),
+    );
+
+    assert!(!app.has_results(), "nothing to show is not results");
+    assert!(app.pins().is_empty(), "no sample pins either");
+    let screen = render(&app);
+    assert!(find(&screen, "search:none").is_some());
+    assert!(find(&screen, "places").is_none(), "no empty carousel");
+    assert!(find(&screen, "search:clear").is_some());
+    let chip = find(&screen, "followup:0").expect("the backend's follow-up");
+    assert_eq!(chip.props.text.as_deref(), Some("tacos nearby"));
+
+    // A new search, not a refinement of nothing.
+    click(&mut app, "followup:0");
+    let calls = app.take_native_calls();
+    let call = calls.iter().find(|call| call.module == "http").expect("search");
+    let args: serde_json::Value = serde_json::from_str(&call.args).unwrap();
+    assert_eq!(args["body"], r#"{"text":"tacos nearby"}"#);
+}
+
+#[test]
+fn finding_nothing_without_follow_ups_offers_the_suggestions() {
+    let mut app = remote_app();
+    submit(&mut app, "unicorn tacos");
+    let id = request_id(&mut app);
+    http_response(
+        &mut app,
+        serde_json::json!({"id": id, "ok": true, "status": 200, "body": "{\"cards\":[]}"}),
+    );
+    let screen = render(&app);
+    assert!(find(&screen, "search:none").is_some());
+    assert!(find(&screen, "suggest:0").is_some());
+
+    click(&mut app, "search:clear");
+    let screen = render(&app);
+    assert!(find(&screen, "search:none").is_none());
+    assert!(find(&screen, "search:clear").is_none());
 }

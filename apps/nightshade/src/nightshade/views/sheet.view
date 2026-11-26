@@ -20,7 +20,11 @@ component Sheet
           use SearchingBody query=sheet.query emoji=sheet.searching_emoji
         if sheet.body == "empty"
           use EmptyBody suggestions=sheet.suggestions glass=sheet.glass
-      use SearchBar placeholder=sheet.placeholder draft=sheet.draft can_send=sheet.can_send results=sheet.results glass=sheet.glass field_key=sheet.field_key
+        if sheet.body == "failed"
+          use FailedBody query=sheet.query failure=sheet.failure glass=sheet.glass
+        if sheet.body == "no_results"
+          use NoResultsBody query=sheet.query notice=sheet.notice chips=sheet.other_searches glass=sheet.glass
+      use SearchBar placeholder=sheet.placeholder draft=sheet.draft can_send=sheet.can_send can_clear=sheet.can_clear glass=sheet.glass field_key=sheet.field_key
       column width=-1 height=sheet.bottom_gap
 
 component SearchBar
@@ -36,7 +40,7 @@ component SearchBar
         row weight=1 height=SEARCH_HEIGHT bg=CHIP_BG border=1 border_color="#2d2d2d" radius=26 align_items="center"
           use SearchField placeholder=placeholder draft=draft can_send=can_send field_key=field_key
       # Clear: Liquid Glass beside the glass field on iOS 26, solid before.
-      if results
+      if can_clear
         if glass
           glass key="search:clear" pressable=true width=44 height=44 radius=22 glass_style="regular" glass_interactive=true label="Clear" .center
             use Icon name="xmark" size=16 color="#ffffff"
@@ -96,6 +100,30 @@ component ResultsBody
 component ShowOnMapLabel
   text "Show on map" .label bold=true lines=1 align="center"
   use Icon name="chevron-right" size=12 color="#ffffff"
+
+# A search that failed (offline, timed out, the server): what went wrong,
+# and the same search again.
+component FailedBody
+  column .sheet_body gap=10
+    text query .heading lines=1
+    text failure key="search:failure" size=16 font="satoshi-medium" line_height=20 color=MUTED lines=2 height=40
+    row width=-1 height=42
+      use Chip label="Try again" key="search:retry" glass=glass
+
+# A search that found nothing: other searches to try, scrolling edge to
+# edge like the suggestions.
+component NoResultsBody
+  column width=-1 weight=1 gap=10
+    column width=-1 pad_h=24 gap=10
+      text query .heading lines=1
+      # The backend's reason when it has one ("No taco spots nearby are
+      # labelled halal."), else the usual line.
+      text notice ? notice : "Nothing nearby matched that. Try one of these:" key="search:none" size=16 font="satoshi-medium" line_height=20 color=MUTED lines=2 height=notice ? 40 : 20
+    hscroll width=-1 height=96 content_width=648
+      column width=648 height=96 pad_h=24 justify="center"
+        row width=600 wrap=true gap=10 align_items="center"
+          for chip in chips
+            use Chip label=chip.label key=chip.key glass=glass
 
 component SearchingBody
   column .sheet_body gap=10
