@@ -73,8 +73,12 @@ pub struct NightshadeApp {
     cards_timer: bool,
     /// The cards moved since that timer started: let them settle first.
     cards_moved: bool,
-    /// Bookmarked place ids (the bookmark button), kept across launches.
-    saved_places: std::collections::BTreeSet<String>,
+    /// Bookmarked places (the bookmark button), newest first, kept across
+    /// launches with what's needed to list and open them (`/saved`).
+    saved: Vec<Place>,
+    /// Bookmarks saved by older versions, which kept only the id: listed
+    /// once the place turns up in results again (`refresh_saved`).
+    saved_unseen: std::collections::BTreeSet<String>,
     /// The user's own searches, newest first, kept across launches.
     recent_searches: Vec<String>,
     /// From the backend: trending searches and ones for the time of day.
@@ -137,7 +141,8 @@ impl NightshadeApp {
             cards_built: Default::default(),
             cards_timer: false,
             cards_moved: false,
-            saved_places: Default::default(),
+            saved: Vec::new(),
+            saved_unseen: Default::default(),
             recent_searches: Vec::new(),
             trending: Vec::new(),
             time_of_day: Vec::new(),
@@ -362,6 +367,10 @@ impl App for NightshadeApp {
                     self.clear_search();
                 } else if key == "search:retry" {
                     self.retry_search();
+                } else if key == "sheet:saved" {
+                    self.open_saved();
+                } else if let Some(id) = key.strip_prefix("saved:open:") {
+                    self.open_saved_place(&id.to_string());
                 } else if let Some(id) = key.strip_prefix("card:share:") {
                     self.share_place(&id.to_string());
                 } else if let Some(id) = key.strip_prefix("card:directions:") {
@@ -452,8 +461,18 @@ impl NightshadeApp {
             .flatten()
     }
 
+    /// A place in the results, else a saved one.
     fn place(&self, id: &str) -> Option<&Place> {
-        self.visible_places().iter().find(|place| place.id == id)
+        self.visible_places()
+            .iter()
+            .chain(&self.saved)
+            .find(|place| place.id == id)
+    }
+
+    /// Whether `id` is in the current results, not only saved.
+    pub(crate) fn in_results(&self, id: &str) -> bool {
+        self.response()
+            .is_some_and(|response| response.places.iter().any(|place| place.id == id))
     }
 
     /// The system share sheet with the place's name, address and a map link.
@@ -516,11 +535,33 @@ impl NightshadeApp {
 
     /// Bookmark or un-bookmark a place.
     fn toggle_saved(&mut self, id: &str) {
-        if !self.saved_places.remove(id) {
-            self.saved_places.insert(id.to_string());
+        if self.is_saved(id) {
+            self.saved.retain(|place| place.id != id);
+            self.saved_unseen.remove(id);
+        } else if let Some(place) = self.place(id).cloned() {
+            self.saved.insert(0, place);
             self.report("save", id);
+        } else {
+            return;
         }
         self.haptic("selection");
+    }
+
+    /// New results: saved places among them get their latest details, and
+    /// old id-only bookmarks get theirs for the first time.
+    pub(crate) fn refresh_saved(&mut self) {
+        let Some(response) = self.search.ready() else { return };
+        for place in &response.places {
+            if let Some(saved) = self.saved.iter_mut().find(|saved| saved.id == place.id) {
+                *saved = place.clone();
+            } else if self.saved_unseen.remove(&place.id) {
+                self.saved.push(place.clone());
+            }
+        }
+    }
+
+    pub(crate) fn saved_places(&self) -> &[Place] {
+        &self.saved
     }
 
     /// Tell the backend what the user did with a result (open, directions,
@@ -549,7 +590,7 @@ impl NightshadeApp {
     }
 
     pub(crate) fn is_saved(&self, id: &str) -> bool {
-        self.saved_places.contains(id)
+        self.saved.iter().any(|place| place.id == id) || self.saved_unseen.contains(id)
     }
 }
 
@@ -640,5 +681,6 @@ fn view_files() -> Vec<(&'static str, &'static str)> {
             "views/pages/restaurant/[id].view",
             include_str!("views/pages/restaurant/[id].view"),
         ),
+        ("views/pages/saved.view", include_str!("views/pages/saved.view")),
     ]
 }

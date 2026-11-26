@@ -13,7 +13,7 @@ component MapScreen
     if carousel
       use Carousel carousel=carousel
     use Sheet sheet=sheet
-    if page
+    for page in pages
       use PageHost page=page
 
 # A map pin: any child of `map` with map_latitude/map_longitude is placed at
@@ -50,10 +50,12 @@ component TeardropMarker
       row absolute=true top=0 left=0 width=w height=w .center
         use Icon name="fork.knife" size=icon_size color="#ffffff"
 
-# The router's open page (views/pages/), shown natively over the map and
-# sheet: it grows out of its card for transition "zoom", and dragging it
-# down closes it (`dismiss`).
+# The router's open pages (views/pages/), each shown natively over the map
+# and sheet and the page before: it grows out of its card for transition
+# "zoom", and dragging it down closes it (`dismiss`).
 component PageHost
   native "page" key=page.key absolute=true top=0 left=0 width=-1 height=-1 native_props=page.props
     if page.page == "RestaurantPage"
       use RestaurantPage place=page.restaurant
+    if page.page == "SavedPage"
+      use SavedPage saved=page.saved

@@ -3,18 +3,35 @@
 //! presents whichever page the router is on.
 
 use crate::nightshade::*;
+use crate::router::Location;
 use serde_json::{json, Value};
 
 impl NightshadeApp {
-    /// The open page for `views/map.view`'s PageHost, or null at the root.
-    pub(crate) fn page_model(&self, context: &ViewContext) -> Value {
-        let location = self.router.current();
-        let Some(page) = location.page.as_deref() else {
-            return Value::Null;
-        };
+    /// The open pages for `views/map.view`'s PageHost, bottom first: each
+    /// is a native page over the one before (a place opened from `/saved`
+    /// over the saved list). Empty at the root.
+    pub(crate) fn pages_model(&self, context: &ViewContext) -> Value {
+        self.router
+            .stack()
+            .iter()
+            .filter(|location| location.page.is_some())
+            .enumerate()
+            .map(|(depth, location)| self.page_model(location, depth, context))
+            .collect::<Vec<_>>()
+            .into()
+    }
+
+    fn page_model(&self, location: &Location, depth: usize, context: &ViewContext) -> Value {
+        let page = location.page.as_deref().unwrap_or_default();
         let mut model = json!({
             "page": page,
-            "key": format!("page:{}", self.page_opens),
+            // A fresh native page each time one opens from the map; pages
+            // over it get their own.
+            "key": if depth == 0 {
+                format!("page:{}", self.page_opens)
+            } else {
+                format!("page:{}:{depth}", self.page_opens)
+            },
             // How the native page appears (a "zoom" grows out of the card).
             "props": json!({
                 "transition": location.transition,
@@ -22,9 +39,17 @@ impl NightshadeApp {
             })
             .to_string(),
         });
-        if page == "RestaurantPage" {
-            let id = location.params.get("id").map(String::as_str).unwrap_or_default();
-            model["restaurant"] = self.restaurant_model(id, context);
+        match page {
+            "RestaurantPage" => {
+                let id = location
+                    .params
+                    .get("id")
+                    .map(String::as_str)
+                    .unwrap_or_default();
+                model["restaurant"] = self.restaurant_model(id, context);
+            }
+            "SavedPage" => model["saved"] = self.saved_model(context),
+            _ => {}
         }
         model
     }
@@ -33,10 +58,15 @@ impl NightshadeApp {
     pub(crate) fn restaurant_model(&self, id: &str, context: &ViewContext) -> Value {
         let width = context.viewport.width.max(320.0);
         let safe_top = self.host.safe_top.max(20.0);
-        let Some(place) = self.visible_places().iter().find(|place| place.id == id) else {
+        let Some(place) = self.place(id) else {
             return json!({"found": false, "id": id, "safe_top": safe_top});
         };
         let mut model = Self::card_model(place);
+        // A saved place's hours are from when it was found: not shown as
+        // if they were today's.
+        if !self.in_results(id) {
+            model["status"] = "saved".into();
+        }
         let price = "$".repeat(place.price_tier.min(4) as usize);
         let distance = model["distance"].as_str().unwrap_or_default().to_string();
         let summary = [place.cuisine.as_str(), price.as_str(), distance.as_str()]

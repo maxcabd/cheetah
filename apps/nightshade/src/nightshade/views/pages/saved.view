@@ -1,0 +1,29 @@
+# /saved: the places the user bookmarked, newest first (screens/saved.rs).
+# A row opens the place's page over this one; un-saving it there takes it
+# off the list.
+component SavedPage
+  column width=-1 height=-1 bg=CARD_BG
+    column width=-1 height=saved.safe_top
+    row width=-1 height=52 pad_h=16 gap=12 align_items="center"
+      glass key="page:back" pressable=true width=44 height=44 radius=22 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Close" .center
+        use Icon name="chevron.down" size=18 color="#ffffff"
+      text "Saved" size=26 font="brice-bold" color=TEXT lines=1 height=32
+    if saved.rows
+      scroll key="saved:list" width=-1 weight=1 content_height=saved.list_height
+        column width=-1 pad_h=20 pad_v=12 gap=10
+          for row in saved.rows
+            use SavedRow row=row inner=saved.inner
+    else
+      column width=-1 weight=1 .center gap=8
+        use Icon name="bookmark" size=28 color=MUTED
+        text "Nothing saved yet" size=18 font="satoshi-bold" color=TEXT align="center" width=280 lines=1 height=24
+        text "Tap the bookmark on a place to keep it here." size=15 font="satoshi-medium" color=MUTED align="center" width=280 lines=2 height=40
+
+# One saved place: its name, and where it is.
+component SavedRow
+  row key=row.key pressable=true width=inner height=72 pad_h=16 gap=12 radius=20 .chip_frame align_items="center" label=row.name
+    column weight=1 height=44 gap=4 justify="center"
+      text row.name size=16 font="brice-bold" color="#ffffff" lines=1 height=20
+      if row.detail
+        text row.detail .label color=MUTED lines=1
+    use Icon name="chevron-right" size=12 color=MUTED

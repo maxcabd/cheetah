@@ -22,8 +22,12 @@ pub(crate) struct Saved {
     satellite: bool,
     #[serde(default)]
     cards_minimized: bool,
+    /// Every bookmark's id, as older versions kept them.
     #[serde(default)]
     saved_places: Vec<String>,
+    /// The bookmarks' places, newest first; absent before the saved list.
+    #[serde(default)]
+    saved_details: Vec<Place>,
     #[serde(default)]
     recent_searches: Vec<String>,
 }
@@ -58,7 +62,13 @@ impl NightshadeApp {
             center: self.center,
             satellite: self.satellite,
             cards_minimized: self.cards_minimized,
-            saved_places: self.saved_places.iter().cloned().collect(),
+            saved_places: self
+                .saved
+                .iter()
+                .map(|place| place.id.clone())
+                .chain(self.saved_unseen.iter().cloned())
+                .collect(),
+            saved_details: self.saved.clone(),
             recent_searches: self.recent_searches.clone(),
         }
     }
@@ -66,7 +76,12 @@ impl NightshadeApp {
     fn restore(&mut self, saved: Saved) {
         self.center = saved.center.or(self.center);
         self.satellite = saved.satellite;
-        self.saved_places = saved.saved_places.into_iter().collect();
+        self.saved_unseen = saved
+            .saved_places
+            .into_iter()
+            .filter(|id| !saved.saved_details.iter().any(|place| &place.id == id))
+            .collect();
+        self.saved = saved.saved_details;
         self.recent_searches = saved.recent_searches;
         match saved.results {
             Some(results) => {
@@ -75,6 +90,7 @@ impl NightshadeApp {
                 self.focused = saved.focused;
                 self.query = saved.query;
                 self.search = Resource::Ready(results);
+                self.refresh_saved();
                 self.build_ahead();
             }
             // A search still running when the app was closed runs again.

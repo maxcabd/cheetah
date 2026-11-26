@@ -1487,3 +1487,103 @@ fn finding_nothing_without_follow_ups_offers_the_suggestions() {
     assert!(find(&screen, "search:none").is_none());
     assert!(find(&screen, "search:clear").is_none());
 }
+
+/// The keys of the open native pages, bottom first.
+fn page_keys(app: &NightshadeApp) -> Vec<String> {
+    fn walk(element: &crate::element::Element, keys: &mut Vec<String>) {
+        if let Some(key) = element.key.as_deref() {
+            if key.starts_with("page:") && element.props.native.as_deref() == Some("page") {
+                keys.push(key.to_string());
+            }
+        }
+        element.children.iter().for_each(|child| walk(child, keys));
+    }
+    let mut keys = Vec::new();
+    walk(&render(app), &mut keys);
+    keys
+}
+
+#[test]
+fn saved_places_are_listed_and_open_over_the_list() {
+    let mut app = NightshadeApp::new(true);
+    assert!(find(&render(&app), "sheet:saved").is_none(), "nothing saved: no way in");
+    click(&mut app, "card:bookmark:java");
+    click(&mut app, "card:bookmark:pizza");
+
+    // After clearing, Java Haven isn't in any results, and is still listed.
+    click(&mut app, "search:clear");
+    assert!(find(&render(&app), "sheet:saved").is_some());
+    click(&mut app, "sheet:saved");
+    let screen = render(&app);
+    let rows: Vec<_> = ["saved:open:pizza", "saved:open:java"]
+        .iter()
+        .map(|key| find(&screen, key).expect("a row per saved place"))
+        .collect();
+    assert!(format!("{:?}", rows[0]).contains("Pizza Paradise"), "newest first");
+    assert_eq!(page_keys(&app).len(), 1);
+
+    // A place opens over the list, and back returns to it.
+    click(&mut app, "saved:open:java");
+    let pages = page_keys(&app);
+    assert_eq!(pages.len(), 2, "the place over the list: {pages:?}");
+    let screen = format!("{:?}", render(&app));
+    assert!(screen.contains("Java Haven"));
+    assert!(!screen.contains("Closes at"), "hours from when it was found aren't today's");
+    click(&mut app, "page:back");
+    assert_eq!(page_keys(&app).len(), 1);
+
+    // Un-saving on the place's page takes it off the list.
+    click(&mut app, "saved:open:java");
+    click(&mut app, "page:bookmark");
+    click(&mut app, "page:back");
+    let screen = render(&app);
+    assert!(find(&screen, "saved:open:java").is_none());
+    assert!(find(&screen, "saved:open:pizza").is_some());
+
+    click(&mut app, "saved:open:pizza");
+    click(&mut app, "page:bookmark");
+    click(&mut app, "page:back");
+    assert!(format!("{:?}", render(&app)).contains("Nothing saved yet"));
+}
+
+#[test]
+fn a_saved_place_in_the_results_shows_its_hours() {
+    let mut app = NightshadeApp::new(true);
+    click(&mut app, "card:bookmark:java");
+    click(&mut app, "card:up:java");
+    assert!(format!("{:?}", render(&app)).contains("Closes at"));
+}
+
+#[test]
+fn saved_places_survive_a_relaunch_without_their_search() {
+    let file = std::env::temp_dir().join(format!("nightshade-saved-list-{}.redb", std::process::id()));
+    let _ = std::fs::remove_file(&file);
+    let mut app = NightshadeApp::new(true).with_state_file(&file);
+    click(&mut app, "card:bookmark:sushi");
+    click(&mut app, "search:clear");
+    app.update(Event { id: 0, key: None, kind: "lifecycle".into(), payload: "background".into() });
+
+    let mut app = NightshadeApp::new(false).with_state_file(&file);
+    assert!(!app.has_results());
+    click(&mut app, "sheet:saved");
+    click(&mut app, "saved:open:sushi");
+    assert!(format!("{:?}", render(&app)).contains("Sushi Zen"));
+    let _ = std::fs::remove_file(&file);
+}
+
+#[test]
+fn bookmarks_from_before_the_list_are_listed_once_found_again() {
+    let mut app = NightshadeApp::new(false);
+    // What an older version saved: the id alone.
+    app.saved_unseen.insert("pizza".into());
+    assert!(app.is_saved("pizza"));
+    assert!(app.saved_places().is_empty(), "nothing to show it with yet");
+
+    click(&mut app, "suggest:0");
+    app.draft = "pizza".into();
+    click(&mut app, "search:clear");
+    app.draft = "pizza".into();
+    click(&mut app, "search:send");
+    assert_eq!(app.saved_places().len(), 1);
+    assert_eq!(app.saved_places()[0].name, "Pizza Paradise");
+}

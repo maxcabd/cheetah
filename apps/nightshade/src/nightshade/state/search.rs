@@ -98,6 +98,7 @@ impl NightshadeApp {
                     self.field_mount += 1;
                 }
                 self.search = Resource::Ready(response);
+                self.refresh_saved();
                 self.cards_built.set(None);
                 self.selected = 0;
                 self.focused = true;

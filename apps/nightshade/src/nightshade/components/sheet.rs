@@ -88,6 +88,8 @@ impl NightshadeApp {
             "field_key": format!("search-field:{}", self.field_mount),
             "can_send": !self.draft.trim().is_empty(),
             "results": results,
+            // The saved list's way in, once there's something in it.
+            "saved_count": self.saved_places().len(),
             "other_searches": other_searches,
             "failure": self.search.error().map(failure_message),
             // Clear goes back to the suggestions from results, and from a
