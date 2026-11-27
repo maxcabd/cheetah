@@ -46,6 +46,10 @@ pub(crate) struct Place {
     /// closing time of 12:00 AM.
     #[serde(default)]
     pub(crate) all_day: bool,
+    /// What the place is for diets, as the card's first pill: "Certified
+    /// halal", "Halal" (the whole place) or "Halal options" (some dishes).
+    #[serde(default)]
+    pub(crate) diet: String,
 }
 
 /// A photo's credit: the photographer's name, and their profile to link.
@@ -92,6 +96,7 @@ pub(crate) fn sample(
         hours_current: false,
         closure: String::new(),
         all_day: false,
+        diet: String::new(),
     }
 }
 

@@ -63,6 +63,12 @@ component Amenity
     if id == "wheelchair_accessible"
       use AmenityLabel icon="figure.roll" label="Accessible" icon_size=icon_size text_size=text_size
 
+# A diet as a pill ("Certified halal", "Halal", "Halal options"), sized
+# like an amenity's; a seal marks the diet.
+component DietPill
+  row height=height pad_h=pad gap=6 radius=16 .chip_frame align_items="center"
+    use AmenityLabel icon="checkmark.seal" label=label icon_size=icon_size text_size=text_size
+
 component AmenityLabel
   use Icon name=icon size=icon_size color="#ffffff"
   text label size=text_size font="satoshi-medium" color="#ffffff" bold=true lines=1

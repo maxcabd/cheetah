@@ -1436,6 +1436,33 @@ fn a_place_open_around_the_clock_says_24_hours_not_closes_at_midnight() {
 }
 
 #[test]
+fn halal_places_say_whether_it_is_the_whole_place_or_some_dishes() {
+    let mut app = remote_app();
+    submit(&mut app, "halal");
+    let id = request_id(&mut app);
+    let card = |place_id: &str, badge: serde_json::Value| serde_json::json!({
+        "place_id": place_id, "name": place_id, "lat": 45.4, "lng": -75.7, "distance_m": 10,
+        "amenities": ["dine_in", "takeout", "wifi"], "restriction_badges": [badge]
+    });
+    let body = serde_json::json!({"cards": [
+        card("certified", serde_json::json!({"id": "halal", "status": "verified", "scope": "full"})),
+        card("whole", serde_json::json!({"id": "halal", "status": "likely", "scope": "full"})),
+        card("some", serde_json::json!({"id": "halal", "status": "likely", "scope": "options"})),
+        card("vegan", serde_json::json!({"id": "vegan", "status": "likely"})),
+    ]});
+    http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}));
+    let diets: Vec<String> = app.response().unwrap().places.iter().map(|p| p.diet.clone()).collect();
+    assert_eq!(diets, ["Certified halal", "Halal", "Halal options", ""]);
+
+    // On the card, first, with two amenities to make three pills.
+    let model = app.card_model(&app.response().unwrap().places[2]);
+    assert_eq!(model["diet"], "Halal options");
+    assert_eq!(model["card_amenities"].as_array().unwrap().len(), 2);
+    let screen = format!("{:?}", render(&app));
+    assert!(screen.contains("Certified halal"));
+}
+
+#[test]
 fn a_place_open_only_through_its_drive_thru_says_so() {
     let card: super::ApiCard = serde_json::from_value(serde_json::json!({
         "place_id": "osm:way/1", "name": "McDonald's", "lat": 45.38, "lng": -75.64,

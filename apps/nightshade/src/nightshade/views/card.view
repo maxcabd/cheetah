@@ -59,11 +59,12 @@ component Card
         if place.price
           text "• {place.price}" .label color="#fffffff2" lines=1
       use Hours place=place inner=inner fg="#ffffff" muted="#ffffffb3"
-      # Up to three amenities, small.
-      if place.card_amenities
-        row width=inner height=26 gap=6
-          for amenity in place.card_amenities
-            use Amenity id=amenity height=26 pad=10 icon_size=11 text_size=12
+      # Up to three pills, small: the diet first ("Halal"), then amenities.
+      row width=inner height=26 gap=6
+        if place.diet
+          use DietPill label=place.diet height=26 pad=10 icon_size=11 text_size=12
+        for amenity in place.card_amenities
+          use Amenity id=amenity height=26 pad=10 icon_size=11 text_size=12
 
 # A minimized card: the same card, shrunk to its handle, name and hours, in
 # its photo's dominant color (`place.color`, once the photo has loaded; dark

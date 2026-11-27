@@ -37,8 +37,10 @@ component RestaurantDetails
         row width=place.inner gap=8 align_items="center" height=20
           use Icon name="mappin.and.ellipse" size=14 color=MUTED
           text place.address .label color=TEXT lines=1
-      if place.amenities
+      if place.has_pills
         row width=place.inner wrap=true gap=8
+          if place.diet
+            use DietPill label=place.diet height=32 pad=12 icon_size=13 text_size=13
           for amenity in place.amenities
             use Amenity id=amenity height=32 pad=12 icon_size=13 text_size=13
       # Directions (Apple or Google Maps), share, bookmark: Liquid Glass on

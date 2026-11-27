@@ -120,9 +120,37 @@ pub(crate) struct ApiCard {
     pub(crate) drive_thru_only: bool,
     /// Who took each photo, lined up with `photos`.
     pub(crate) photo_credits: Vec<PhotoCredit>,
+    /// Dietary labels: halal, kosher, ...; `scope` says the whole place
+    /// ("full") or some dishes ("options").
+    pub(crate) restriction_badges: Vec<ApiBadge>,
     /// Google says it's closed for now, or for good (a saved place).
     pub(crate) closed_temporarily: bool,
     pub(crate) closed_permanently: bool,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(default)]
+pub(crate) struct ApiBadge {
+    pub(crate) id: String,
+    pub(crate) status: String,
+    pub(crate) scope: String,
+}
+
+/// The card's diet pill, for halal or kosher: certified, the whole place,
+/// or some dishes. Other labels (vegan, ...) aren't shown yet.
+fn diet_label(badges: &[ApiBadge]) -> String {
+    for (id, name) in [("halal", "halal"), ("kosher", "kosher")] {
+        let Some(badge) = badges.iter().find(|badge| badge.id == id) else { continue };
+        let title = format!("{}{}", name[..1].to_uppercase(), &name[1..]);
+        return if badge.status == "verified" {
+            format!("Certified {name}")
+        } else if badge.scope == "options" {
+            format!("{title} options")
+        } else {
+            title
+        };
+    }
+    String::new()
 }
 
 const DAYS: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -258,6 +286,7 @@ impl ApiCard {
             photo_credits: self.photo_credits,
             hours_current: false,
             all_day,
+            diet: diet_label(&self.restriction_badges),
             closure: if self.closed_permanently {
                 "permanently".into()
             } else if self.closed_temporarily {

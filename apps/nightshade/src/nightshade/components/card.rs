@@ -52,7 +52,13 @@ impl NightshadeApp {
             // The card's line has room for the stars, not the review count.
             "stars": place.rating,
             // A card has room for three amenity pills.
-            "card_amenities": place.amenities.iter().take(3).collect::<Vec<_>>(),
+            // The diet pill comes first and counts toward the three.
+            "diet": place.diet,
+            "card_amenities": place
+                .amenities
+                .iter()
+                .take(if place.diet.is_empty() { 3 } else { 2 })
+                .collect::<Vec<_>>(),
             "rating": if place.reviews.is_empty() {
                 place.rating.clone()
             } else {

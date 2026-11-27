@@ -84,6 +84,7 @@ impl NightshadeApp {
         model["directions_width"] = (width - 40.0 - 2.0 * 48.0 - 2.0 * 10.0).into();
         model["summary"] = summary.into();
         model["amenities"] = place.amenities.clone().into();
+        model["has_pills"] = (!place.amenities.is_empty() || !place.diet.is_empty()).into();
         model["credit"] = self.photo_credit(place, &format!("page-photo:{}", place.id));
         model
     }
