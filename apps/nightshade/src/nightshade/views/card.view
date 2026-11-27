@@ -29,6 +29,8 @@ component Card
   column key="place-{place.id}" pressable=true link=place.route transition="zoom" test_id="card-{place.id}" animate=true width=width height=CARD_HEIGHT bg=CARD_BG radius=28 clip=true border=2 border_color="#ffffff08"
     column width=width height=CARD_HEADER justify="end" pad_bottom=12
       native "photo" key="photo:{place.id}" absolute=true top=0 left=0 width=width height=CARD_HEADER native_props=place.photo_props
+      # Left of the page dots.
+      use PhotoCredit credit=place.credit left=16 bottom=10 width=120
       column absolute=true top=0 left=0 width=width height=22 align_items="center"
         use CardHandle place=place pill="#ffffff47"
       row absolute=true top=16 left=16 width=controls height=38 justify="space-between" align_items="center"

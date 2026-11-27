@@ -50,6 +50,37 @@ impl NightshadeApp {
         })
     }
 
+    /// The credit for the photo `pager` ("photo:<id>") shows, for the view
+    /// to put over it: `credit` (its text, "" for none) and `credit_key`, a
+    /// tap opening the photographer's profile.
+    pub(crate) fn photo_credit(&self, place: &Place, pager: &str) -> Value {
+        let page = self.photo_pages.get(pager).copied().unwrap_or(0);
+        let name = place
+            .photo_credits
+            .get(page)
+            .map(|credit| credit.name.as_str())
+            .filter(|name| !name.is_empty() && page < place.photos.len());
+        json!({
+            "text": name.map(|name| format!("Photo: {name}")).unwrap_or_default(),
+            "key": format!("credit:{pager}"),
+        })
+    }
+
+    /// A credit tapped: the photographer's profile, as Google asks.
+    pub(crate) fn open_photo_credit(&mut self, pager: &str) {
+        let Some((_, id)) = pager.split_once(':') else { return };
+        let page = self.photo_pages.get(pager).copied().unwrap_or(0);
+        let Some(uri) = self
+            .place(id)
+            .and_then(|place| place.photo_credits.get(page))
+            .map(|credit| credit.uri.clone())
+            .filter(|uri| uri.starts_with("https://"))
+        else {
+            return;
+        };
+        self.calls.push(NativeCall::new("system", "openUrl", &json!({"url": uri}).to_string()));
+    }
+
     /// Height of the result cards: full or minimized.
     pub(crate) fn card_height(&self) -> f32 {
         if self.cards_minimized {
@@ -150,6 +181,7 @@ impl NightshadeApp {
                     }
                     let mut card = self.card_model(place);
                     card["built"] = true.into();
+                    card["credit"] = self.photo_credit(place, &format!("photo:{}", place.id));
                     card["saved"] = self.is_saved(&place.id).into();
                     // The photo's dominant color, once it has loaded.
                     if let Some(color) = self.photo_colors.get(&place.id) {

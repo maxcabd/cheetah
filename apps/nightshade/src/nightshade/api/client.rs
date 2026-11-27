@@ -118,6 +118,8 @@ pub(crate) struct ApiCard {
     pub(crate) amenities: Vec<String>,
     /// Open only through the drive-through (the dining room is closed).
     pub(crate) drive_thru_only: bool,
+    /// Who took each photo, lined up with `photos`.
+    pub(crate) photo_credits: Vec<PhotoCredit>,
 }
 
 const DAYS: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -234,6 +236,7 @@ impl ApiCard {
             icon_color: "#ffffff".into(),
             photos: self.photos.iter().map(|photo| resolve_url(photo)).collect(),
             amenities: self.amenities,
+            photo_credits: self.photo_credits,
         }
     }
 }

@@ -21,6 +21,7 @@ component RestaurantDetails
       native "photo" key="page-photo:{place.id}" absolute=true top=0 left=0 width=-1 height=PAGE_PHOTO native_props=place.photo_props
       native "blur" absolute=true bottom=0 left=0 width=-1 height=PAGE_BLUR native_props=PAGE_BLUR_STYLE
       native "gradient" absolute=true bottom=0 left=0 width=-1 height=PAGE_FADE native_props=PAGE_FADE_COLORS
+      use PhotoCredit credit=place.credit left=20 bottom=14 width=150
     column width=-1 pad_h=20 pad_v=18 gap=10
       text place.name size=26 font="brice-bold" color=TEXT lines=2
       text place.summary .label color=MUTED lines=1 width=place.inner

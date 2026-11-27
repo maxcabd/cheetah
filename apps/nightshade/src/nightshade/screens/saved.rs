@@ -37,6 +37,8 @@ impl NightshadeApp {
             .map(|place| {
                 let mut card = self.card_model(place);
                 card["key"] = format!("saved:open:{}", place.id).into();
+                // One photo, the first: its credit.
+                card["credit"] = self.photo_credit(place, &format!("saved-photo:{}", place.id));
                 card["detail"] = [place.cuisine.as_str(), card["price"].as_str().unwrap_or("")]
                     .into_iter()
                     .filter(|part| !part.is_empty())
@@ -67,6 +69,7 @@ impl NightshadeApp {
             "filter_props": json!({ "title": "", "items": items }).to_string(),
             "rows": rows,
             "card_width": card_width,
+            "credit_width": card_width - 20.0,
             "photo_height": photo_height,
             "card_height": card_height,
             "list_height": count * card_height + (count - 1.0).max(0.0) * SAVED_GAP + 24.0,

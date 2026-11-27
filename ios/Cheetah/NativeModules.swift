@@ -1062,7 +1062,9 @@ private final class IconNativeModule: CheetahNativeModule {
 
 /// `native "photo"`: a paged photo. Once the first image loads it reports
 /// a `load` event, `{"index": 0, "color": "#rrggbb"}`: the image's dominant
-/// color, for views that match it (a card shrunk to its color).
+/// color, for views that match it (a card shrunk to its color). Paging to
+/// another photo reports a `page` event with its index ("2"), for what
+/// goes with each photo (its credit).
 private final class PhotoPagerNativeModule: CheetahNativeModule {
     private let pager = PhotoPagerView()
 
@@ -1080,6 +1082,9 @@ private final class PhotoPagerNativeModule: CheetahNativeModule {
                 return
             }
             owner?.event("load", text)
+        }
+        pager.onPage = { [weak owner] page in
+            owner?.event("page", String(page))
         }
     }
 

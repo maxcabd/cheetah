@@ -29,6 +29,18 @@ pub(crate) struct Place {
     /// Amenity ids ("wifi", "outdoor_seating"); the page shows them.
     #[serde(default)]
     pub(crate) amenities: Vec<String>,
+    /// Who took each photo, lined up with `photos` (empty names for photos
+    /// that need no credit): Google requires its photos' credits be shown.
+    #[serde(default)]
+    pub(crate) photo_credits: Vec<PhotoCredit>,
+}
+
+/// A photo's credit: the photographer's name, and their profile to link.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub(crate) struct PhotoCredit {
+    pub(crate) name: String,
+    pub(crate) uri: String,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -63,6 +75,7 @@ pub(crate) fn sample(
         icon_color: icon_color.into(),
         photos: Vec::new(),
         amenities: Vec::new(),
+        photo_credits: Vec::new(),
     }
 }
 

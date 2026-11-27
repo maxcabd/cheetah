@@ -17,6 +17,14 @@ component GlassMenu
       use Icon name=icon size=16 color="#ffffff"
     native "menu" key=key absolute=true top=0 left=0 width=38 height=38 label=label native_props=items
 
+# "Photo: <name>" over the photo it credits, at its bottom left: Google
+# requires its photos' credits be shown with them. `credit` is
+# {text, key} from `photo_credit` (follows the pager's page); a tap opens
+# the photographer's profile. Nothing when the photo needs no credit.
+component PhotoCredit
+  if credit.text
+    text credit.text key=credit.key pressable=true absolute=true left=left bottom=bottom width=width size=11 font="satoshi-medium" color="#ffffffd9" lines=1 height=14 label=credit.text
+
 # Round icon button; `radius` is half of `size`.
 component ActionButton
   row key=key pressable=true width=size height=size radius=radius bg=bg .center label=label

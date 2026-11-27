@@ -1041,6 +1041,47 @@ fn cards_page_through_the_places_photos() {
 }
 
 #[test]
+fn google_photo_credits_follow_the_photo_shown_and_open_the_photographer() {
+    let mut app = remote_app();
+    submit(&mut app, "bridgehead");
+    let id = request_id(&mut app);
+    let body = serde_json::json!({"cards": [{
+        "place_id": "bh", "name": "Bridgehead", "lat": 45.4, "lng": -75.7, "distance_m": 10,
+        "photos": ["/photos/brand.jpg", "https://lh3.example/a", "https://lh3.example/b"],
+        "photo_credits": [
+            {"name": "", "uri": ""},
+            {"name": "Daniel Ruiz", "uri": "https://maps.google.com/contrib/1"},
+            {"name": "Amy Cullings", "uri": "https://maps.google.com/contrib/2"}
+        ]
+    }]});
+    http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}));
+    let credit = |app: &NightshadeApp| {
+        find(&render(app), "credit:photo:bh").and_then(|element| element.props.text.clone())
+    };
+
+    assert_eq!(credit(&app), None, "the chain's own photo needs no credit");
+    app.update(Event { id: 0, key: Some("photo:bh".into()), kind: "page".into(), payload: "1".into() });
+    assert_eq!(credit(&app).as_deref(), Some("Photo: Daniel Ruiz"));
+    app.update(Event { id: 0, key: Some("photo:bh".into()), kind: "page".into(), payload: "2".into() });
+    assert_eq!(credit(&app).as_deref(), Some("Photo: Amy Cullings"));
+
+    app.take_native_calls();
+    click(&mut app, "credit:photo:bh");
+    let calls = app.take_native_calls();
+    assert!(calls.iter().any(|call| call.method == "openUrl" && call.args.contains("contrib/2")));
+
+    // The page's own photos start at the first, with their own credit.
+    click(&mut app, "card:up:bh");
+    let tree = render(&app);
+    assert!(find(&tree, "credit:page-photo:bh").is_none());
+    app.update(Event { id: 0, key: Some("page-photo:bh".into()), kind: "page".into(), payload: "1".into() });
+    assert_eq!(
+        find(&render(&app), "credit:page-photo:bh").and_then(|e| e.props.text.clone()).as_deref(),
+        Some("Photo: Daniel Ruiz")
+    );
+}
+
+#[test]
 fn tapping_a_card_opens_its_page_and_back_closes_it() {
     let mut runtime = Runtime::new(NightshadeApp::new(true));
     let viewport = Viewport { width: 393.0, height: 852.0 };

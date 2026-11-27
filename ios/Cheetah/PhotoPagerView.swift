@@ -17,6 +17,10 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
     private static let cache = NSCache<NSString, UIImage>()
     /// The first photo's dominant color ("#rrggbb"), once it has loaded.
     var onDominantColor: ((String) -> Void)?
+    /// The page the photo settled on, when it changes (a caption or credit
+    /// for each photo follows it).
+    var onPage: ((Int) -> Void)?
+    private var page = 0
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -146,13 +150,20 @@ final class PhotoPagerView: UIView, UIScrollViewDelegate {
     func scrollViewDidScroll(_ scrollView: UIScrollView) {
         guard bounds.width > 0 else { return }
         overlay.progress = scrollView.contentOffset.x / bounds.width
-        loadNear(page: Int((scrollView.contentOffset.x / bounds.width).rounded()))
+        let nearest = Int((scrollView.contentOffset.x / bounds.width).rounded())
+        loadNear(page: nearest)
+        let settled = max(0, min(nearest, pages - 1))
+        if settled != page {
+            page = settled
+            onPage?(settled)
+        }
     }
 
     private func rebuild() {
         imageViews.values.forEach { $0.removeFromSuperview() }
         imageViews.removeAll(keepingCapacity: true)
         scroll.contentOffset = .zero
+        page = 0
         overlay.progress = 0
         overlay.pages = pages
         // Laid out with the rest of the frame, not now.

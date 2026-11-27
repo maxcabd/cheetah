@@ -25,7 +25,7 @@ component SavedPage
           for pair in saved.rows
             row width=-1 height=saved.card_height gap=12
               for card in pair
-                use SavedCard card=card width=saved.card_width height=saved.card_height photo=saved.photo_height
+                use SavedCard card=card width=saved.card_width height=saved.card_height photo=saved.photo_height credit_width=saved.credit_width
     else
       column width=-1 weight=1 .center gap=8
         use Icon name="bookmark" size=28 color=MUTED
@@ -36,7 +36,9 @@ component SavedPage
 # where it is.
 component SavedCard
   column key=card.key pressable=true width=width height=height bg=CHIP_BG radius=22 clip=true border=2 border_color="#ffffff08" label=card.name
-    native "photo" key="saved-photo:{card.id}" width=width height=photo native_props=card.photo_props
+    column width=width height=photo
+      native "photo" key="saved-photo:{card.id}" absolute=true top=0 left=0 width=width height=photo native_props=card.photo_props
+      use PhotoCredit credit=card.credit left=10 bottom=8 width=credit_width
     column width=width weight=1 pad_h=12 pad_v=10 gap=3
       text card.name size=15 font="brice-bold" color="#ffffff" lines=1 height=19
       if card.detail

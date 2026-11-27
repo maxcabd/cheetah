@@ -111,6 +111,9 @@ pub struct NightshadeApp {
     /// Each place's photo's dominant color ("#rrggbb"), reported by the
     /// card's `photo` once its first image loads.
     photo_colors: std::collections::HashMap<String, String>,
+    /// The photo each pager shows (by its key, "photo:<id>"), so its credit
+    /// shows with it; missing is the first.
+    photo_pages: std::collections::HashMap<String, usize>,
     /// Where state is saved for the next launch (`with_state_file`).
     state_file: Option<std::path::PathBuf>,
     calls: Vec<NativeCall>,
@@ -172,6 +175,7 @@ impl NightshadeApp {
             time_of_day: Vec::new(),
             suggestions_request: None,
             photo_colors: std::collections::HashMap::new(),
+            photo_pages: std::collections::HashMap::new(),
             router: Router::from_views(&view_files()),
             page_opens: 0,
             state_file: None,
@@ -380,6 +384,12 @@ impl App for NightshadeApp {
                     }
                 }
             }
+            // A card's or page's photos paged: its credit follows.
+            "page" if key.starts_with("photo:") || key.starts_with("page-photo:") => {
+                if let Ok(index) = event.payload.parse::<usize>() {
+                    self.photo_pages.insert(key.to_string(), index);
+                }
+            }
             "page" if key == "places" => {
                 if let Ok(index) = event.payload.parse::<usize>() {
                     if self
@@ -445,6 +455,8 @@ impl App for NightshadeApp {
                         self.haptic("light");
                         self.directions_chosen(&id, app as i64);
                     }
+                } else if let Some(pager) = key.strip_prefix("credit:") {
+                    self.open_photo_credit(&pager.to_string());
                 } else if let Some(id) = key.strip_prefix("saved:open:") {
                     self.open_saved_place(&id.to_string());
                 } else if let Some(id) = key.strip_prefix("card:share:") {
