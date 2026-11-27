@@ -89,7 +89,7 @@ impl NightshadeApp {
             "can_send": !self.draft.trim().is_empty(),
             // Away while the drawer is open (its native sheet can't slide
             // with the map).
-            "hidden": self.drawer_open || self.drawer_drag.is_some_and(|offset| offset > 0.0),
+            "hidden": self.drawer_open || self.drawer_dragging,
             "results": results,
             // Away from Ottawa, the empty sheet says what searches cover;
             // the chips make room for the line.

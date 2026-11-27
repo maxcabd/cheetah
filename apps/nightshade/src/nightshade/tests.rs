@@ -1711,18 +1711,23 @@ fn the_menu_slides_the_map_aside_to_show_the_drawer() {
     assert!(find(&screen, "drawer:close").is_some(), "the slid map closes it");
     assert!(sheet_props(&screen).contains(r#""hidden":true"#), "the sheet slides away");
 
-    // A swipe right does nothing; a swipe left, or a tap, closes it.
-    let swipe = |app: &mut NightshadeApp, direction: &str| {
-        app.update(Event {
-            id: 0,
-            key: Some("drawer:close".into()),
-            kind: "gesture".into(),
-            payload: if direction == "left" { r#"{"type":"pan","state":"ended","dx":-200,"vx":-900}"#.to_string() } else { r#"{"type":"pan","state":"ended","dx":40,"vx":900}"#.to_string() },
-        });
+    // The host drags the map screen itself (`drag`): the app hears a drag
+    // begin, and which snap it came to rest at.
+    let host = |app: &mut NightshadeApp, kind: &str, payload: &str| {
+        app.update(Event { id: 0, key: Some("screen".into()), kind: kind.into(), payload: payload.into() });
     };
-    swipe(&mut app, "right");
+    let screen_props = render(&app);
+    let dragged = find(&screen_props, "screen").unwrap();
+    assert_eq!(dragged.props.drag.as_deref(), Some("x"));
+    assert_eq!(dragged.props.drag_snaps.as_deref(), Some("0,314.4"));
+    // Let go where it was: still open.
+    host(&mut app, "drag", r#"{"state":"began"}"#);
+    host(&mut app, "snap", r#"{"index":1,"value":314.4}"#);
     assert!(app.drawer_open);
-    swipe(&mut app, "left");
+    // Dragged back shut.
+    host(&mut app, "drag", r#"{"state":"began"}"#);
+    assert!(sheet_props(&render(&app)).contains(r#""hidden":true"#), "away while dragged");
+    host(&mut app, "snap", r#"{"index":0,"value":0}"#);
     assert!(!app.drawer_open);
     let screen = render(&app);
     let map_screen = find(&screen, "screen").unwrap();
@@ -1782,4 +1787,25 @@ fn settings_show_location_coverage_and_version() {
     let mut remote = remote_app();
     remote.router.push("/settings", "push", None);
     assert!(format!("{:?}", render(&remote)).contains("Ottawa, for now"));
+}
+
+#[test]
+fn a_drag_from_the_edge_that_rests_open_opens_the_drawer() {
+    let mut app = NightshadeApp::new(true);
+    let host = |app: &mut NightshadeApp, kind: &str, payload: &str| {
+        app.update(Event { id: 0, key: Some("screen".into()), kind: kind.into(), payload: payload.into() });
+    };
+    host(&mut app, "drag", r#"{"state":"began"}"#);
+    let screen = render(&app);
+    assert!(find(&screen, "drawer:saved").is_some(), "the drawer is there under the finger");
+    host(&mut app, "snap", r#"{"index":1,"value":314.4}"#);
+    assert!(app.drawer_open);
+    // Not far enough: it springs back shut, and the drawer goes once it has.
+    click(&mut app, "drawer:close");
+    timer(&mut app, "drawer");
+    host(&mut app, "drag", r#"{"state":"began"}"#);
+    host(&mut app, "snap", r#"{"index":0,"value":0}"#);
+    assert!(!app.drawer_open);
+    timer(&mut app, "drawer");
+    assert!(find(&render(&app), "drawer:saved").is_none());
 }

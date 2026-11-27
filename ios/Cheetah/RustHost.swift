@@ -131,6 +131,8 @@ private final class NodeTag {
     var transitionMs: Double = 200
     var spring = false
     var gestures: GestureRelay?
+    /// `drag`: the view follows a finger between snaps (Gestures.swift).
+    var drag: DragRelay?
     var lastPage: Int = -1
     var paged = false
     /// `page_scale`: scale of a page one page from center (1: none).
@@ -876,6 +878,11 @@ final class RustHost: NSObject {
     /// `rotate`). With `animate`, changes ease (or spring) over
     /// `transition_ms`.
     private func applyMotion(_ view: UIView, node: NodeTag, props: WireProps) {
+        // A finger has it, or it's springing to rest: Rust's position
+        // waits, and is where it comes to rest by then.
+        if node.drag?.moving == true {
+            return
+        }
         let alpha = props.has(.opacity) ? CGFloat((props.number(.opacity) ?? 0)) : 1.0
         let scale = props.has(.scale) ? (props.number(.scale) ?? 0) : 1.0
         let radians = (props.number(.rotate) ?? 0) * .pi / 180
@@ -1242,6 +1249,21 @@ final class RustHost: NSObject {
             }
             node.gestures = relay
             relay.update(kinds: gestureKinds, tap: node.tapRecognizer)
+        }
+
+        if props.string(.drag) == "x" {
+            let relay = node.drag ?? DragRelay(view: view) { [weak self, weak node] kind, payload in
+                guard let self, let node else { return }
+                self.event(id: node.id, kind: kind, payload: payload)
+            }
+            node.drag = relay
+            relay.update(
+                snaps: props.string(.dragSnaps) ?? "0",
+                edge: props.has(.dragEdge) ? props.number(.dragEdge) : nil
+            )
+        } else if let relay = node.drag {
+            relay.remove()
+            node.drag = nil
         }
 
         if let imageView = view as? UIImageView, let source = props.string(.src) {
@@ -1649,6 +1671,8 @@ final class RustHost: NSObject {
         case "refresh": return 18
         case "load": return 19
         case "dismiss": return 20
+        case "drag": return 21
+        case "snap": return 22
         case "connection": return 14
         case "select": return 15
         case "native": return 16

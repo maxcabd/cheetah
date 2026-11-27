@@ -72,11 +72,9 @@ pub struct NightshadeApp {
     drawer_open: bool,
     /// The map screen keeps its rounded corners until it has slid back.
     drawer_rounded: bool,
-    /// How far the map screen is slid while a finger drags it, open or shut.
-    drawer_drag: Option<f32>,
-    /// The drawer's width on the last screen drawn: drags are measured
-    /// against it.
-    drawer_width: std::cell::Cell<f32>,
+    /// A finger is dragging the map screen (the host moves it; see
+    /// `drag` in views/map.view) until it snaps open or shut.
+    drawer_dragging: bool,
     /// Result cards shrunk to small bars (swipe a card's handle down).
     cards_minimized: bool,
     /// First and last result cards built so far (`carousel_model`).
@@ -152,8 +150,7 @@ impl NightshadeApp {
             location_denied: false,
             drawer_open: false,
             drawer_rounded: false,
-            drawer_drag: None,
-            drawer_width: std::cell::Cell::new(393.0 * 0.8),
+            drawer_dragging: false,
             cards_minimized: false,
             cards_built: Default::default(),
             cards_timer: false,
@@ -337,13 +334,14 @@ impl App for NightshadeApp {
                     self.photo_colors.insert(id.to_string(), color);
                 }
             }
-            // Dragging the slid-aside map back, or the map's left edge open.
-            "gesture" if key == "drawer:close" || key == "drawer:edge" => {
-                if let Some(gesture) = crate::gesture::Gesture::parse(&event) {
-                    if gesture.kind == "pan" {
-                        self.drag_drawer(&gesture, key == "drawer:close");
-                    }
-                }
+            // A finger took the map screen, and where it let it rest.
+            "drag" if key == "screen" => self.drawer_drag_began(),
+            "snap" if key == "screen" => {
+                let index = serde_json::from_str::<serde_json::Value>(&event.payload)
+                    .ok()
+                    .and_then(|snap| snap["index"].as_u64())
+                    .unwrap_or(0);
+                self.drawer_snapped(index == 1);
             }
             // A card's handle: swipe down to minimize the cards, up to restore.
             "gesture" if key.starts_with("handle:") => {

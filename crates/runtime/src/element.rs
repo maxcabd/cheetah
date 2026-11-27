@@ -214,6 +214,19 @@ pub struct Props {
     /// 0.85 shrinks the neighbours of the centered card. Unset: no scaling.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub page_scale: Option<f32>,
+    /// Dragged by a finger along this axis ("x"), between `drag_snaps`: the
+    /// host moves it under the finger and springs it to a snap, then reports
+    /// `drag` (began) and `snap` ({"index", "value"}). Its `translate_x` is
+    /// where it rests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub drag: Option<String>,
+    /// The points it rests at, in points along the axis: "0,321".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub drag_snaps: Option<String>,
+    /// At the first snap, a drag only starts this close to the view's
+    /// leading edge (a screen-edge drag). Unset: anywhere.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub drag_edge: Option<f32>,
 }
 
 impl Props {
@@ -306,6 +319,9 @@ impl Props {
         changed_field!(refresh);
         changed_field!(refreshing);
         changed_field!(page_scale);
+        changed_field!(drag);
+        changed_field!(drag_snaps);
+        changed_field!(drag_edge);
 
         changed.then_some(delta)
     }

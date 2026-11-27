@@ -7,16 +7,11 @@ component MapScreen
     # Everything over the map slides with it; its corners round while it's
     # aside. Square and unclipped the rest of the time: clipping a full
     # screen map costs every frame.
-    column key="screen" absolute=true top=0 left=0 width=-1 height=-1 translate_x=drawer.offset radius=drawer.radius clip=drawer.shown animate=drawer.animate transition_ms=450 spring=true
+    # A finger drags it open from the map's left edge, and back from
+    # anywhere once it's aside: the host moves it under the finger and
+    # springs it to a snap (`drag`), and the app hears where it rested.
+    column key="screen" absolute=true top=0 left=0 width=-1 height=-1 translate_x=drawer.offset radius=drawer.radius clip=drawer.shown animate=true transition_ms=450 spring=true drag="x" drag_snaps=drawer.snaps drag_edge=20
       use MapContent region=region carousel=carousel drawer=drawer
-    # Drags that move the map screen sit still above it, outside it: a pan is
-    # measured in its parent, which mustn't move with the finger. The
-    # slid-aside map closes the drawer (a tap, or a drag back); closed, the
-    # map's left edge drags it open.
-    if drawer.open
-      column key="drawer:close" pressable=true gestures="pan" absolute=true top=0 left=drawer.width width=drawer.rest height=-1 label="Close menu"
-    else
-      column key="drawer:edge" gestures="pan" absolute=true top=0 left=0 width=14 height=-1
     use Sheet sheet=sheet
     for page in pages
       use PageHost page=page
@@ -37,6 +32,10 @@ component MapContent
     column width=48 height=56
   if carousel
     use Carousel carousel=carousel
+  # The slid-aside map closes the drawer when tapped; dragging it back is
+  # the screen's own drag.
+  if drawer.open
+    column key="drawer:close" pressable=true absolute=true top=0 left=0 width=-1 height=-1 label="Close menu"
 
 # A map pin: any child of `map` with map_latitude/map_longitude is placed at
 # that coordinate. Glass is Liquid Glass on iOS 26 and a blur before.

@@ -94,6 +94,9 @@ const PROP_NAMES: &[&str] = &[
     "refreshing",
     // Append only: hosts index this list, and skip ids they don't know.
     "pageScale",
+    "drag",
+    "dragSnaps",
+    "dragEdge",
 ];
 
 pub(crate) fn encode(ops: &[Op]) -> Vec<u8> {
@@ -302,6 +305,9 @@ fn put_props(out: &mut Vec<u8>, props: &Props) {
     bool_prop!("refresh", props.refresh);
     bool_prop!("refreshing", props.refreshing);
     f32_prop!("pageScale", props.page_scale);
+    string_prop!("drag", props.drag);
+    string_prop!("dragSnaps", props.drag_snaps);
+    f32_prop!("dragEdge", props.drag_edge);
 }
 
 fn prop_count(props: &Props) -> usize {
@@ -381,6 +387,9 @@ fn prop_count(props: &Props) -> usize {
     count!(props.refresh);
     count!(props.refreshing);
     count!(props.page_scale);
+    count!(props.drag);
+    count!(props.drag_snaps);
+    count!(props.drag_edge);
     count
 }
 

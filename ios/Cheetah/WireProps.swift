@@ -12,7 +12,7 @@ enum Prop: UInt16, CaseIterable {
     case mapLongitude, mapLatitudeDelta, mapLongitudeDelta, mapMarkers, mapDark, mapShowsUser
     case paged, scrollX, src, fit, contentWidth, pressable, native, nativeProps, translateX
     case translateY, scale, rotate, transitionMs, spring, gestures, refresh, refreshing
-    case pageScale
+    case pageScale, drag, dragSnaps, dragEdge
 
     /// By number, so a name isn't looked up by reflection each time.
     static let names: [String] = allCases.map { "\($0)" }

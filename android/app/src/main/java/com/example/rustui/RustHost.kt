@@ -978,6 +978,8 @@ class RustHost(
         "refresh" -> 18
         "load" -> 19
         "dismiss" -> 20
+        "drag" -> 21
+        "snap" -> 22
         else -> 0
     }
 
@@ -1367,7 +1369,7 @@ private class WireReader(bytes: ByteArray) {
         return String(bytes, Charsets.UTF_8)
     }
 
-    private val propNames = arrayOf("text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures", "refresh", "refreshing", "pageScale")
+    private val propNames = arrayOf("text", "size", "color", "bg", "pad", "padH", "padV", "padBottom", "radius", "weight", "width", "height", "bold", "font", "lineHeight", "lines", "borderWidth", "borderColor", "opacity", "shadow", "clip", "animate", "wrap", "placeholderColor", "align", "placeholder", "value", "label", "testId", "gap", "alignItems", "justify", "absolute", "top", "left", "contentHeight", "scrollTo", "glassStyle", "glassTint", "glassInteractive", "contentInsetTop", "contentInsetBottom", "bottom", "mapLatitude", "mapLongitude", "mapLatitudeDelta", "mapLongitudeDelta", "mapMarkers", "mapDark", "mapShowsUser", "paged", "scrollX", "src", "fit", "contentWidth", "pressable", "native", "nativeProps", "translateX", "translateY", "scale", "rotate", "transitionMs", "spring", "gestures", "refresh", "refreshing", "pageScale", "drag", "dragSnaps", "dragEdge")
 
     fun props(): JSONObject? {
         val count = u32()?.toInt() ?: return null
