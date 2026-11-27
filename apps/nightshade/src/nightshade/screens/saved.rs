@@ -82,9 +82,51 @@ impl NightshadeApp {
         self.haptic("light");
     }
 
-    /// The saved list, over the map.
+    /// The saved list, over the map: with fresh photos, since Google's
+    /// photo URLs expire and aren't kept with saved places.
     pub(crate) fn open_saved(&mut self) {
         self.open_page(|router| router.push("/saved", "push", None));
+        self.refresh_saved_photos();
+    }
+
+    /// Ask the backend for the saved places' current photos and credits.
+    fn refresh_saved_photos(&mut self) {
+        let ids = self.saved.iter().map(|place| place.id.clone()).collect();
+        self.request_photos(ids);
+    }
+
+    /// Ask the backend for these places' current photos and credits
+    /// (`/v1/search/photos`); `photos_arrived` puts them in place.
+    pub(crate) fn request_photos(&mut self, ids: Vec<String>) {
+        if ids.is_empty() {
+            return;
+        }
+        let Backend::Remote { client, .. } = &mut self.backend else {
+            return;
+        };
+        let request = client.post("/v1/search/photos").json(&json!({ "place_ids": ids }));
+        self.photos_requests.insert(request.id);
+        self.calls.push(request.into_call());
+    }
+
+    /// `/v1/search/photos` answered: each place's photos and credits, in the
+    /// saved list and the results alike.
+    pub(crate) fn photos_arrived(&mut self, data: &Value) {
+        let Some(places) = data["places"].as_array() else { return };
+        let results = match &mut self.search {
+            Resource::Ready(response) => response.places.iter_mut().collect::<Vec<_>>(),
+            _ => Vec::new(),
+        };
+        for place in self.saved.iter_mut().chain(results) {
+            let Some(fresh) = places.iter().find(|fresh| fresh["place_id"] == place.id.as_str()) else {
+                continue;
+            };
+            place.photos = fresh["photos"]
+                .as_array()
+                .map(|photos| photos.iter().filter_map(|p| p.as_str()).map(resolve_url).collect())
+                .unwrap_or_default();
+            place.photo_credits = serde_json::from_value(fresh["photo_credits"].clone()).unwrap_or_default();
+        }
     }
 
     /// A saved place's page, over the saved list.

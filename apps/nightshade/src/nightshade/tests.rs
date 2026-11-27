@@ -1082,6 +1082,53 @@ fn google_photo_credits_follow_the_photo_shown_and_open_the_photographer() {
 }
 
 #[test]
+fn saved_places_keep_no_google_photos_and_get_fresh_ones_when_the_list_opens() {
+    let file = std::env::temp_dir().join(format!("nightshade-saved-photos-{}.redb", std::process::id()));
+    let _ = std::fs::remove_file(&file);
+    let mut app = NightshadeApp::with_backend(false, Backend::remote("http://api.test")).with_state_file(&file);
+    app.take_native_calls();
+    submit(&mut app, "bridgehead");
+    let id = request_id(&mut app);
+    let body = serde_json::json!({"cards": [{
+        "place_id": "bh", "name": "Bridgehead", "lat": 45.4, "lng": -75.7, "distance_m": 10,
+        "photos": ["/photos/brand.jpg", "https://lh3.example/old"],
+        "photo_credits": [{"name": "", "uri": ""}, {"name": "Sam", "uri": "https://maps.google.com/sam"}]
+    }]});
+    http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}));
+    click(&mut app, "card:bookmark:bh");
+    app.update(Event { id: 0, key: None, kind: "lifecycle".into(), payload: "background".into() });
+
+    // Relaunched: the chain's artwork is kept, Google's expired photo isn't.
+    let mut app = NightshadeApp::with_backend(false, Backend::remote("http://api.test")).with_state_file(&file);
+    let kept = app.saved_places()[0].clone();
+    assert_eq!(kept.photos.len(), 1, "{:?}", kept.photos);
+    assert!(kept.photos[0].ends_with("/photos/brand.jpg"));
+    assert!(kept.photo_credits.is_empty());
+
+    // The restored results' cards ask for theirs at launch.
+    assert!(app.take_native_calls().iter().any(|call| call.args.contains("/v1/search/photos")));
+    assert!(app.response().unwrap().places[0].photo_credits.is_empty(), "not kept either");
+
+    // Opening the list asks for current photos.
+    click(&mut app, "drawer:open");
+    click(&mut app, "drawer:saved");
+    let calls = app.take_native_calls();
+    let call = calls.iter().find(|call| call.module == "http" && call.args.contains("/v1/search/photos")).expect("asks");
+    let args: serde_json::Value = serde_json::from_str(&call.args).unwrap();
+    assert!(args["body"].as_str().unwrap().contains("\"bh\""));
+    let fresh = serde_json::json!({"places": [{
+        "place_id": "bh",
+        "photos": ["/photos/brand.jpg", "https://lh3.example/new"],
+        "photo_credits": [{"name": "", "uri": ""}, {"name": "Amy", "uri": "https://maps.google.com/amy"}]
+    }]});
+    http_response(&mut app, serde_json::json!({"id": args["id"], "ok": true, "status": 200, "body": fresh.to_string()}));
+    let place = app.saved_places()[0].clone();
+    assert_eq!(place.photos[1], "https://lh3.example/new");
+    assert_eq!(place.photo_credits[1].name, "Amy");
+    let _ = std::fs::remove_file(&file);
+}
+
+#[test]
 fn tapping_a_card_opens_its_page_and_back_closes_it() {
     let mut runtime = Runtime::new(NightshadeApp::new(true));
     let viewport = Viewport { width: 393.0, height: 852.0 };

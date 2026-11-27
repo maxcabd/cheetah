@@ -103,6 +103,9 @@ pub struct NightshadeApp {
     time_of_day: Vec<String>,
     /// The suggestions request in flight.
     suggestions_request: Option<u64>,
+    /// Requests for places' current photos (`request_photos`): the saved
+    /// list's as it opens, the last results' at launch.
+    photos_requests: std::collections::HashSet<u64>,
     /// Pages over the map (`views/pages/`): the restaurant page.
     router: Router,
     /// Pages opened so far: each gets a fresh native page (`page:<n>`), so
@@ -174,6 +177,7 @@ impl NightshadeApp {
             trending: Vec::new(),
             time_of_day: Vec::new(),
             suggestions_request: None,
+            photos_requests: Default::default(),
             photo_colors: std::collections::HashMap::new(),
             photo_pages: std::collections::HashMap::new(),
             router: Router::from_views(&view_files()),

@@ -61,7 +61,10 @@ impl NightshadeApp {
         Saved {
             query: self.query.clone(),
             draft: self.draft.clone(),
-            results: self.response().cloned(),
+            results: self.response().cloned().map(|mut results| {
+                results.places = results.places.iter().map(without_google_photos).collect();
+                results
+            }),
             selected: self.selected,
             focused: self.focused,
             center: self.center,
@@ -73,7 +76,7 @@ impl NightshadeApp {
                 .map(|place| place.id.clone())
                 .chain(self.saved_unseen.iter().cloned())
                 .collect(),
-            saved_details: self.saved.clone(),
+            saved_details: self.saved.iter().map(without_google_photos).collect(),
             recent_searches: self.recent_searches.clone(),
             maps_app: self.maps_app,
             miles: self.miles,
@@ -98,8 +101,11 @@ impl NightshadeApp {
                 self.selected = saved.selected.min(results.places.len().saturating_sub(1));
                 self.focused = saved.focused;
                 self.query = saved.query;
+                let ids = results.places.iter().map(|place| place.id.clone()).collect();
                 self.search = Resource::Ready(results);
                 self.refresh_saved();
+                // Google's photos weren't kept: the cards' current ones.
+                self.request_photos(ids);
                 self.build_ahead();
             }
             // A search still running when the app was closed runs again.
@@ -108,6 +114,24 @@ impl NightshadeApp {
         }
         self.draft = saved.draft;
     }
+}
+
+/// A place as kept on the phone (saved, or in the last results): without
+/// Google's photos, whose URLs expire and whose terms don't allow keeping
+/// them (the ones with a credit). They're fetched again (`request_photos`)
+/// at launch for the results, and when the saved list opens.
+fn without_google_photos(place: &Place) -> Place {
+    let mut kept = place.clone();
+    let credited = |index: usize| place.photo_credits.get(index).is_some_and(|credit| !credit.name.is_empty());
+    kept.photos = place
+        .photos
+        .iter()
+        .enumerate()
+        .filter(|&(index, _)| !credited(index))
+        .map(|(_, photo)| photo.clone())
+        .collect();
+    kept.photo_credits = Vec::new();
+    kept
 }
 
 // Opened per call: the file is small, and redb locks it while open, which a
