@@ -1,7 +1,9 @@
-# /settings: location access, where searches work, and the version
-# (screens/settings.rs). Opened from the drawer. Laid out like the iPhone's
-# own Settings in dark mode: a large title, and rounded groups of rows with
-# a colored icon, a label, a value, and a chevron where a tap goes on.
+# /settings: location access, which maps app Directions opens, distance
+# units, clearing what's kept on the phone, where searches work, and the
+# version (screens/settings.rs). Opened from the drawer. Laid out like the
+# iPhone's own Settings in dark mode: a large title, and rounded groups of
+# rows with a colored icon, a label, a value, and a chevron where a tap goes
+# on.
 component SettingsPage
   column width=-1 height=-1 bg=SETTINGS_BG
     column width=-1 height=settings.safe_top
@@ -9,40 +11,75 @@ component SettingsPage
       glass key="page:back" pressable=true width=44 height=44 radius=22 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Close" .center
         use Icon name="chevron.down" size=18 color="#ffffff"
     text "Settings" size=34 bold=true color="#ffffff" pad_h=20 lines=1 height=44
-    column width=-1 pad_h=16 pad_v=12 gap=8
-      use SettingsHeader title="Location"
-      column width=-1 radius=26 clip=true bg=SETTINGS_ROW
-        # Off: the row opens Nightshade's page in iOS Settings.
-        if settings.location_off
-          row key="settings:location" pressable=true width=-1 height=52 pad_h=16 gap=14 align_items="center" label="Open Settings"
-            use SettingsRow icon=settings.location_icon tint="#0a84ff" title="Location" value=settings.location_status value_key="settings:location-status" chevron=true
-        else
+    scroll key="settings:list" width=-1 weight=1 content_height=settings.content_height
+      column width=-1 pad_h=16 pad_v=12 gap=8
+        use SettingsHeader title="Location"
+        column width=-1 radius=26 clip=true bg=SETTINGS_ROW
+          # Off: the row opens Nightshade's page in iOS Settings.
+          if settings.location_off
+            row key="settings:location" pressable=true width=-1 height=52 pad_h=16 gap=14 align_items="center" label="Open Settings"
+              use SettingsRow icon=settings.location_icon tint="#0a84ff" title="Location" value=settings.location_status value_key="settings:location-status" chevron="chevron-right"
+          else
+            row width=-1 height=52 pad_h=16 gap=14 align_items="center"
+              use SettingsRow icon=settings.location_icon tint="#0a84ff" title="Location" value=settings.location_status value_key="settings:location-status" chevron=""
+        use SettingsFooter text=settings.location_detail
+        # Choices, each an iOS pop-up menu over its row.
+        use SettingsHeader title="Preferences"
+        column width=-1 radius=26 clip=true bg=SETTINGS_ROW
+          use SettingsMenuRow key="settings:maps" icon="arrow.triangle.turn.up.right.diamond.fill" tint="#ff9f0a" title="Directions" value=settings.maps_app value_key="settings:maps-value" items=settings.maps_menu width=settings.row_width
+          use SettingsSeparator inset=60
+          use SettingsMenuRow key="settings:units" icon="ruler.fill" tint="#5e5ce6" title="Distance" value=settings.units value_key="settings:units-value" items=settings.units_menu width=settings.row_width
+        use SettingsFooter text="Directions opens the maps app you pick here straight away."
+        # What's kept on the phone; each asks before clearing.
+        use SettingsHeader title="Data"
+        column width=-1 radius=26 clip=true bg=SETTINGS_ROW
+          use SettingsAction key="settings:clear-recents" title="Clear Recent Searches" enabled=settings.has_recents
+          use SettingsSeparator inset=16
+          use SettingsAction key="settings:clear-saved" title="Clear Saved Places" enabled=settings.has_saved
+        use SettingsFooter text="Your saved places, searches and settings stay on this iPhone."
+        use SettingsHeader title="About"
+        column width=-1 radius=26 clip=true bg=SETTINGS_ROW
           row width=-1 height=52 pad_h=16 gap=14 align_items="center"
-            use SettingsRow icon=settings.location_icon tint="#0a84ff" title="Location" value=settings.location_status value_key="settings:location-status" chevron=false
-      use SettingsFooter text=settings.location_detail
-      use SettingsHeader title="About"
-      column width=-1 radius=26 clip=true bg=SETTINGS_ROW
-        row width=-1 height=52 pad_h=16 gap=14 align_items="center"
-          use SettingsRow icon="map.fill" tint="#30d158" title="Where it works" value=settings.coverage value_key="settings:coverage" chevron=false
-        use SettingsSeparator
-        row width=-1 height=52 pad_h=16 gap=14 align_items="center"
-          use SettingsRow icon="info.circle.fill" tint="#8e8e93" title="Version" value=settings.version value_key="settings:version" chevron=false
-      use SettingsFooter text=settings.coverage_detail
+            use SettingsRow icon="map.fill" tint="#30d158" title="Where it works" value=settings.coverage value_key="settings:coverage" chevron=""
+          use SettingsSeparator inset=60
+          row width=-1 height=52 pad_h=16 gap=14 align_items="center"
+            use SettingsRow icon="info.circle.fill" tint="#8e8e93" title="Version" value=settings.version value_key="settings:version" chevron=""
+        use SettingsFooter text=settings.coverage_detail
 
-# A row's parts: icon tile, label, value, and a chevron where a tap goes on.
-# Its value has `value_key`, for tests and agents.
+# A row's parts: icon tile, label, value, and `chevron` (an icon name, or ""
+# for none) where a tap goes on. Its value has `value_key`, for tests and
+# agents.
 component SettingsRow
   row width=30 height=30 radius=8 bg=tint .center
     use Icon name=icon size=17 color="#ffffff"
   text title size=17 color="#ffffff" weight=1 lines=1 height=22
   text value key=value_key size=17 color=SETTINGS_MUTED lines=1 height=22
   if chevron
-    use Icon name="chevron-right" size=13 color=SETTINGS_MUTED
+    use Icon name=chevron size=13 color=SETTINGS_MUTED
 
-# Between rows: a hairline that starts where the labels do, as on iOS.
+# A row that picks from a list: the iOS menu over it, with the up-down
+# chevron iOS gives pop-up buttons. `items` is the menu's native_props; a
+# pick sends `select` with the item's title.
+component SettingsMenuRow
+  row width=width height=52
+    row width=width height=52 pad_h=16 gap=14 align_items="center"
+      use SettingsRow icon=icon tint=tint title=title value=value value_key=value_key chevron="chevron.up.chevron.down"
+    native "menu" key=key absolute=true top=0 left=0 width=width height=52 label=title native_props=items
+
+# A destructive row: red, gray when there's nothing to clear.
+component SettingsAction
+  if enabled
+    row key=key pressable=true width=-1 height=52 pad_h=16 align_items="center" label=title
+      text title size=17 color="#ff453a" weight=1 lines=1 height=22
+  else
+    row width=-1 height=52 pad_h=16 align_items="center"
+      text title size=17 color=SETTINGS_MUTED weight=1 lines=1 height=22
+
+# Between rows: a hairline that starts where the labels do (`inset`), as on
+# iOS.
 component SettingsSeparator
   row width=-1 height=1
-    column width=60 height=1
+    column width=inset height=1
     row weight=1 height=1 bg=SETTINGS_LINE
 
 component SettingsHeader

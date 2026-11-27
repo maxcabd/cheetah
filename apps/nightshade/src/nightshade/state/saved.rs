@@ -30,6 +30,11 @@ pub(crate) struct Saved {
     saved_details: Vec<Place>,
     #[serde(default)]
     recent_searches: Vec<String>,
+    /// Settings; absent in state saved before them.
+    #[serde(default)]
+    maps_app: Option<usize>,
+    #[serde(default)]
+    miles: bool,
 }
 
 impl NightshadeApp {
@@ -70,6 +75,8 @@ impl NightshadeApp {
                 .collect(),
             saved_details: self.saved.clone(),
             recent_searches: self.recent_searches.clone(),
+            maps_app: self.maps_app,
+            miles: self.miles,
         }
     }
 
@@ -83,6 +90,8 @@ impl NightshadeApp {
             .collect();
         self.saved = saved.saved_details;
         self.recent_searches = saved.recent_searches;
+        self.maps_app = saved.maps_app.filter(|&app| app < MAPS_APPS.len());
+        self.miles = saved.miles;
         match saved.results {
             Some(results) => {
                 self.cards_minimized = saved.cards_minimized;

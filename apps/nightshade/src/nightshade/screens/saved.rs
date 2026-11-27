@@ -35,7 +35,7 @@ impl NightshadeApp {
             .iter()
             .filter(|place| filter.map_or(true, |cuisine| place.cuisine == cuisine))
             .map(|place| {
-                let mut card = Self::card_model(place);
+                let mut card = self.card_model(place);
                 card["key"] = format!("saved:open:{}", place.id).into();
                 card["detail"] = [place.cuisine.as_str(), card["price"].as_str().unwrap_or("")]
                     .into_iter()

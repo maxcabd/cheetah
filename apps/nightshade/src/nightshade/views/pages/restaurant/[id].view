@@ -43,17 +43,25 @@ component RestaurantDetails
       # Directions (Apple or Google Maps), share, bookmark: Liquid Glass on
       # iOS 26, a blur before.
       row width=place.inner height=48 gap=10 align_items="center"
-        # Which maps app: the iOS menu, from the button (GlassMenu).
-        row width=place.directions_width height=48
-          glass width=place.directions_width height=48 radius=24 glass_style="regular" glass_tint="#00000047" .center
-            row height=48 gap=8 align_items="center"
-              use Icon name="arrow.triangle.turn.up.right.diamond.fill" size=16 color="#ffffff"
-              text "Directions" size=15 font="satoshi-bold" bold=true color="#ffffff" lines=1
-          native "menu" key="page:directions" absolute=true top=0 left=0 width=place.directions_width height=48 label="Directions" native_props=place.directions_menu
+        # Which maps app: the iOS menu, from the button (GlassMenu); or
+        # straight to the one picked in Settings.
+        if place.ask_maps
+          row width=place.directions_width height=48
+            glass width=place.directions_width height=48 radius=24 glass_style="regular" glass_tint="#00000047" .center
+              use DirectionsLabel
+            native "menu" key="page:directions" absolute=true top=0 left=0 width=place.directions_width height=48 label="Directions" native_props=place.directions_menu
+        else
+          glass key="page:directions" pressable=true width=place.directions_width height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Directions" .center
+            use DirectionsLabel
         glass key="page:share" pressable=true width=48 height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Share" .center
           use Icon name="square.and.arrow.up" size=17 color="#ffffff"
         glass key="page:bookmark" pressable=true width=48 height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Save" .center
           use Icon name=place.saved ? "bookmark.fill" : "bookmark" size=17 color="#ffffff"
+
+component DirectionsLabel
+  row height=48 gap=8 align_items="center"
+    use Icon name="arrow.triangle.turn.up.right.diamond.fill" size=16 color="#ffffff"
+    text "Directions" size=15 font="satoshi-bold" bold=true color="#ffffff" lines=1
 
 # One amenity as a small pill: icon and label from its id.
 component Amenity

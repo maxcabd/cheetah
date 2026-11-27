@@ -49,7 +49,7 @@ impl NightshadeApp {
                 model["restaurant"] = self.restaurant_model(id, context);
             }
             "SavedPage" => model["saved"] = self.saved_model(context),
-            "SettingsPage" => model["settings"] = self.settings_model(),
+            "SettingsPage" => model["settings"] = self.settings_model(context),
             _ => {}
         }
         model
@@ -62,7 +62,7 @@ impl NightshadeApp {
         let Some(place) = self.place(id) else {
             return json!({"found": false, "id": id, "safe_top": safe_top});
         };
-        let mut model = Self::card_model(place);
+        let mut model = self.card_model(place);
         // A saved place's hours are from when it was found: not shown as
         // if they were today's.
         if !self.in_results(id) {

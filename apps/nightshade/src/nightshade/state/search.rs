@@ -180,10 +180,17 @@ impl NightshadeApp {
         if self.router.handle_native(&event) {
             return;
         }
-        // Settings, picked when location is off.
+        // Answers to alerts: Settings, picked when location is off, and
+        // Clear, confirming a Settings row's.
         if event.is("dialog", "result") {
-            if event.data["id"] == "location:denied" && event.data["index"] == 1 {
-                self.open_settings();
+            if event.data["index"] == 1 {
+                match event.data["id"].as_str() {
+                    Some("location:denied") => self.open_settings(),
+                    Some(id @ ("settings:clear-recents" | "settings:clear-saved")) => {
+                        self.clear(&id.to_string())
+                    }
+                    _ => {}
+                }
             }
             return;
         }

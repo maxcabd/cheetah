@@ -1546,6 +1546,98 @@ fn a_saved_place_in_the_results_shows_its_hours() {
 }
 
 #[test]
+fn a_maps_app_picked_in_settings_takes_directions_straight_there_after_a_relaunch() {
+    let file = std::env::temp_dir().join(format!("nightshade-maps-{}.redb", std::process::id()));
+    let _ = std::fs::remove_file(&file);
+    let mut app = NightshadeApp::new(true).with_state_file(&file);
+    click(&mut app, "drawer:open");
+    click(&mut app, "drawer:settings");
+    let value = |app: &NightshadeApp, key: &str| {
+        find(&render(app), key).unwrap().props.text.clone().unwrap()
+    };
+    assert_eq!(value(&app, "settings:maps-value"), "Ask Every Time");
+    select(&mut app, "settings:maps", "Google Maps");
+    assert_eq!(value(&app, "settings:maps-value"), "Google Maps");
+    app.update(Event { id: 0, key: None, kind: "lifecycle".into(), payload: "background".into() });
+
+    let mut app = NightshadeApp::new(true).with_state_file(&file);
+    app.take_native_calls();
+    // The card's button is a plain button now, and goes straight to Google.
+    let tree = render(&app);
+    assert!(!format!("{:?}", find(&tree, "card:directions:java").unwrap()).contains("Apple Maps"), "no menu");
+    click(&mut app, "card:directions:java");
+    let calls = app.take_native_calls();
+    assert!(calls.iter().any(|call| call.method == "openUrl" && call.args.contains("google.com/maps/dir/")));
+    // The place page's too.
+    click(&mut app, "card:up:java");
+    app.take_native_calls();
+    click(&mut app, "page:directions");
+    assert!(app.take_native_calls().iter().any(|call| call.method == "openUrl"));
+    click(&mut app, "page:back");
+
+    // Asking again brings the menus back.
+    click(&mut app, "drawer:open");
+    click(&mut app, "drawer:settings");
+    select(&mut app, "settings:maps", "Ask Every Time");
+    click(&mut app, "page:back");
+    assert!(format!("{:?}", find(&render(&app), "card:directions:java").unwrap()).contains("Apple Maps"));
+    let _ = std::fs::remove_file(&file);
+}
+
+#[test]
+fn distances_show_in_miles_when_settings_say_so() {
+    use super::components::format_distance;
+    assert_eq!(format_distance(280.0, false), "280m");
+    assert_eq!(format_distance(1234.0, false), "1.2km");
+    assert_eq!(format_distance(120.0, true), "390ft");
+    assert_eq!(format_distance(1609.344, true), "1.0mi");
+
+    let mut app = NightshadeApp::new(true);
+    assert!(format!("{:?}", render(&app)).contains("280m"));
+    click(&mut app, "drawer:open");
+    click(&mut app, "drawer:settings");
+    select(&mut app, "settings:units", "Miles");
+    assert_eq!(find(&render(&app), "settings:units-value").unwrap().props.text.as_deref(), Some("Miles"));
+    click(&mut app, "page:back");
+    let screen = format!("{:?}", render(&app));
+    assert!(screen.contains("0.2mi") && !screen.contains("280m"), "the cards in miles");
+}
+
+#[test]
+fn clearing_recents_and_saves_asks_first() {
+    let mut app = NightshadeApp::new(true);
+    app.recent_searches = vec!["tacos".into(), "ramen".into()];
+    click(&mut app, "card:bookmark:java");
+    click(&mut app, "card:bookmark:pizza");
+    click(&mut app, "drawer:open");
+    click(&mut app, "drawer:settings");
+    app.take_native_calls();
+    let answer = |app: &mut NightshadeApp, id: &str, index: i64| {
+        native(app, serde_json::json!({"module": "dialog", "method": "result", "id": id, "index": index}));
+    };
+
+    click(&mut app, "settings:clear-saved");
+    let calls = app.take_native_calls();
+    let alert = calls.iter().find(|call| call.module == "dialog" && call.method == "alert").expect("asks first");
+    assert!(alert.args.contains("All 2 saved places"), "{}", alert.args);
+    answer(&mut app, "settings:clear-saved", 0);
+    assert_eq!(app.saved_places().len(), 2, "Cancel keeps them");
+    answer(&mut app, "settings:clear-saved", 1);
+    assert!(app.saved_places().is_empty() && !app.is_saved("java"));
+
+    click(&mut app, "settings:clear-recents");
+    assert!(app.take_native_calls().iter().any(|call| call.method == "alert"));
+    answer(&mut app, "settings:clear-recents", 1);
+    assert!(app.recent_searches.is_empty());
+
+    // Nothing left: the rows are gray, and tapping them asks nothing.
+    let tree = render(&app);
+    assert!(find(&tree, "settings:clear-saved").is_none() && find(&tree, "settings:clear-recents").is_none());
+    click(&mut app, "settings:clear-saved");
+    assert!(app.take_native_calls().iter().all(|call| call.method != "alert"));
+}
+
+#[test]
 fn saved_places_survive_a_relaunch_without_their_search() {
     let file = std::env::temp_dir().join(format!("nightshade-saved-list-{}.redb", std::process::id()));
     let _ = std::fs::remove_file(&file);

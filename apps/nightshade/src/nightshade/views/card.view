@@ -37,8 +37,12 @@ component Card
         row height=38 gap=8 align_items="center"
           use GlassIcon icon=place.saved ? "bookmark.fill" : "bookmark" key="card:bookmark:{place.id}"
           use GlassIcon icon="share" key="card:share:{place.id}"
-          # Which maps app: a menu over the card, not a sheet from the bottom.
-          use GlassMenu icon="arrow.triangle.turn.up.right.diamond" key="card:directions:{place.id}" label="Directions" items=place.directions_menu
+          # Which maps app: a menu over the card, not a sheet from the bottom;
+          # or straight to the one picked in Settings.
+          if place.ask_maps
+            use GlassMenu icon="arrow.triangle.turn.up.right.diamond" key="card:directions:{place.id}" label="Directions" items=place.directions_menu
+          else
+            use GlassIcon icon="arrow.triangle.turn.up.right.diamond" key="card:directions:{place.id}"
     column width=width height=CARD_BODY bg=CARD_BG pad_h=20 pad_v=12 pad_bottom=12 gap=6
       text place.name size=18 font="brice-bold" color="#ffffff" lines=1 height=22
       row width=inner .line gap=6

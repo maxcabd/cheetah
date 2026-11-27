@@ -6,13 +6,9 @@ use serde_json::{json, Value};
 impl NightshadeApp {
     /// One card's display values: text is formatted here, layout lives in
     /// the view.
-    pub(crate) fn card_model(place: &Place) -> Value {
+    pub(crate) fn card_model(&self, place: &Place) -> Value {
         let drive_minutes = ((place.distance_m / 1000.0) / 30.0 * 60.0).round().max(1.0) as u32;
-        let distance = if place.distance_m < 1000.0 {
-            format!("{}m", place.distance_m.round() as u32)
-        } else {
-            format!("{:.1}km", place.distance_m / 1000.0)
-        };
+        let distance = format_distance(place.distance_m, self.miles);
         let status = match place.open {
             None => "unknown",
             Some(true) => "open",
@@ -33,7 +29,9 @@ impl NightshadeApp {
                 json!({"photos": place.photos})
             }
             .to_string(),
-            // The directions button's menu: which maps app.
+            // The directions button: a menu of maps apps, unless Settings
+            // has one to go straight to.
+            "ask_maps": self.maps_app.is_none(),
             "directions_menu": json!({ "title": "", "items": MAPS_APPS }).to_string(),
             // The place's page; the id may hold a "/" (osm:node/42).
             "route": format!("/restaurant/{}", crate::router::encode_segment(&place.id)),
@@ -150,7 +148,7 @@ impl NightshadeApp {
                     if !built.contains(&index) {
                         return json!({ "built": false });
                     }
-                    let mut card = Self::card_model(place);
+                    let mut card = self.card_model(place);
                     card["built"] = true.into();
                     card["saved"] = self.is_saved(&place.id).into();
                     // The photo's dominant color, once it has loaded.
@@ -162,6 +160,25 @@ impl NightshadeApp {
                 })
                 .collect::<Vec<_>>(),
         })
+    }
+}
+
+/// A distance as the cards show it: "280m", "1.2km"; or with `miles`,
+/// "450ft", "0.7mi".
+pub(crate) fn format_distance(meters: f32, miles: bool) -> String {
+    if !miles {
+        return if meters < 1000.0 {
+            format!("{}m", meters.round() as u32)
+        } else {
+            format!("{:.1}km", meters / 1000.0)
+        };
+    }
+    let mi = meters / 1609.344;
+    if mi < 0.1 {
+        // Feet, to the nearest ten.
+        format!("{}ft", ((meters * 3.28084 / 10.0).round() * 10.0) as u32)
+    } else {
+        format!("{mi:.1}mi")
     }
 }
 

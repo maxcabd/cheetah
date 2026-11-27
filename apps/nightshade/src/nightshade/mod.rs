@@ -91,6 +91,11 @@ pub struct NightshadeApp {
     saved_unseen: std::collections::BTreeSet<String>,
     /// The saved list's filter: a cuisine, or `None` for all.
     saved_filter: Option<String>,
+    /// Settings: the maps app Directions opens straight away (an index into
+    /// `MAPS_APPS`), or `None` to ask each time.
+    maps_app: Option<usize>,
+    /// Settings: distances in miles and feet, not kilometres and metres.
+    miles: bool,
     /// The user's own searches, newest first, kept across launches.
     recent_searches: Vec<String>,
     /// From the backend: trending searches and ones for the time of day.
@@ -160,6 +165,8 @@ impl NightshadeApp {
             saved: Vec::new(),
             saved_unseen: Default::default(),
             saved_filter: None,
+            maps_app: None,
+            miles: false,
             recent_searches: Vec::new(),
             trending: Vec::new(),
             time_of_day: Vec::new(),
@@ -328,6 +335,8 @@ impl App for NightshadeApp {
                 self.select_place(&event.payload);
             }
             "select" if key == "saved:filter" => self.filter_saved(&event.payload),
+            "select" if key == "settings:maps" => self.choose_maps_app(&event.payload),
+            "select" if key == "settings:units" => self.choose_units(&event.payload),
             // A maps app picked from a directions menu: a card's, or the
             // open place page's.
             "select" if key.starts_with("card:directions:") || key == "page:directions" => {
@@ -423,6 +432,19 @@ impl App for NightshadeApp {
                     self.open_page(|router| router.push("/settings", "push", None));
                 } else if key == "settings:location" {
                     self.open_settings();
+                } else if key == "settings:clear-recents" || key == "settings:clear-saved" {
+                    self.confirm_clear(&key.to_string());
+                } else if key.starts_with("card:directions:") || key == "page:directions" {
+                    // A maps app chosen in Settings: Directions goes straight
+                    // there (without one, the button is a menu instead).
+                    let id = match key.strip_prefix("card:directions:") {
+                        Some(id) => Some(id.to_string()),
+                        None => self.open_place_id(),
+                    };
+                    if let (Some(id), Some(app)) = (id, self.maps_app) {
+                        self.haptic("light");
+                        self.directions_chosen(&id, app as i64);
+                    }
                 } else if let Some(id) = key.strip_prefix("saved:open:") {
                     self.open_saved_place(&id.to_string());
                 } else if let Some(id) = key.strip_prefix("card:share:") {
