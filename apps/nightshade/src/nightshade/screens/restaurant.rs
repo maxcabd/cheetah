@@ -83,8 +83,9 @@ impl NightshadeApp {
         // the two gaps (10), for the menu over it.
         model["directions_width"] = (width - 40.0 - 2.0 * 48.0 - 2.0 * 10.0).into();
         model["summary"] = summary.into();
-        model["amenities"] = place.amenities.clone().into();
-        model["has_pills"] = (!place.amenities.is_empty() || !place.diet.is_empty()).into();
+        let amenities: Vec<&String> = crate::nightshade::components::shown_amenities(place).collect();
+        model["has_pills"] = (!amenities.is_empty() || !place.diet.is_empty()).into();
+        model["amenities"] = serde_json::json!(amenities);
         model["credit"] = self.photo_credit(place, &format!("page-photo:{}", place.id));
         model
     }

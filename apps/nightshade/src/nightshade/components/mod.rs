@@ -9,3 +9,4 @@ pub(crate) use sheet::failure_message;
 
 #[cfg(test)]
 pub(crate) use card::{format_distance, is_light};
+pub(crate) use card::shown_amenities;

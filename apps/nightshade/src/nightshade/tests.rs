@@ -1454,10 +1454,11 @@ fn halal_places_say_whether_it_is_the_whole_place_or_some_dishes() {
     let diets: Vec<String> = app.response().unwrap().places.iter().map(|p| p.diet.clone()).collect();
     assert_eq!(diets, ["Certified halal", "Halal", "Halal options", ""]);
 
-    // On the card, first, with two amenities to make three pills.
+    // On the card, first, then amenities to make three pills; no
+    // "Dine-in", which nearly every place has.
     let model = app.card_model(&app.response().unwrap().places[2]);
     assert_eq!(model["diet"], "Halal options");
-    assert_eq!(model["card_amenities"].as_array().unwrap().len(), 2);
+    assert_eq!(model["card_amenities"], serde_json::json!(["takeout", "wifi"]));
     let screen = format!("{:?}", render(&app));
     assert!(screen.contains("Certified halal"));
 }

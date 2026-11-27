@@ -54,9 +54,7 @@ impl NightshadeApp {
             // A card has room for three amenity pills.
             // The diet pill comes first and counts toward the three.
             "diet": place.diet,
-            "card_amenities": place
-                .amenities
-                .iter()
+            "card_amenities": shown_amenities(place)
                 .take(if place.diet.is_empty() { 3 } else { 2 })
                 .collect::<Vec<_>>(),
             "rating": if place.reviews.is_empty() {
@@ -229,6 +227,13 @@ pub(crate) fn format_distance(meters: f32, miles: bool) -> String {
     } else {
         format!("{mi:.1}mi")
     }
+}
+
+/// The amenities worth a pill. Not "Dine-in": most places get it from their
+/// type (a restaurant), not because anyone said so, and nearly every one has
+/// it, so it tells nothing. Searches still use it ("somewhere to sit").
+pub(crate) fn shown_amenities(place: &Place) -> impl Iterator<Item = &String> {
+    place.amenities.iter().filter(|amenity| amenity.as_str() != "dine_in")
 }
 
 /// Whether text on `color` ("#rrggbb") reads better dark: its relative
