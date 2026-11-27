@@ -130,6 +130,7 @@ impl NightshadeApp {
             place.open = current.open;
             place.closes = current.closes;
             place.opens = current.opens;
+            place.closure = current.closure;
             if !current.rating.is_empty() {
                 place.rating = current.rating;
                 place.reviews = current.reviews;

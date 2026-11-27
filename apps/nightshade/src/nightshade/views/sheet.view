@@ -62,19 +62,22 @@ component SearchField
     # Keeps the button inside the pill's rounded end.
     column width=8 height=36
 
-# No search yet: heading and suggestion chips.
+# No search yet: heading and suggestion chips, two rows from the top.
 # The chips scroll edge to edge; their inset lives inside the scroll so the
-# first column lines up with the heading.
+# first column lines up with the heading. Rows and width from `chip_rows`.
 component EmptyBody
   column width=-1 weight=1 gap=14
     text "Ready to discover?" .heading pad_h=24
     # Away from Ottawa: what searches cover.
     if market_note
       text market_note key="sheet:market" size=15 font="satoshi-medium" color=MUTED pad_h=24 lines=1 height=20
-    hscroll width=-1 height=chips_height content_width=648
-      column width=648 height=chips_height pad_h=24 justify="center"
-        row width=600 wrap=true gap=10 align_items="center"
-          for chip in suggestions
+    hscroll width=-1 height=chips_height content_width=suggestions.width
+      column width=suggestions.width height=chips_height pad_h=24 gap=10
+        row height=42 gap=10 align_items="center"
+          for chip in suggestions.top
+            use Chip label=chip.label key=chip.key glass=glass
+        row height=42 gap=10 align_items="center"
+          for chip in suggestions.bottom
             use Chip label=chip.label key=chip.key glass=glass
 
 component ResultsBody

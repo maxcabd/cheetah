@@ -318,6 +318,23 @@ fn views_render_the_empty_sheet() {
 }
 
 #[test]
+fn suggestion_chips_make_two_rows_from_the_top_short_or_long() {
+    // Short ones (a backend's) and long ones (the fixed list) alike.
+    for labels in [
+        vec!["Coffee", "Lunch", "Tacos", "Ramen", "Pho", "Brunch"],
+        vec!["Cafes within 12 min walk", "Best dessert spots near me", "Best brunch spots",
+             "Casual catch up with friends", "Nearby spots that open late night", "Date night"],
+    ] {
+        let rows = NightshadeApp::chip_rows(&labels, "suggest", 393.0);
+        let (top, bottom) = (rows["top"].as_array().unwrap(), rows["bottom"].as_array().unwrap());
+        assert!(!top.is_empty() && !bottom.is_empty(), "two rows: {labels:?}");
+        assert_eq!(top.len() + bottom.len(), labels.len());
+        assert_eq!(top[0]["key"], "suggest:0", "in reading order");
+        assert!(rows["width"].as_f64().unwrap() >= 393.0);
+    }
+}
+
+#[test]
 fn views_render_result_cards() {
     let mut app = NightshadeApp::new(true);
     let screen = render(&app);
@@ -1141,6 +1158,20 @@ fn saved_places_keep_no_google_photos_and_get_fresh_ones_when_the_list_opens() {
 }
 
 #[test]
+fn a_closed_place_says_so_instead_of_hours() {
+    let mut app = remote_app();
+    submit(&mut app, "pizza");
+    let id = request_id(&mut app);
+    let body = serde_json::json!({"cards": [{
+        "place_id": "z", "name": "Zed's", "lat": 45.4, "lng": -75.7, "distance_m": 10,
+        "open_now": false, "closed_temporarily": true
+    }]});
+    http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}));
+    let screen = format!("{:?}", render(&app));
+    assert!(screen.contains("Temporarily closed") && !screen.contains("Opens"), "no empty opening time");
+}
+
+#[test]
 fn tapping_a_card_opens_its_page_and_back_closes_it() {
     let mut runtime = Runtime::new(NightshadeApp::new(true));
     let viewport = Viewport { width: 393.0, height: 852.0 };
@@ -1310,14 +1341,16 @@ fn suggestions_mix_your_searches_trending_and_the_time_of_day() {
     let id = serde_json::from_str::<serde_json::Value>(&call.args).unwrap()["id"].as_u64().unwrap();
     let body = serde_json::json!({"trending": ["Shawarma", "Bubble tea"], "time_of_day": ["Open now", "24 hour food"]});
     http_response(&mut app2, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}));
-    assert_eq!(app2.suggestions()[..4], ["Shawarma", "Bubble tea", "Open now", "24 hour food"]);
+    // One for the time of day, one trending, then more of each.
+    assert_eq!(app2.suggestions()[..4], ["Open now", "Shawarma", "24 hour food", "Bubble tea"]);
 
-    // Your own searches come first.
+    // Your latest search after the time of day's (searched once each:
+    // not habits yet).
     app2.remember_search("halal tacos");
     app2.remember_search("dairy queen");
     let chips = app2.suggestions();
-    assert_eq!(chips[0], "dairy queen");
-    assert_eq!(chips[1], "halal tacos");
+    assert_eq!(chips[..3], ["Open now", "dairy queen", "Shawarma"]);
+    assert!(chips.contains(&"halal tacos".to_string()));
     assert_eq!(chips.len(), 6);
 
     // Tapping a chip searches what it says.
@@ -1328,6 +1361,57 @@ fn suggestions_mix_your_searches_trending_and_the_time_of_day() {
     assert_eq!(app.suggestions().len(), 6);
     app.remember_search("  ");
     assert!(app.recent_searches.is_empty());
+}
+
+#[test]
+fn your_habits_for_the_time_of_day_lead_the_suggestions() {
+    use super::state::habits::{daypart, utc_offset_minutes};
+    assert_eq!(utc_offset_minutes("2026-11-27T01:52:15-05:00"), Some(-300));
+    assert_eq!(utc_offset_minutes("2026-07-01T09:00:00+02:00"), Some(120));
+    assert_eq!((daypart(8 * 60), daypart(12 * 60), daypart(19 * 60), daypart(2 * 60)), (0, 1, 3, 4));
+
+    let mut app = NightshadeApp::new(false);
+    app.utc_offset_min = Some(-300);
+    // A day in November 2026, Ottawa time: 7 p.m. and 8 a.m.
+    let evening = 1_795_651_200 + (19 + 5) * 3600;
+    let morning = 1_795_651_200 + (8 + 5) * 3600;
+    let search = |app: &mut NightshadeApp, at: i64, query: &str| {
+        app.now_override = Some(at);
+        app.remember_search(query);
+    };
+    for _ in 0..4 {
+        search(&mut app, evening, "study spots");
+    }
+    for _ in 0..3 {
+        search(&mut app, morning, "coffee");
+    }
+    search(&mut app, evening, "tacos");
+
+    // Evenings: study spots first, though tacos was the latest search.
+    app.now_override = Some(evening + 86_400);
+    let chips = app.suggestions();
+    assert_eq!(chips[..2], ["study spots", "coffee"]);
+    assert!(chips.contains(&"tacos".to_string()), "the latest search still shows");
+    // Mornings: coffee first.
+    app.now_override = Some(morning + 86_400);
+    assert_eq!(app.suggestions()[0], "coffee");
+    // Searched once: not a habit.
+    assert!(!app.habits_now().contains(&"tacos"));
+}
+
+#[test]
+fn habits_are_kept_across_a_relaunch() {
+    let file = std::env::temp_dir().join(format!("nightshade-habits-{}.redb", std::process::id()));
+    let _ = std::fs::remove_file(&file);
+    let mut app = NightshadeApp::new(false).with_state_file(&file);
+    app.remember_search("study spots");
+    app.remember_search("Study Spots");
+    app.update(Event { id: 0, key: None, kind: "lifecycle".into(), payload: "background".into() });
+    let app = NightshadeApp::new(false).with_state_file(&file);
+    assert_eq!(app.habits.len(), 1, "the same search, however it's written");
+    assert_eq!(app.habits[0].count, 2);
+    assert_eq!(app.suggestions()[0], "Study Spots");
+    let _ = std::fs::remove_file(&file);
 }
 
 #[test]
@@ -1713,7 +1797,8 @@ fn distances_show_in_miles_when_settings_say_so() {
 #[test]
 fn clearing_recents_and_saves_asks_first() {
     let mut app = NightshadeApp::new(true);
-    app.recent_searches = vec!["tacos".into(), "ramen".into()];
+    app.remember_search("tacos");
+    app.remember_search("tacos");
     click(&mut app, "card:bookmark:java");
     click(&mut app, "card:bookmark:pizza");
     click(&mut app, "drawer:open");
@@ -1736,6 +1821,7 @@ fn clearing_recents_and_saves_asks_first() {
     assert!(app.take_native_calls().iter().any(|call| call.method == "alert"));
     answer(&mut app, "settings:clear-recents", 1);
     assert!(app.recent_searches.is_empty());
+    assert!(app.habits.is_empty(), "and what they said about your habits");
 
     // Nothing left: the rows are gray, and tapping them asks nothing.
     let tree = render(&app);

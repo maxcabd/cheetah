@@ -75,6 +75,12 @@ impl NightshadeApp {
     }
 
     pub(crate) fn finish_search(&mut self, result: Result<SearchResponse, String>) {
+        // The backend's local time tells the phone's offset (for habits).
+        if let Some(iso) = result.as_ref().ok().and_then(|response| {
+            response.plan.as_ref()?["time_context"]["local_datetime_iso"].as_str().map(str::to_string)
+        }) {
+            self.learn_utc_offset(&iso);
+        }
         match result {
             Ok(response) if response.places.is_empty() => {
                 // Nothing found: the sheet says so (`sheet_model`), with
@@ -213,6 +219,9 @@ impl NightshadeApp {
                     };
                     self.trending = list("trending");
                     self.time_of_day = list("time_of_day");
+                    if let Some(iso) = data["local_datetime_iso"].as_str() {
+                        self.learn_utc_offset(iso);
+                    }
                 }
                 return;
             }

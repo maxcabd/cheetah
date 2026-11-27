@@ -3,6 +3,9 @@
 use crate::nightshade::*;
 use serde_json::{json, Value};
 
+/// The space between suggestion chips (`gap` in sheet.view's EmptyBody).
+const CHIP_GAP: f32 = 10.0;
+
 impl NightshadeApp {
     pub(crate) fn sheet_height(&self, context: &ViewContext) -> f32 {
         if self.expanded {
@@ -82,7 +85,7 @@ impl NightshadeApp {
             "searching_emoji": SEARCHING_EMOJIS[self.searching_frame % SEARCHING_EMOJIS.len()],
             "followups": followups,
             "show_followups": self.expanded && self.response().is_some(),
-            "suggestions": Self::chips(&self.suggestions(), "suggest"),
+            "suggestions": Self::chip_rows(&self.suggestions(), "suggest", context.viewport.width),
             "placeholder": if results { "Ask a follow up" } else { "What are you in the mood for?" },
             "draft": self.draft,
             "field_key": format!("search-field:{}", self.field_mount),
@@ -107,6 +110,35 @@ impl NightshadeApp {
     }
 
     /// Chip data; keys are `prefix:index`, matched in `update`.
+    /// Suggestion chips in two rows, in reading order: the first row takes
+    /// chips until it's about half their width, so short ones still make
+    /// two rows and long ones scroll. `width` is the scroll's content
+    /// width: the longer row, never narrower than the screen.
+    pub(crate) fn chip_rows(labels: &[impl AsRef<str>], prefix: &str, screen: f32) -> Value {
+        // A chip: its label (14pt Satoshi Bold, on the generous side so
+        // the last chip is never cut off) plus 16 padding each side.
+        let estimate = |label: &str| label.chars().count() as f32 * 8.4 + 32.0;
+        let chips = Self::chips(labels, prefix);
+        let widths: Vec<f32> = labels.iter().map(|label| estimate(label.as_ref())).collect();
+        let total: f32 = widths.iter().map(|w| w + CHIP_GAP).sum();
+        let mut split = chips.len();
+        let mut first = 0.0;
+        for (index, width) in widths.iter().enumerate() {
+            if index > 0 && first + width / 2.0 > total / 2.0 {
+                split = index;
+                break;
+            }
+            first += width + CHIP_GAP;
+        }
+        let row = |range: &[f32]| range.iter().map(|w| w + CHIP_GAP).sum::<f32>() - CHIP_GAP;
+        let longest = row(&widths[..split]).max(row(&widths[split..]));
+        json!({
+            "top": chips[..split],
+            "bottom": chips[split..],
+            "width": (longest + 48.0).max(screen),
+        })
+    }
+
     fn chips(labels: &[impl AsRef<str>], prefix: &str) -> Vec<Value> {
         labels
             .iter()

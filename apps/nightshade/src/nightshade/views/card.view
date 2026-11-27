@@ -92,3 +92,7 @@ component Hours
   if place.status == "unknown"
     row width=inner height=18
       text "Hours unavailable" .label color=muted width=160
+  # Google says it's closed for now (or, for a saved place, for good).
+  if place.status == "shut"
+    row width=inner height=18
+      text place.closure .label font="satoshi-bold" color=RED width=200

@@ -120,6 +120,9 @@ pub(crate) struct ApiCard {
     pub(crate) drive_thru_only: bool,
     /// Who took each photo, lined up with `photos`.
     pub(crate) photo_credits: Vec<PhotoCredit>,
+    /// Google says it's closed for now, or for good (a saved place).
+    pub(crate) closed_temporarily: bool,
+    pub(crate) closed_permanently: bool,
 }
 
 const DAYS: [&str; 7] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
@@ -238,6 +241,13 @@ impl ApiCard {
             amenities: self.amenities,
             photo_credits: self.photo_credits,
             hours_current: false,
+            closure: if self.closed_permanently {
+                "permanently".into()
+            } else if self.closed_temporarily {
+                "temporarily".into()
+            } else {
+                String::new()
+            },
         }
     }
 }

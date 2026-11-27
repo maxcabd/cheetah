@@ -98,6 +98,14 @@ pub struct NightshadeApp {
     miles: bool,
     /// The user's own searches, newest first, kept across launches.
     recent_searches: Vec<String>,
+    /// How often, and when, the user makes each search (`state/habits.rs`):
+    /// the suggestion chips lead with them. Kept across launches.
+    habits: Vec<state::habits::Habit>,
+    /// The phone's offset from UTC, learned from the backend's times; the
+    /// time of day for habits.
+    utc_offset_min: Option<i32>,
+    /// Tests: the time, in seconds since 1970 (UTC), instead of the clock.
+    now_override: Option<i64>,
     /// From the backend: trending searches and ones for the time of day.
     trending: Vec<String>,
     time_of_day: Vec<String>,
@@ -174,6 +182,9 @@ impl NightshadeApp {
             maps_app: None,
             miles: false,
             recent_searches: Vec::new(),
+            habits: Vec::new(),
+            utc_offset_min: None,
+            now_override: None,
             trending: Vec::new(),
             time_of_day: Vec::new(),
             suggestions_request: None,
@@ -702,8 +713,9 @@ impl NightshadeApp {
         self.calls.push(request.into_call());
     }
 
-    /// The suggestion chips: up to two of the user's recent searches, two
-    /// trending, two for the time of day; topped up from the fixed list.
+    /// The suggestion chips: the user's habits for this time of day first
+    /// (up to two), then one for the time of day, their latest search and
+    /// one trending; topped up with more of each, then the fixed list.
     pub(crate) fn suggestions(&self) -> Vec<String> {
         let mut picked: Vec<String> = Vec::new();
         let add = |text: &str, picked: &mut Vec<String>| {
@@ -711,17 +723,16 @@ impl NightshadeApp {
                 picked.push(text.to_string());
             }
         };
-        for (source, take) in [
-            (&self.recent_searches, 2),
-            (&self.trending, 2),
-            (&self.time_of_day, 2),
-        ] {
-            for text in source.iter().take(take) {
+        for text in self.habits_now().into_iter().take(2) {
+            add(text, &mut picked);
+        }
+        for source in [&self.time_of_day, &self.recent_searches, &self.trending] {
+            if let Some(text) = source.iter().find(|text| !picked.iter().any(|p| p.eq_ignore_ascii_case(text))) {
                 add(text, &mut picked);
             }
         }
         // Fill up: more of each, then the fixed list.
-        for text in self.time_of_day.iter().chain(&self.trending).chain(&self.recent_searches) {
+        for text in self.time_of_day.iter().chain(&self.recent_searches).chain(&self.trending) {
             add(text, &mut picked);
         }
         for text in SUGGESTIONS {
@@ -739,6 +750,7 @@ impl NightshadeApp {
         self.recent_searches.retain(|q| !q.eq_ignore_ascii_case(query));
         self.recent_searches.insert(0, query.to_string());
         self.recent_searches.truncate(RECENT_SEARCHES);
+        self.record_habit(query);
     }
 }
 

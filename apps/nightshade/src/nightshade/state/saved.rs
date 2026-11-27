@@ -30,6 +30,11 @@ pub(crate) struct Saved {
     saved_details: Vec<Place>,
     #[serde(default)]
     recent_searches: Vec<String>,
+    /// Search habits, and the offset that tells their time of day.
+    #[serde(default)]
+    habits: Vec<super::habits::Habit>,
+    #[serde(default)]
+    utc_offset_min: Option<i32>,
     /// Settings; absent in state saved before them.
     #[serde(default)]
     maps_app: Option<usize>,
@@ -78,6 +83,8 @@ impl NightshadeApp {
                 .collect(),
             saved_details: self.saved.iter().map(without_google_photos).collect(),
             recent_searches: self.recent_searches.clone(),
+            habits: self.habits.clone(),
+            utc_offset_min: self.utc_offset_min,
             maps_app: self.maps_app,
             miles: self.miles,
         }
@@ -93,6 +100,8 @@ impl NightshadeApp {
             .collect();
         self.saved = saved.saved_details;
         self.recent_searches = saved.recent_searches;
+        self.habits = saved.habits;
+        self.utc_offset_min = saved.utc_offset_min;
         self.maps_app = saved.maps_app.filter(|&app| app < MAPS_APPS.len());
         self.miles = saved.miles;
         match saved.results {

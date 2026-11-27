@@ -9,10 +9,11 @@ impl NightshadeApp {
     pub(crate) fn card_model(&self, place: &Place) -> Value {
         let drive_minutes = ((place.distance_m / 1000.0) / 30.0 * 60.0).round().max(1.0) as u32;
         let distance = format_distance(place.distance_m, self.miles);
-        let status = match place.open {
-            None => "unknown",
-            Some(true) => "open",
-            Some(false) => "closed",
+        let status = match (place.closure.as_str(), place.open) {
+            ("temporarily" | "permanently", _) => "shut",
+            (_, None) => "unknown",
+            (_, Some(true)) => "open",
+            (_, Some(false)) => "closed",
         };
         json!({
             "id": place.id,
@@ -36,6 +37,11 @@ impl NightshadeApp {
             // The place's page; the id may hold a "/" (osm:node/42).
             "route": format!("/restaurant/{}", crate::router::encode_segment(&place.id)),
             "status": status,
+            "closure": match place.closure.as_str() {
+                "permanently" => "Permanently closed",
+                "temporarily" => "Temporarily closed",
+                _ => "",
+            },
             "closes": place.closes,
             "drive_thru_only": place.drive_thru_only,
             "opens": place.opens,

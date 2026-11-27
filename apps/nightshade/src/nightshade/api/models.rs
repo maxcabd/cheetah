@@ -38,6 +38,10 @@ pub(crate) struct Place {
     /// kept, so a relaunch fetches them again.
     #[serde(skip)]
     pub(crate) hours_current: bool,
+    /// Closed "temporarily" or "permanently" (Google), shown instead of
+    /// hours; empty when it's running.
+    #[serde(default)]
+    pub(crate) closure: String,
 }
 
 /// A photo's credit: the photographer's name, and their profile to link.
@@ -82,6 +86,7 @@ pub(crate) fn sample(
         amenities: Vec::new(),
         photo_credits: Vec::new(),
         hours_current: false,
+        closure: String::new(),
     }
 }
 

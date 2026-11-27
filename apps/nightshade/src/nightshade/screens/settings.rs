@@ -96,7 +96,8 @@ impl NightshadeApp {
         let (title, message) = match key {
             "settings:clear-recents" if !self.recent_searches.is_empty() => (
                 "Clear Recent Searches?",
-                "Your recent searches won't be suggested any more.".to_string(),
+                "Your recent searches, and the ones you make often, won't be suggested any more."
+                    .to_string(),
             ),
             "settings:clear-saved" if saved > 0 => (
                 "Clear Saved Places?",
@@ -125,7 +126,10 @@ impl NightshadeApp {
     /// Clear confirmed.
     pub(crate) fn clear(&mut self, key: &str) {
         match key {
-            "settings:clear-recents" => self.recent_searches.clear(),
+            "settings:clear-recents" => {
+                self.recent_searches.clear();
+                self.habits.clear();
+            }
             "settings:clear-saved" => {
                 self.saved.clear();
                 self.saved_unseen.clear();
