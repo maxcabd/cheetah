@@ -8,6 +8,11 @@ const CHIP_BG = "#242424"
 const TEXT = "#f5f5f5"
 const MUTED = "#a3a3a3"
 const GREEN = "#4ade80"
+# iOS Settings in dark mode: the page, its groups, values and hairlines.
+const SETTINGS_BG = "#000000"
+const SETTINGS_ROW = "#1c1c1e"
+const SETTINGS_MUTED = "#8e8e93"
+const SETTINGS_LINE = "#38383a"
 const RED = "#f87171"
 const SEARCH_HEIGHT = 52
 const SEARCH_BOTTOM_GAP = 4

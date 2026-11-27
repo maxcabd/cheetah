@@ -199,6 +199,11 @@ pub fn draw(
             circle(&mut lines, 0.0, -0.3, 0.4);
             line(&mut lines, &[(0.0, 0.1), (0.0, 0.8)]);
         }
+        "info.circle" => {
+            circle(&mut lines, 0.0, 0.0, 0.85);
+            circle(&mut fill, 0.0, -0.4, 0.1);
+            line(&mut lines, &[(0.0, -0.1), (0.0, 0.45)]);
+        }
         "g.circle" => circle(&mut fill, 0.0, 0.0, 0.9),
         _ => circle(if filled { &mut fill } else { &mut lines }, 0.0, 0.0, 0.7),
     }

@@ -1,28 +1,52 @@
 # /settings: location access, where searches work, and the version
-# (screens/settings.rs). Opened from the drawer.
+# (screens/settings.rs). Opened from the drawer. Laid out like the iPhone's
+# own Settings in dark mode: a large title, and rounded groups of rows with
+# a colored icon, a label, a value, and a chevron where a tap goes on.
 component SettingsPage
-  column width=-1 height=-1 bg=CARD_BG
+  column width=-1 height=-1 bg=SETTINGS_BG
     column width=-1 height=settings.safe_top
-    row width=-1 height=52 pad_h=16 gap=12 align_items="center"
+    row width=-1 height=48 pad_h=16 align_items="center"
       glass key="page:back" pressable=true width=44 height=44 radius=22 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Close" .center
         use Icon name="chevron.down" size=18 color="#ffffff"
-      text "Settings" size=26 font="brice-bold" color=TEXT weight=1 lines=1 height=32
-    column width=-1 pad_h=20 pad_v=16 gap=12
-      # Location: whether it's on, and a way to turn it on.
-      column width=-1 pad=16 gap=10 radius=20 .chip_frame
-        row width=-1 height=22 gap=12 align_items="center"
-          use Icon name=settings.location_icon size=17 color="#ffffff"
-          text "Location" size=16 font="satoshi-bold" color="#ffffff" weight=1 lines=1 height=22
-          text settings.location_status key="settings:location-status" size=15 font="satoshi-medium" color=MUTED lines=1 height=20
-        text settings.location_detail size=14 font="satoshi-medium" color=MUTED lines=2 height=36
+    text "Settings" size=34 bold=true color="#ffffff" pad_h=20 lines=1 height=44
+    column width=-1 pad_h=16 pad_v=12 gap=8
+      use SettingsHeader title="Location"
+      column width=-1 radius=26 clip=true bg=SETTINGS_ROW
+        # Off: the row opens Nightshade's page in iOS Settings.
         if settings.location_off
-          row width=-1 height=40
-            row key="settings:location" pressable=true height=40 pad_h=16 radius=20 bg="#ffffff" align_items="center" label="Open Settings"
-              text "Open Settings" size=15 font="satoshi-bold" color="#111111" lines=1
-      # Where searches work.
-      column width=-1 pad=16 gap=6 radius=20 .chip_frame
-        row width=-1 height=22 gap=12 align_items="center"
-          use Icon name="map" size=17 color="#ffffff"
-          text "Where Nightshade works" size=16 font="satoshi-bold" color="#ffffff" weight=1 lines=1 height=22
-        text settings.coverage size=14 font="satoshi-medium" color=MUTED lines=2 height=36
-      text settings.version key="settings:version" size=13 font="satoshi-medium" color=MUTED align="center" width=-1 lines=1 height=18
+          row key="settings:location" pressable=true width=-1 height=52 pad_h=16 gap=14 align_items="center" label="Open Settings"
+            use SettingsRow icon=settings.location_icon tint="#0a84ff" title="Location" value=settings.location_status value_key="settings:location-status" chevron=true
+        else
+          row width=-1 height=52 pad_h=16 gap=14 align_items="center"
+            use SettingsRow icon=settings.location_icon tint="#0a84ff" title="Location" value=settings.location_status value_key="settings:location-status" chevron=false
+      use SettingsFooter text=settings.location_detail
+      use SettingsHeader title="About"
+      column width=-1 radius=26 clip=true bg=SETTINGS_ROW
+        row width=-1 height=52 pad_h=16 gap=14 align_items="center"
+          use SettingsRow icon="map.fill" tint="#30d158" title="Where it works" value=settings.coverage value_key="settings:coverage" chevron=false
+        use SettingsSeparator
+        row width=-1 height=52 pad_h=16 gap=14 align_items="center"
+          use SettingsRow icon="info.circle.fill" tint="#8e8e93" title="Version" value=settings.version value_key="settings:version" chevron=false
+      use SettingsFooter text=settings.coverage_detail
+
+# A row's parts: icon tile, label, value, and a chevron where a tap goes on.
+# Its value has `value_key`, for tests and agents.
+component SettingsRow
+  row width=30 height=30 radius=8 bg=tint .center
+    use Icon name=icon size=17 color="#ffffff"
+  text title size=17 color="#ffffff" weight=1 lines=1 height=22
+  text value key=value_key size=17 color=SETTINGS_MUTED lines=1 height=22
+  if chevron
+    use Icon name="chevron-right" size=13 color=SETTINGS_MUTED
+
+# Between rows: a hairline that starts where the labels do, as on iOS.
+component SettingsSeparator
+  row width=-1 height=1
+    column width=60 height=1
+    row weight=1 height=1 bg=SETTINGS_LINE
+
+component SettingsHeader
+  text title size=13 color=SETTINGS_MUTED pad_h=16 lines=1 height=18
+
+component SettingsFooter
+  text text size=13 color=SETTINGS_MUTED pad_h=16 lines=2 height=34

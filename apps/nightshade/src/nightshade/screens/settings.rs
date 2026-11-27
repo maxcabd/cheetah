@@ -25,10 +25,11 @@ impl NightshadeApp {
                 "Nightshade asks for your location to find places near you.",
             )
         };
-        let coverage = if matches!(self.backend, Backend::Local(_)) {
-            "Sample places, for trying Nightshade out."
+        // A row's value, and the section's footer, as iOS Settings has them.
+        let (coverage, coverage_detail) = if matches!(self.backend, Backend::Local(_)) {
+            ("Samples", "Sample places, for trying Nightshade out.")
         } else {
-            "Ottawa, for now. Searches elsewhere show Ottawa spots."
+            ("Ottawa", "Ottawa, for now. Searches elsewhere show Ottawa spots.")
         };
         let (version, build) = RUNTIME_VERSION
             .split_once('+')
@@ -40,10 +41,11 @@ impl NightshadeApp {
             "location_detail": detail,
             "location_off": self.location_denied,
             "coverage": coverage,
+            "coverage_detail": coverage_detail,
             "version": if build.is_empty() {
-                format!("Nightshade {version}")
+                version.to_string()
             } else {
-                format!("Nightshade {version} ({build})")
+                format!("{version} ({build})")
             },
         })
     }

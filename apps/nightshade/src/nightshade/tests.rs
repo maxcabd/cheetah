@@ -1767,7 +1767,7 @@ fn settings_show_location_coverage_and_version() {
     assert!(format!("{screen:?}").contains("Sample places"), "the sample backend");
     assert_eq!(
         find(&screen, "settings:version").unwrap().props.text.as_deref(),
-        Some("Nightshade 1.0.0 (1)")
+        Some("1.0.0 (1)")
     );
     assert!(find(&screen, "settings:location").is_none(), "nothing to turn on");
 
