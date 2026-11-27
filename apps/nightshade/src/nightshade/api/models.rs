@@ -33,6 +33,11 @@ pub(crate) struct Place {
     /// that need no credit): Google requires its photos' credits be shown.
     #[serde(default)]
     pub(crate) photo_credits: Vec<PhotoCredit>,
+    /// Hours fetched for now (`/v1/search/photos`), not kept from when the
+    /// place was found: a saved place's page shows them as today's. Never
+    /// kept, so a relaunch fetches them again.
+    #[serde(skip)]
+    pub(crate) hours_current: bool,
 }
 
 /// A photo's credit: the photographer's name, and their profile to link.
@@ -76,6 +81,7 @@ pub(crate) fn sample(
         photos: Vec::new(),
         amenities: Vec::new(),
         photo_credits: Vec::new(),
+        hours_current: false,
     }
 }
 

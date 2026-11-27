@@ -237,6 +237,7 @@ impl ApiCard {
             photos: self.photos.iter().map(|photo| resolve_url(photo)).collect(),
             amenities: self.amenities,
             photo_credits: self.photo_credits,
+            hours_current: false,
         }
     }
 }

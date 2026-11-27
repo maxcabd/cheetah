@@ -109,10 +109,11 @@ impl NightshadeApp {
         self.calls.push(request.into_call());
     }
 
-    /// `/v1/search/photos` answered: each place's photos and credits, in the
-    /// saved list and the results alike.
+    /// `/v1/search/photos` answered: each place's current photos and
+    /// credits, hours and rating, in the saved list and the results alike.
     pub(crate) fn photos_arrived(&mut self, data: &Value) {
         let Some(places) = data["places"].as_array() else { return };
+        let now = data["local_datetime_iso"].as_str().and_then(local_day_minute);
         let results = match &mut self.search {
             Resource::Ready(response) => response.places.iter_mut().collect::<Vec<_>>(),
             _ => Vec::new(),
@@ -121,11 +122,19 @@ impl NightshadeApp {
             let Some(fresh) = places.iter().find(|fresh| fresh["place_id"] == place.id.as_str()) else {
                 continue;
             };
-            place.photos = fresh["photos"]
-                .as_array()
-                .map(|photos| photos.iter().filter_map(|p| p.as_str()).map(resolve_url).collect())
-                .unwrap_or_default();
-            place.photo_credits = serde_json::from_value(fresh["photo_credits"].clone()).unwrap_or_default();
+            // Read as a search's card is, so hours read the same.
+            let Ok(card) = serde_json::from_value::<ApiCard>(fresh.clone()) else { continue };
+            let current = card.into_place(now);
+            place.photos = current.photos;
+            place.photo_credits = current.photo_credits;
+            place.open = current.open;
+            place.closes = current.closes;
+            place.opens = current.opens;
+            if !current.rating.is_empty() {
+                place.rating = current.rating;
+                place.reviews = current.reviews;
+            }
+            place.hours_current = now.is_some();
         }
     }
 

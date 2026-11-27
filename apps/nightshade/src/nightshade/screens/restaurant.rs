@@ -64,8 +64,8 @@ impl NightshadeApp {
         };
         let mut model = self.card_model(place);
         // A saved place's hours are from when it was found: not shown as
-        // if they were today's.
-        if !self.in_results(id) {
+        // if they were today's, until current ones arrive (`photos_arrived`).
+        if !self.in_results(id) && !place.hours_current {
             model["status"] = "saved".into();
         }
         let price = "$".repeat(place.price_tier.min(4) as usize);

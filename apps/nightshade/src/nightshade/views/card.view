@@ -47,16 +47,23 @@ component Card
             use GlassIcon icon="arrow.triangle.turn.up.right.diamond" key="card:directions:{place.id}"
     column width=width height=CARD_BODY bg=CARD_BG pad_h=20 pad_v=12 pad_bottom=12 gap=6
       text place.name size=18 font="brice-bold" color="#ffffff" lines=1 height=22
+      # Where, how long a drive, the rating (a star) and the price.
       row width=inner .line gap=6
-        text place.address .label color="#fffffff2" width=120 lines=1
+        text place.address .label color="#fffffff2" width=110 lines=1
         use Icon name="car" size=14 color="#ffffff"
-        text "{place.distance} • {place.drive_minutes} min • {place.price}" .label color="#fffffff2"
+        text "{place.drive_minutes} min" .label color="#fffffff2" lines=1
+        if place.has_rating
+          text "•" .label color="#fffffff2"
+          use Icon name="star.fill" size=12 color="#ffd60a"
+          text place.stars .label color="#fffffff2" lines=1
+        if place.price
+          text "• {place.price}" .label color="#fffffff2" lines=1
       use Hours place=place inner=inner fg="#ffffff" muted="#ffffffb3"
-      if place.has_rating
-        row width=150 height=30 pad_h=12 gap=8 radius=15 border=1 border_color="#404040" align_items="center"
-          row width=16 height=16 radius=8 bg="#ffffff" .center
-            use Icon name="google" size=9 color="#4285F4"
-          text place.rating size=12 font="satoshi-medium" color="#ffffff" width=80 height=16
+      # Up to three amenities, small.
+      if place.card_amenities
+        row width=inner height=26 gap=6
+          for amenity in place.card_amenities
+            use Amenity id=amenity height=26 pad=10 icon_size=11 text_size=12
 
 # A minimized card: the same card, shrunk to its handle, name and hours, in
 # its photo's dominant color (`place.color`, once the photo has loaded; dark

@@ -40,7 +40,7 @@ component RestaurantDetails
       if place.amenities
         row width=place.inner wrap=true gap=8
           for amenity in place.amenities
-            use Amenity id=amenity
+            use Amenity id=amenity height=32 pad=12 icon_size=13 text_size=13
       # Directions (Apple or Google Maps), share, bookmark: Liquid Glass on
       # iOS 26, a blur before.
       row width=place.inner height=48 gap=10 align_items="center"
@@ -63,27 +63,3 @@ component DirectionsLabel
   row height=48 gap=8 align_items="center"
     use Icon name="arrow.triangle.turn.up.right.diamond.fill" size=16 color="#ffffff"
     text "Directions" size=15 font="satoshi-bold" bold=true color="#ffffff" lines=1
-
-# One amenity as a small pill: icon and label from its id.
-component Amenity
-  row height=32 pad_h=12 gap=6 radius=16 .chip_frame align_items="center"
-    if id == "dine_in"
-      use AmenityLabel icon="fork.knife" label="Dine-in"
-    if id == "takeout"
-      use AmenityLabel icon="bag" label="Takeout"
-    if id == "drive_thru"
-      use AmenityLabel icon="car.fill" label="Drive-thru"
-    if id == "delivery"
-      use AmenityLabel icon="bicycle" label="Delivery"
-    if id == "outdoor_seating"
-      use AmenityLabel icon="sun.max" label="Patio"
-    if id == "wifi"
-      use AmenityLabel icon="wifi" label="Wi-Fi"
-    if id == "washroom"
-      use AmenityLabel icon="toilet" label="Washroom"
-    if id == "wheelchair_accessible"
-      use AmenityLabel icon="figure.roll" label="Accessible"
-
-component AmenityLabel
-  use Icon name=icon size=13 color="#ffffff"
-  text label size=13 font="satoshi-medium" color="#ffffff" bold=true lines=1

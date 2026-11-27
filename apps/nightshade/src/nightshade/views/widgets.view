@@ -41,3 +41,28 @@ component Chip
       text label size=14 font="satoshi-bold" bold=true color="#ffffff" lines=1 align="center"
   else
     text label key=key pressable=true size=14 font="satoshi-bold" bold=true color="#ffffff" .chip_frame pad_h=16 height=42 lines=1 align="center" radius=18
+
+# One amenity as a pill: icon and label from its id. The place page's
+# are 32 high, a card's smaller (`height`, `pad`, `icon_size`, `text_size`).
+component Amenity
+  row height=height pad_h=pad gap=6 radius=16 .chip_frame align_items="center"
+    if id == "dine_in"
+      use AmenityLabel icon="fork.knife" label="Dine-in" icon_size=icon_size text_size=text_size
+    if id == "takeout"
+      use AmenityLabel icon="bag" label="Takeout" icon_size=icon_size text_size=text_size
+    if id == "drive_thru"
+      use AmenityLabel icon="car.fill" label="Drive-thru" icon_size=icon_size text_size=text_size
+    if id == "delivery"
+      use AmenityLabel icon="bicycle" label="Delivery" icon_size=icon_size text_size=text_size
+    if id == "outdoor_seating"
+      use AmenityLabel icon="sun.max" label="Patio" icon_size=icon_size text_size=text_size
+    if id == "wifi"
+      use AmenityLabel icon="wifi" label="Wi-Fi" icon_size=icon_size text_size=text_size
+    if id == "washroom"
+      use AmenityLabel icon="toilet" label="Washroom" icon_size=icon_size text_size=text_size
+    if id == "wheelchair_accessible"
+      use AmenityLabel icon="figure.roll" label="Accessible" icon_size=icon_size text_size=text_size
+
+component AmenityLabel
+  use Icon name=icon size=icon_size color="#ffffff"
+  text label size=text_size font="satoshi-medium" color="#ffffff" bold=true lines=1

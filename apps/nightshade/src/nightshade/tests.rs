@@ -1116,15 +1116,27 @@ fn saved_places_keep_no_google_photos_and_get_fresh_ones_when_the_list_opens() {
     let call = calls.iter().find(|call| call.module == "http" && call.args.contains("/v1/search/photos")).expect("asks");
     let args: serde_json::Value = serde_json::from_str(&call.args).unwrap();
     assert!(args["body"].as_str().unwrap().contains("\"bh\""));
-    let fresh = serde_json::json!({"places": [{
+    // Before current details arrive, the page doesn't pass old hours off as
+    // today's.
+    click(&mut app, "saved:open:bh");
+    assert!(!format!("{:?}", render(&app)).contains("Closes at"));
+    click(&mut app, "page:back");
+    let fresh = serde_json::json!({"local_datetime_iso": "2026-11-27T13:00:00-05:00", "places": [{
         "place_id": "bh",
         "photos": ["/photos/brand.jpg", "https://lh3.example/new"],
-        "photo_credits": [{"name": "", "uri": ""}, {"name": "Amy", "uri": "https://maps.google.com/amy"}]
+        "photo_credits": [{"name": "", "uri": ""}, {"name": "Amy", "uri": "https://maps.google.com/amy"}],
+        "open_now": true, "closes_at_local": "18:00", "rating": 4.4, "user_rating_count": 396
     }]});
     http_response(&mut app, serde_json::json!({"id": args["id"], "ok": true, "status": 200, "body": fresh.to_string()}));
     let place = app.saved_places()[0].clone();
     assert_eq!(place.photos[1], "https://lh3.example/new");
     assert_eq!(place.photo_credits[1].name, "Amy");
+    assert_eq!((place.open, place.rating.as_str()), (Some(true), "4.4"));
+
+    // Now its page shows today's hours.
+    click(&mut app, "saved:open:bh");
+    let page = format!("{:?}", render(&app));
+    assert!(page.contains("Closes at 6:00 PM"), "today's hours on the page");
     let _ = std::fs::remove_file(&file);
 }
 
@@ -1680,15 +1692,22 @@ fn distances_show_in_miles_when_settings_say_so() {
     assert_eq!(format_distance(120.0, true), "390ft");
     assert_eq!(format_distance(1609.344, true), "1.0mi");
 
+    // The place page's summary has the distance (cards show the drive).
     let mut app = NightshadeApp::new(true);
-    assert!(format!("{:?}", render(&app)).contains("280m"));
+    let page = |app: &mut NightshadeApp| {
+        click(app, "card:up:java");
+        let screen = format!("{:?}", render(app));
+        click(app, "page:back");
+        screen
+    };
+    assert!(page(&mut app).contains("280m"));
     click(&mut app, "drawer:open");
     click(&mut app, "drawer:settings");
     select(&mut app, "settings:units", "Miles");
     assert_eq!(find(&render(&app), "settings:units-value").unwrap().props.text.as_deref(), Some("Miles"));
     click(&mut app, "page:back");
-    let screen = format!("{:?}", render(&app));
-    assert!(screen.contains("0.2mi") && !screen.contains("280m"), "the cards in miles");
+    let screen = page(&mut app);
+    assert!(screen.contains("0.2mi") && !screen.contains("280m"), "the page in miles");
 }
 
 #[test]
