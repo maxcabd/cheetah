@@ -1415,6 +1415,27 @@ fn habits_are_kept_across_a_relaunch() {
 }
 
 #[test]
+fn a_place_open_around_the_clock_says_24_hours_not_closes_at_midnight() {
+    let all_day: serde_json::Map<String, serde_json::Value> = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
+        .iter()
+        .map(|day| (day.to_string(), serde_json::json!([{"start": "00:00", "end": "24:00"}])))
+        .collect();
+    let card: super::ApiCard = serde_json::from_value(serde_json::json!({
+        "place_id": "mcd", "name": "McDonald's", "lat": 45.4, "lng": -75.7,
+        "open_now": true, "closes_at_local": "00:00", "hours": all_day
+    }))
+    .unwrap();
+    // Friday, 3 a.m.
+    let place = card.into_place(Some((4, 3 * 60)));
+    assert!(place.all_day && place.closes.is_empty(), "{:?}", place.closes);
+
+    let mut app = NightshadeApp::new(true);
+    app.search = Resource::Ready(super::SearchResponse { places: vec![place], followups: vec![], plan: None, notice: None });
+    let screen = format!("{:?}", render(&app));
+    assert!(screen.contains("24 hours") && !screen.contains("Closes at 12:00 AM"));
+}
+
+#[test]
 fn a_place_open_only_through_its_drive_thru_says_so() {
     let card: super::ApiCard = serde_json::from_value(serde_json::json!({
         "place_id": "osm:way/1", "name": "McDonald's", "lat": 45.38, "lng": -75.64,

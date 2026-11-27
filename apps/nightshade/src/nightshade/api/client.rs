@@ -201,18 +201,34 @@ impl ApiCard {
         })
     }
 
+    /// Whether today's hours run midnight to midnight.
+    fn open_all_day(&self, now: Option<(usize, u32)>) -> bool {
+        let (Some(hours), Some((today, _))) = (self.hours.as_ref(), now) else {
+            return false;
+        };
+        hours.get(DAYS[today]).is_some_and(|intervals| {
+            intervals.iter().any(|interval| {
+                minutes(&interval.start) == Some(0) && matches!(interval.end.as_str(), "24:00" | "23:59")
+            })
+        })
+    }
+
     pub(crate) fn into_place(self, now: Option<(usize, u32)>) -> Place {
+        let all_day = self.open_now == Some(true) && self.open_all_day(now);
         let opens = if self.open_now == Some(false) {
             self.next_opening(now)
         } else {
             String::new()
         };
-        let closes = self
-            .closes_at_local
-            .as_deref()
-            .and_then(clock_time)
-            .or_else(|| self.closing_today(now))
-            .unwrap_or_default();
+        let closes = if all_day {
+            String::new()
+        } else {
+            self.closes_at_local
+                .as_deref()
+                .and_then(clock_time)
+                .or_else(|| self.closing_today(now))
+                .unwrap_or_default()
+        };
         Place {
             id: self.place_id,
             name: self.name,
@@ -241,6 +257,7 @@ impl ApiCard {
             amenities: self.amenities,
             photo_credits: self.photo_credits,
             hours_current: false,
+            all_day,
             closure: if self.closed_permanently {
                 "permanently".into()
             } else if self.closed_temporarily {

@@ -37,6 +37,7 @@ impl NightshadeApp {
             // The place's page; the id may hold a "/" (osm:node/42).
             "route": format!("/restaurant/{}", crate::router::encode_segment(&place.id)),
             "status": status,
+            "all_day": place.all_day,
             "closure": match place.closure.as_str() {
                 "permanently" => "Permanently closed",
                 "temporarily" => "Temporarily closed",

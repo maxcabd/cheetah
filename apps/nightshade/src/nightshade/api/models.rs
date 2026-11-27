@@ -42,6 +42,10 @@ pub(crate) struct Place {
     /// hours; empty when it's running.
     #[serde(default)]
     pub(crate) closure: String,
+    /// Open all day today (midnight to midnight): "Open · 24 hours", not a
+    /// closing time of 12:00 AM.
+    #[serde(default)]
+    pub(crate) all_day: bool,
 }
 
 /// A photo's credit: the photographer's name, and their profile to link.
@@ -87,6 +91,7 @@ pub(crate) fn sample(
         photo_credits: Vec::new(),
         hours_current: false,
         closure: String::new(),
+        all_day: false,
     }
 }
 
