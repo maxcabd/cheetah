@@ -1168,37 +1168,23 @@ fn card_and_page_buttons_share_save_and_route() {
     click(&mut app, "card:bookmark:java");
     assert!(!app.is_saved("java"), "a second tap un-saves");
 
-    click(&mut app, "card:up:java");
-    app.take_native_calls();
-    click(&mut app, "page:directions");
-    let calls = app.take_native_calls();
-    let sheet = calls.iter().find(|call| call.module == "dialog" && call.method == "actionSheet").expect("asks");
-    assert!(sheet.args.contains("Apple Maps") && sheet.args.contains("Google Maps"));
-
-    let choose = |app: &mut NightshadeApp, index: i64| {
-        app.update(Event {
-            id: 0,
-            key: None,
-            kind: "native".into(),
-            payload: format!(r#"{{"module":"dialog","method":"result","id":"directions:java","index":{index}}}"#),
-        });
-        app.take_native_calls()
+    // Directions: a menu of maps apps, from the card and from the page.
+    let pick = |app: &mut NightshadeApp, key: &str, choice: &str| {
+        let tree = render(app);
+        let menu = format!("{:?}", find(&tree, key).expect("directions menu"));
+        assert!(menu.contains("Apple Maps") && menu.contains("Google Maps"), "{key}");
+        app.take_native_calls();
+        select(app, key, choice);
+        let calls = app.take_native_calls();
+        assert!(calls.iter().all(|call| call.method != "actionSheet"), "no sheet from the bottom");
+        calls
     };
-    let apple = choose(&mut app, 0);
-    assert!(apple.iter().any(|call| call.method == "openUrl" && call.args.contains("maps.apple.com/?daddr=")));
-    let google = choose(&mut app, 1);
+    let google = pick(&mut app, "card:directions:pizza", "Google Maps");
     assert!(google.iter().any(|call| call.method == "openUrl" && call.args.contains("google.com/maps/dir/")));
-    assert!(choose(&mut app, -1).iter().all(|call| call.method != "openUrl"), "cancel opens nothing");
 
-    // The card's directions button is a menu over the card instead, with
-    // the same choices.
-    let tree = render(&app);
-    let menu = find(&tree, "card:directions:pizza").expect("directions menu");
-    assert!(format!("{menu:?}").contains("Apple Maps") && format!("{menu:?}").contains("Google Maps"));
-    select(&mut app, "card:directions:pizza", "Google Maps");
-    let calls = app.take_native_calls();
-    assert!(calls.iter().all(|call| call.method != "actionSheet"), "no sheet from the bottom");
-    assert!(calls.iter().any(|call| call.method == "openUrl" && call.args.contains("google.com/maps/dir/")));
+    click(&mut app, "card:up:java");
+    let apple = pick(&mut app, "page:directions", "Apple Maps");
+    assert!(apple.iter().any(|call| call.method == "openUrl" && call.args.contains("maps.apple.com/?daddr=")));
     click(&mut app, "page:bookmark");
     assert!(app.is_saved("java"));
 }

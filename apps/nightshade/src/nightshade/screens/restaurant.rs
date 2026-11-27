@@ -79,6 +79,9 @@ impl NightshadeApp {
         model["saved"] = self.is_saved(&place.id).into();
         model["safe_top"] = safe_top.into();
         model["inner"] = (width - 40.0).into();
+        // The Directions button: the row less share and save (48 each) and
+        // the two gaps (10), for the menu over it.
+        model["directions_width"] = (width - 40.0 - 2.0 * 48.0 - 2.0 * 10.0).into();
         model["summary"] = summary.into();
         model["amenities"] = place.amenities.clone().into();
         model

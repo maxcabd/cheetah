@@ -328,10 +328,15 @@ impl App for NightshadeApp {
                 self.select_place(&event.payload);
             }
             "select" if key == "saved:filter" => self.filter_saved(&event.payload),
-            // A maps app picked from a card's directions menu.
-            "select" if key.starts_with("card:directions:") => {
-                let id = key["card:directions:".len()..].to_string();
-                if let Some(choice) = MAPS_APPS.iter().position(|app| *app == event.payload) {
+            // A maps app picked from a directions menu: a card's, or the
+            // open place page's.
+            "select" if key.starts_with("card:directions:") || key == "page:directions" => {
+                let id = match key.strip_prefix("card:directions:") {
+                    Some(id) => Some(id.to_string()),
+                    None => self.open_place_id(),
+                };
+                let choice = MAPS_APPS.iter().position(|app| *app == event.payload);
+                if let (Some(id), Some(choice)) = (id, choice) {
                     self.directions_chosen(&id, choice as i64);
                 }
             }
@@ -428,8 +433,6 @@ impl App for NightshadeApp {
                     self.share_place(&id);
                 } else if let Some(id) = self.open_place_id().filter(|_| key == "page:bookmark") {
                     self.toggle_saved(&id);
-                } else if let Some(id) = self.open_place_id().filter(|_| key == "page:directions") {
-                    self.directions(&id);
                 } else if let Some(id) = key.strip_prefix("card:up:") {
                     // The card's up arrow: its page, growing out of the card.
                     let path = format!("/restaurant/{}", crate::router::encode_segment(id));
@@ -539,27 +542,8 @@ impl NightshadeApp {
         self.report("share", id);
     }
 
-    /// Directions to the place: ask which maps app (an action sheet), then
-    /// open it (`directions_chosen`).
-    fn directions(&mut self, id: &str) {
-        if self.place(id).is_none() {
-            return;
-        }
-        self.calls.push(NativeCall::new(
-            "dialog",
-            "actionSheet",
-            &serde_json::json!({
-                "id": format!("directions:{id}"),
-                "title": "Directions",
-                "options": MAPS_APPS,
-            })
-            .to_string(),
-        ));
-        self.haptic("light");
-    }
-
-    /// The maps app picked for directions: 0 Apple Maps, 1 Google Maps,
-    /// -1 cancelled.
+    /// The maps app picked from a directions menu: 0 Apple Maps, 1 Google
+    /// Maps (`MAPS_APPS`).
     pub(crate) fn directions_chosen(&mut self, id: &str, choice: i64) {
         let Some(place) = self.place(id) else { return };
         let url = match choice {

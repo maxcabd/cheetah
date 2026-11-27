@@ -180,17 +180,10 @@ impl NightshadeApp {
         if self.router.handle_native(&event) {
             return;
         }
-        // A maps app picked for directions, or Settings for location.
+        // Settings, picked when location is off.
         if event.is("dialog", "result") {
-            if event.data["id"] == "location:denied" {
-                if event.data["index"] == 1 {
-                    self.open_settings();
-                }
-                return;
-            }
-            if let Some(id) = event.data["id"].as_str().and_then(|id| id.strip_prefix("directions:")) {
-                let choice = event.data["index"].as_i64().unwrap_or(-1);
-                self.directions_chosen(&id.to_string(), choice);
+            if event.data["id"] == "location:denied" && event.data["index"] == 1 {
+                self.open_settings();
             }
             return;
         }
