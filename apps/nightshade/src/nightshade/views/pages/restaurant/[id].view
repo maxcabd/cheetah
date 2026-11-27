@@ -12,6 +12,15 @@ component RestaurantPage
     column absolute=true top=place.safe_top left=16 width=44 height=52 justify="end"
       glass key="page:back" pressable=true width=44 height=44 radius=22 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Close" .center
         use Icon name="chevron.down" size=18 color="#ffffff"
+    if place.found
+      # Share and save, over the photo at the far right.
+      row absolute=true top=place.safe_top right=16 height=52 gap=10 align_items="end"
+        glass key="page:share" pressable=true width=44 height=44 radius=22 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Share" .center
+          use Icon name="square.and.arrow.up" size=17 color="#ffffff"
+        glass key="page:bookmark" pressable=true width=44 height=44 radius=22 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Save" .center
+          use Icon name=place.saved ? "bookmark.fill" : "bookmark" size=17 color="#ffffff"
+      # Ask about this place, floating over the page (above the keyboard).
+      use AskBar ask=place.ask
 
 component RestaurantDetails
   column width=-1 height=-1
@@ -24,26 +33,30 @@ component RestaurantDetails
       use PhotoCredit credit=place.credit left=20 bottom=14 width=150
     column width=-1 pad_h=20 pad_v=18 gap=10
       text place.name size=26 font="brice-bold" color=TEXT lines=2
-      text place.summary .label color=MUTED lines=1 width=place.inner
+      # Where, how long a drive, how far, the price and Google's rating.
+      row width=place.inner wrap=true gap=6 align_items="center"
+        if place.address
+          text place.address .label color=MUTED lines=1
+          text "•" .label color=MUTED
+        use Icon name="car" size=14 color=MUTED
+        text "{place.drive_minutes} min • {place.distance}" .label color=MUTED lines=1
+        if place.price
+          text "• {place.price}" .label color=MUTED lines=1
+        if place.has_rating
+          text "•" .label color=MUTED
+          image "asset://GoogleG" width=14 height=14
+          text place.rating .label color=TEXT lines=1
       use Hours place=place inner=place.inner fg="#ffffff" muted="#ffffffb3"
-      # In a full-width row, so the column doesn't stretch the pill.
-      if place.has_rating
-        row width=-1 height=30
-          row height=30 pad_h=12 gap=8 radius=15 border=1 border_color="#404040" align_items="center"
-            row width=16 height=16 radius=8 bg="#ffffff" .center
-              use Icon name="google" size=9 color="#4285F4"
-            text place.rating size=12 font="satoshi-medium" color="#ffffff" bold=true lines=1
-      if place.address
-        row width=place.inner gap=8 align_items="center" height=20
-          use Icon name="mappin.and.ellipse" size=14 color=MUTED
-          text place.address .label color=TEXT lines=1
       if place.has_pills
         row width=place.inner wrap=true gap=8
           if place.diet
             use DietPill label=place.diet height=32 pad=12 icon_size=13 text_size=13
           for amenity in place.amenities
             use Amenity id=amenity height=32 pad=12 icon_size=13 text_size=13
-      # Directions (Apple or Google Maps), share, bookmark: Liquid Glass on
+      # What its own website says, or the answer to what was asked below.
+      if place.has_overview_card
+        use OverviewCard place=place ask=place.ask
+      # Directions (Apple or Google Maps), call, website: Liquid Glass on
       # iOS 26, a blur before.
       row width=place.inner height=48 gap=10 align_items="center"
         # Which maps app: the iOS menu, from the button (GlassMenu); or
@@ -56,12 +69,48 @@ component RestaurantDetails
         else
           glass key="page:directions" pressable=true width=place.directions_width height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Directions" .center
             use DirectionsLabel
-        glass key="page:share" pressable=true width=48 height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Share" .center
-          use Icon name="square.and.arrow.up" size=17 color="#ffffff"
-        glass key="page:bookmark" pressable=true width=48 height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Save" .center
-          use Icon name=place.saved ? "bookmark.fill" : "bookmark" size=17 color="#ffffff"
+        if place.has_phone
+          glass key="page:call" pressable=true width=48 height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Call" .center
+            use Icon name="phone.fill" size=17 color="#ffffff"
+        if place.has_website
+          glass key="page:website" pressable=true width=48 height=48 radius=24 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Website" .center
+            use Icon name="safari" size=18 color="#ffffff"
+      # Room below for the floating ask bar.
+      column width=-1 height=ASK_BAR_ROOM
 
 component DirectionsLabel
   row height=48 gap=8 align_items="center"
     use Icon name="arrow.triangle.turn.up.right.diamond.fill" size=16 color="#ffffff"
     text "Directions" size=15 font="satoshi-bold" bold=true color="#ffffff" lines=1
+
+# The overview: what the place's own website says, summarised; once a
+# question is asked below, the question and its answer instead.
+component OverviewCard
+  column width=place.inner pad=14 gap=8 radius=20 .chip_frame
+    row height=18 gap=6 align_items="center"
+      use Icon name="sparkles" size=13 color=AI_TINT
+      if ask.state == "none"
+        text "Overview" size=13 font="satoshi-bold" color=AI_TINT lines=1
+      else
+        text ask.question size=13 font="satoshi-bold" color=AI_TINT lines=1 width=place.ask_text_width
+    if ask.state == "none"
+      text place.overview size=14 font="satoshi-medium" color=TEXT lines=6 width=place.ask_text_width
+    if ask.state == "thinking"
+      text "Thinking…" size=14 font="satoshi-medium" color=MUTED lines=1 height=18
+    if ask.state == "answered"
+      text ask.answer size=14 font="satoshi-medium" color=TEXT lines=8 width=place.ask_text_width
+    if ask.state == "failed"
+      text ask.answer size=14 font="satoshi-medium" color=MUTED lines=3 width=place.ask_text_width
+
+# Ask about this place: a field floating at the bottom, a send arrow once
+# typing. `field_key` changes on send; the remount dismisses the keyboard.
+component AskBar
+  column absolute=true bottom=ask.bottom left=0 width=-1 pad_h=16 height=52
+    glass width=-1 height=52 radius=26 glass_style="regular" glass_tint="#00000066" align_items="center"
+      row key=ask.field_key width=-1 height=52 align_items="center"
+        column width=16 height=36
+        use Icon name="sparkles" size=15 color=AI_TINT
+        input ask.placeholder ask.draft key="page:ask" weight=1 height=48 size=16 font="satoshi-medium" color="#ffffff" placeholder_color="#a3a3a3" pad_h=10 align="start"
+        if ask.can_send
+          use ActionButton icon="arrow-up" key="page:ask:send" bg="#dc2626" size=36 radius=18
+        column width=8 height=36

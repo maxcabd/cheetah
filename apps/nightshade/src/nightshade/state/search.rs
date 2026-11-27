@@ -202,6 +202,11 @@ impl NightshadeApp {
         }
 
         if let Some(response) = HttpResponse::from_event(&event) {
+            if self.ask_request == Some(response.id) {
+                self.ask_request = None;
+                self.ask_answered(&response);
+                return;
+            }
             if self.photos_requests.remove(&response.id) {
                 if let Ok(data) = response.json::<serde_json::Value>() {
                     self.photos_arrived(&data);

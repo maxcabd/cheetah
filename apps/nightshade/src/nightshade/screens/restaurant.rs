@@ -79,9 +79,18 @@ impl NightshadeApp {
         model["saved"] = self.is_saved(&place.id).into();
         model["safe_top"] = safe_top.into();
         model["inner"] = (width - 40.0).into();
-        // The Directions button: the row less share and save (48 each) and
-        // the two gaps (10), for the menu over it.
-        model["directions_width"] = (width - 40.0 - 2.0 * 48.0 - 2.0 * 10.0).into();
+        // The Directions button: the row less call and website (48 each, when
+        // the place has them) and their gaps (10), for the menu over it.
+        let extras = [!place.phone.is_empty(), !place.website.is_empty()].iter().filter(|&&has| has).count() as f32;
+        model["directions_width"] = (width - 40.0 - extras * (48.0 + 10.0)).into();
+        model["has_phone"] = (!place.phone.is_empty()).into();
+        model["has_website"] = (!place.website.is_empty()).into();
+        model["overview"] = place.overview.clone().into();
+        model["ask"] = self.ask_model(place);
+        // Text in the overview card: its width less its padding (14 each side).
+        model["ask_text_width"] = (width - 40.0 - 28.0).into();
+        model["has_overview_card"] = (!place.overview.is_empty() || model["ask"]["state"] != "none").into();
+        model["safe_bottom"] = self.host.safe_bottom.into();
         model["summary"] = summary.into();
         let amenities: Vec<&String> = crate::nightshade::components::shown_amenities(place).collect();
         model["has_pills"] = (!amenities.is_empty() || !place.diet.is_empty()).into();

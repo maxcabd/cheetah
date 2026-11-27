@@ -14,6 +14,10 @@ const SETTINGS_ROW = "#1c1c1e"
 const SETTINGS_MUTED = "#8e8e93"
 const SETTINGS_LINE = "#38383a"
 const RED = "#f87171"
+# The AI overview card and ask bar: a soft violet, apart from the reds.
+const AI_TINT = "#c4b5fd"
+# Below a place page's content: room for its floating ask bar.
+const ASK_BAR_ROOM = 96
 const SEARCH_HEIGHT = 52
 const SEARCH_BOTTOM_GAP = 4
 # Cards sit above the results sheet; keep CAROUSEL_BOTTOM and CARD_HEIGHT in

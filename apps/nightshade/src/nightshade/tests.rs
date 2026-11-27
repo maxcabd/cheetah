@@ -1464,6 +1464,50 @@ fn halal_places_say_whether_it_is_the_whole_place_or_some_dishes() {
 }
 
 #[test]
+fn a_place_page_calls_opens_its_site_and_answers_questions_about_it() {
+    let mut app = remote_app();
+    submit(&mut app, "persian");
+    let id = request_id(&mut app);
+    let body = serde_json::json!({"cards": [{
+        "place_id": "sk", "name": "Saffron Kabab", "lat": 45.4, "lng": -75.7, "distance_m": 10,
+        "phone": "(613) 555-0100", "website": "saffronkabab.ca", "summary": "Persian kabobs and stews."
+    }]});
+    http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 200, "body": body.to_string()}));
+    click(&mut app, "card:up:sk");
+    let screen = format!("{:?}", render(&app));
+    assert!(screen.contains("Persian kabobs and stews."), "the overview");
+    assert!(find(&render(&app), "page:call").is_some() && find(&render(&app), "page:website").is_some());
+
+    app.take_native_calls();
+    click(&mut app, "page:call");
+    click(&mut app, "page:website");
+    let urls: Vec<String> = app.take_native_calls().into_iter().filter(|c| c.method == "openUrl").map(|c| c.args).collect();
+    assert!(urls[0].contains("tel:6135550100") && urls[1].contains("https://saffronkabab.ca"));
+
+    // Ask: the question goes to the backend; "Thinking…" until the answer.
+    app.update(Event { id: 0, key: Some("page:ask".into()), kind: "change".into(), payload: "do they have kabobs?".into() });
+    app.update(Event { id: 0, key: Some("page:ask".into()), kind: "submit".into(), payload: String::new() });
+    let calls = app.take_native_calls();
+    let call = calls.iter().find(|c| c.module == "http" && c.args.contains("/v1/search/ask")).expect("asks the backend");
+    let args: serde_json::Value = serde_json::from_str(&call.args).unwrap();
+    assert!(args["body"].as_str().unwrap().contains("do they have kabobs?"));
+    assert!(format!("{:?}", render(&app)).contains("Thinking"));
+    let answer = serde_json::json!({"answer": "Yes: koobideh and joojeh kabobs."});
+    http_response(&mut app, serde_json::json!({"id": args["id"], "ok": true, "status": 200, "body": answer.to_string()}));
+    let screen = format!("{:?}", render(&app));
+    assert!(screen.contains("koobideh") && screen.contains("do they have kabobs?"));
+
+    // Too many questions: it says so.
+    app.update(Event { id: 0, key: Some("page:ask".into()), kind: "change".into(), payload: "and dessert?".into() });
+    click(&mut app, "page:ask:send");
+    let calls = app.take_native_calls();
+    let call = calls.iter().find(|c| c.args.contains("/v1/search/ask")).unwrap();
+    let id = serde_json::from_str::<serde_json::Value>(&call.args).unwrap()["id"].clone();
+    http_response(&mut app, serde_json::json!({"id": id, "ok": true, "status": 429, "body": "{}"}));
+    assert!(format!("{:?}", render(&app)).contains("a lot of questions"));
+}
+
+#[test]
 fn a_place_open_only_through_its_drive_thru_says_so() {
     let card: super::ApiCard = serde_json::from_value(serde_json::json!({
         "place_id": "osm:way/1", "name": "McDonald's", "lat": 45.38, "lng": -75.64,

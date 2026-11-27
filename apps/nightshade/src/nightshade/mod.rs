@@ -111,6 +111,13 @@ pub struct NightshadeApp {
     time_of_day: Vec<String>,
     /// The suggestions request in flight.
     suggestions_request: Option<u64>,
+    /// The question being typed into a place page's ask bar.
+    ask_draft: String,
+    /// The last question asked about a place, and its answer once back.
+    ask: Option<screens::PlaceAsk>,
+    ask_request: Option<u64>,
+    /// Changes on send: remounting the ask field dismisses the keyboard.
+    ask_mount: u32,
     /// Requests for places' current photos (`request_photos`): the saved
     /// list's as it opens, the last results' at launch.
     photos_requests: std::collections::HashSet<u64>,
@@ -189,6 +196,10 @@ impl NightshadeApp {
             time_of_day: Vec::new(),
             suggestions_request: None,
             photos_requests: Default::default(),
+            ask_draft: String::new(),
+            ask: None,
+            ask_request: None,
+            ask_mount: 0,
             photo_colors: std::collections::HashMap::new(),
             photo_pages: std::collections::HashMap::new(),
             router: Router::from_views(&view_files()),
@@ -331,6 +342,8 @@ impl App for NightshadeApp {
                 }
             }
             "submit" if key == "search" => self.send_draft(),
+            "change" if key == "page:ask" => self.ask_draft = event.payload.clone(),
+            "submit" if key == "page:ask" => self.send_ask(),
             // The user dragged the sheet to a detent (`views/sheet.view`).
             "select" if key == "search-panel" => match event.payload.as_str() {
                 "expanded" => self.expanded = true,
@@ -470,6 +483,10 @@ impl App for NightshadeApp {
                         self.haptic("light");
                         self.directions_chosen(&id, app as i64);
                     }
+                } else if key == "page:ask:send" {
+                    self.send_ask();
+                } else if key == "page:call" || key == "page:website" {
+                    self.open_contact(&key.to_string());
                 } else if let Some(pager) = key.strip_prefix("credit:") {
                     self.open_photo_credit(&pager.to_string());
                 } else if let Some(id) = key.strip_prefix("saved:open:") {

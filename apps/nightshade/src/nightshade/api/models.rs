@@ -50,6 +50,15 @@ pub(crate) struct Place {
     /// halal", "Halal" (the whole place) or "Halal options" (some dishes).
     #[serde(default)]
     pub(crate) diet: String,
+    /// For the page's call and website buttons; empty when unknown.
+    #[serde(default)]
+    pub(crate) phone: String,
+    #[serde(default)]
+    pub(crate) website: String,
+    /// What the place's own website says about it, summarised: the
+    /// page's overview card.
+    #[serde(default)]
+    pub(crate) overview: String,
 }
 
 /// A photo's credit: the photographer's name, and their profile to link.
@@ -97,6 +106,9 @@ pub(crate) fn sample(
         closure: String::new(),
         all_day: false,
         diet: String::new(),
+        phone: String::new(),
+        website: String::new(),
+        overview: String::new(),
     }
 }
 

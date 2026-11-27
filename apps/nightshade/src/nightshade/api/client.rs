@@ -123,6 +123,10 @@ pub(crate) struct ApiCard {
     /// Dietary labels: halal, kosher, ...; `scope` says the whole place
     /// ("full") or some dishes ("options").
     pub(crate) restriction_badges: Vec<ApiBadge>,
+    pub(crate) phone: Option<String>,
+    pub(crate) website: Option<String>,
+    /// The place's website, summarised.
+    pub(crate) summary: Option<String>,
     /// Google says it's closed for now, or for good (a saved place).
     pub(crate) closed_temporarily: bool,
     pub(crate) closed_permanently: bool,
@@ -287,6 +291,9 @@ impl ApiCard {
             hours_current: false,
             all_day,
             diet: diet_label(&self.restriction_badges),
+            phone: self.phone.unwrap_or_default(),
+            website: self.website.unwrap_or_default(),
+            overview: self.summary.unwrap_or_default(),
             closure: if self.closed_permanently {
                 "permanently".into()
             } else if self.closed_temporarily {
