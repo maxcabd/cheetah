@@ -320,7 +320,10 @@ class NativeApis(
             true
         }
         "toast" -> {
-            val text = args.optString("text")
+            // iOS shows `title` over `text`; Android's toast has one line.
+            val text = listOf(args.optString("title"), args.optString("text"))
+                .filter { it.isNotBlank() }
+                .joinToString(": ")
             if (text.isNotBlank()) Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
             true
         }

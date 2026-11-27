@@ -1,6 +1,6 @@
-# /saved: the places the user bookmarked, newest first (screens/saved.rs).
-# A row opens the place's page over this one; un-saving it there takes it
-# off the list.
+# /saved: the places the user bookmarked, newest first, two to a row
+# (screens/saved.rs). A card opens the place's page over this one; un-saving
+# it there takes it off the list.
 component SavedPage
   column width=-1 height=-1 bg=CARD_BG
     column width=-1 height=saved.safe_top
@@ -8,22 +8,37 @@ component SavedPage
       glass key="page:back" pressable=true width=44 height=44 radius=22 glass_style="regular" glass_tint="#00000047" glass_interactive=true label="Close" .center
         use Icon name="chevron.down" size=18 color="#ffffff"
       text "Saved" size=26 font="brice-bold" color=TEXT weight=1 lines=1 height=32
-    if saved.rows
+      # Filters by cuisine: the iOS menu, over the button. Filled while a
+      # filter is on, as iOS shows it.
+      if saved.has_saved
+        row width=44 height=44
+          if saved.filtered
+            glass width=44 height=44 radius=22 glass_style="regular" glass_tint="#ffffffe0" .center
+              use Icon name="line.3.horizontal.decrease" size=18 color="#111111"
+          else
+            glass width=44 height=44 radius=22 glass_style="regular" glass_tint="#00000047" .center
+              use Icon name="line.3.horizontal.decrease" size=18 color="#ffffff"
+          native "menu" key="saved:filter" absolute=true top=0 left=0 width=44 height=44 label="Filter" native_props=saved.filter_props
+    if saved.has_saved
       scroll key="saved:list" width=-1 weight=1 content_height=saved.list_height
-        column width=-1 pad_h=20 pad_v=12 gap=10
-          for row in saved.rows
-            use SavedRow row=row inner=saved.inner
+        column width=-1 pad_h=20 pad_v=12 gap=12
+          for pair in saved.rows
+            row width=-1 height=saved.card_height gap=12
+              for card in pair
+                use SavedCard card=card width=saved.card_width height=saved.card_height photo=saved.photo_height
     else
       column width=-1 weight=1 .center gap=8
         use Icon name="bookmark" size=28 color=MUTED
         text "Nothing saved yet" size=18 font="satoshi-bold" color=TEXT align="center" width=280 lines=1 height=24
         text "Tap the bookmark on a place to keep it here." size=15 font="satoshi-medium" color=MUTED align="center" width=280 lines=2 height=40
 
-# One saved place: its name, and where it is.
-component SavedRow
-  row key=row.key pressable=true width=inner height=72 pad_h=16 gap=12 radius=20 .chip_frame align_items="center" label=row.name
-    column weight=1 height=44 gap=4 justify="center"
-      text row.name size=16 font="brice-bold" color="#ffffff" lines=1 height=20
-      if row.detail
-        text row.detail .label color=MUTED lines=1
-    use Icon name="chevron-right" size=12 color=MUTED
+# A result card, small: its first photo, then name, cuisine and price, and
+# where it is.
+component SavedCard
+  column key=card.key pressable=true width=width height=height bg=CHIP_BG radius=22 clip=true border=2 border_color="#ffffff08" label=card.name
+    native "photo" key="saved-photo:{card.id}" width=width height=photo native_props=card.photo_props
+    column width=width weight=1 pad_h=12 pad_v=10 gap=3
+      text card.name size=15 font="brice-bold" color="#ffffff" lines=1 height=19
+      if card.detail
+        text card.detail .label color=MUTED lines=1
+      text card.address .label color=MUTED lines=1

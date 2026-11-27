@@ -271,6 +271,15 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
             )
             presentShare(controller)
             return true
+        case "toast":
+            // {"title": "Saved", "text": "Pizza Paradise", "icon": "bookmark.fill"}
+            let title = args["title"] as? String ?? ""
+            let text = args["text"] as? String ?? ""
+            guard !(title.isEmpty && text.isEmpty), let window = presenter()?.view.window else {
+                return false
+            }
+            Toast.show(in: window, title: title, text: text, icon: args["icon"] as? String)
+            return true
         case "clipboard.set":
             UIPasteboard.general.string = args["text"] as? String ?? ""
             return true
@@ -330,5 +339,165 @@ final class NativeApis: NSObject, CLLocationManagerDelegate {
             return
         }
         emit("native", json)
+    }
+}
+
+/// `system.toast`: a capsule under the Dynamic Island, the way iOS confirms
+/// a quick action (an SF Symbol, a bold title and a line of text). Liquid
+/// Glass on iOS 26, a blur before it. It slides down, stays a moment and
+/// goes; a new one replaces it, and a tap or a swipe up sends it off early.
+/// It sits on the window, so it shows over pages too.
+private final class Toast: UIView {
+    private static weak var current: Toast?
+    private static let shown: TimeInterval = 2.2
+
+    private let effectView = UIVisualEffectView(effect: nil)
+    private var hideWork: DispatchWorkItem?
+
+    static func show(in window: UIWindow, title: String, text: String, icon: String?) {
+        current?.hide()
+        let toast = Toast(title: title, text: text, icon: icon)
+        current = toast
+        window.addSubview(toast)
+        NSLayoutConstraint.activate([
+            toast.centerXAnchor.constraint(equalTo: window.centerXAnchor),
+            toast.topAnchor.constraint(equalTo: window.safeAreaLayoutGuide.topAnchor, constant: 6),
+            toast.leadingAnchor.constraint(greaterThanOrEqualTo: window.leadingAnchor, constant: 24),
+            toast.trailingAnchor.constraint(lessThanOrEqualTo: window.trailingAnchor, constant: -24),
+        ])
+        window.layoutIfNeeded()
+        toast.appear()
+        let announcement = [title, text].filter { !$0.isEmpty }.joined(separator: ", ")
+        UIAccessibility.post(notification: .announcement, argument: announcement)
+    }
+
+    private init(title: String, text: String, icon: String?) {
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        isAccessibilityElement = true
+        accessibilityLabel = [title, text].filter { !$0.isEmpty }.joined(separator: ", ")
+        accessibilityTraits = .staticText
+
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.25
+        layer.shadowRadius = 16
+        layer.shadowOffset = CGSize(width: 0, height: 6)
+
+        effectView.translatesAutoresizingMaskIntoConstraints = false
+        effectView.clipsToBounds = true
+        effectView.layer.cornerCurve = .continuous
+        addSubview(effectView)
+        effectView.effect = Self.background()
+        if UIAccessibility.isReduceTransparencyEnabled {
+            effectView.effect = nil
+            effectView.backgroundColor = UIColor(white: 0.14, alpha: 1)
+        }
+
+        let lines = UIStackView()
+        lines.axis = .vertical
+        lines.spacing = 1
+        if !title.isEmpty {
+            let label = UILabel()
+            label.text = title
+            label.font = .systemFont(ofSize: 15, weight: .semibold)
+            label.textColor = .white
+            lines.addArrangedSubview(label)
+        }
+        if !text.isEmpty {
+            let label = UILabel()
+            label.text = text
+            label.font = .systemFont(ofSize: 13, weight: .regular)
+            label.textColor = UIColor(white: 1, alpha: title.isEmpty ? 1 : 0.7)
+            label.lineBreakMode = .byTruncatingTail
+            lines.addArrangedSubview(label)
+        }
+
+        let row = UIStackView()
+        row.axis = .horizontal
+        row.alignment = .center
+        row.spacing = 12
+        row.translatesAutoresizingMaskIntoConstraints = false
+        if let icon, let image = UIImage(systemName: icon) {
+            let view = UIImageView(image: image)
+            view.tintColor = .white
+            view.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
+            view.setContentHuggingPriority(.required, for: .horizontal)
+            row.addArrangedSubview(view)
+        }
+        row.addArrangedSubview(lines)
+        effectView.contentView.addSubview(row)
+
+        NSLayoutConstraint.activate([
+            effectView.topAnchor.constraint(equalTo: topAnchor),
+            effectView.bottomAnchor.constraint(equalTo: bottomAnchor),
+            effectView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            effectView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            row.topAnchor.constraint(equalTo: effectView.contentView.topAnchor, constant: 10),
+            row.bottomAnchor.constraint(equalTo: effectView.contentView.bottomAnchor, constant: -10),
+            row.leadingAnchor.constraint(equalTo: effectView.contentView.leadingAnchor, constant: 18),
+            row.trailingAnchor.constraint(equalTo: effectView.contentView.trailingAnchor, constant: -22),
+            heightAnchor.constraint(greaterThanOrEqualToConstant: 52),
+        ])
+
+        addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(dismissNow)))
+        let swipe = UISwipeGestureRecognizer(target: self, action: #selector(dismissNow))
+        swipe.direction = .up
+        addGestureRecognizer(swipe)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
+    }
+
+    private static func background() -> UIVisualEffect {
+        #if compiler(>=6.2)
+        if #available(iOS 26.0, *) {
+            let glass = UIGlassEffect(style: .regular)
+            glass.tintColor = UIColor(white: 0, alpha: 0.35)
+            return glass
+        }
+        #endif
+        return UIBlurEffect(style: .systemThickMaterialDark)
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        effectView.layer.cornerRadius = bounds.height / 2
+        layer.shadowPath = UIBezierPath(roundedRect: bounds, cornerRadius: bounds.height / 2).cgPath
+    }
+
+    private var offscreen: CGAffineTransform {
+        CGAffineTransform(translationX: 0, y: -(frame.maxY + 20)).scaledBy(x: 0.9, y: 0.9)
+    }
+
+    private func appear() {
+        transform = offscreen
+        alpha = 0
+        UIView.animate(
+            withDuration: 0.5, delay: 0, usingSpringWithDamping: 0.78,
+            initialSpringVelocity: 0.4, options: [.allowUserInteraction]
+        ) {
+            self.transform = .identity
+            self.alpha = 1
+        }
+        let work = DispatchWorkItem { [weak self] in self?.hide() }
+        hideWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.shown, execute: work)
+    }
+
+    @objc private func dismissNow() {
+        hide()
+    }
+
+    func hide() {
+        hideWork?.cancel()
+        hideWork = nil
+        isUserInteractionEnabled = false
+        UIView.animate(withDuration: 0.3, delay: 0, options: [.curveEaseIn]) {
+            self.transform = self.offscreen
+            self.alpha = 0
+        } completion: { _ in
+            self.removeFromSuperview()
+        }
     }
 }

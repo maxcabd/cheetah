@@ -1190,9 +1190,15 @@ fn card_and_page_buttons_share_save_and_route() {
     assert!(google.iter().any(|call| call.method == "openUrl" && call.args.contains("google.com/maps/dir/")));
     assert!(choose(&mut app, -1).iter().all(|call| call.method != "openUrl"), "cancel opens nothing");
 
-    // The card's directions button asks the same way.
-    click(&mut app, "card:directions:pizza");
-    assert!(app.take_native_calls().iter().any(|call| call.method == "actionSheet"));
+    // The card's directions button is a menu over the card instead, with
+    // the same choices.
+    let tree = render(&app);
+    let menu = find(&tree, "card:directions:pizza").expect("directions menu");
+    assert!(format!("{menu:?}").contains("Apple Maps") && format!("{menu:?}").contains("Google Maps"));
+    select(&mut app, "card:directions:pizza", "Google Maps");
+    let calls = app.take_native_calls();
+    assert!(calls.iter().all(|call| call.method != "actionSheet"), "no sheet from the bottom");
+    assert!(calls.iter().any(|call| call.method == "openUrl" && call.args.contains("google.com/maps/dir/")));
     click(&mut app, "page:bookmark");
     assert!(app.is_saved("java"));
 }
@@ -1569,6 +1575,89 @@ fn saved_places_survive_a_relaunch_without_their_search() {
     click(&mut app, "saved:open:sushi");
     assert!(format!("{:?}", render(&app)).contains("Sushi Zen"));
     let _ = std::fs::remove_file(&file);
+}
+
+#[test]
+fn saving_a_place_shows_a_toast_and_unsaving_does_not() {
+    let mut app = NightshadeApp::new(true);
+    app.take_native_calls();
+    let toasts = |app: &mut NightshadeApp| {
+        app.take_native_calls()
+            .into_iter()
+            .filter(|call| call.module == "system" && call.method == "toast")
+            .map(|call| serde_json::from_str::<serde_json::Value>(&call.args).unwrap())
+            .collect::<Vec<_>>()
+    };
+
+    click(&mut app, "card:bookmark:java");
+    let shown = toasts(&mut app);
+    assert_eq!(shown.len(), 1);
+    assert_eq!(shown[0]["title"], "Saved");
+    assert_eq!(shown[0]["text"], "Java Haven");
+    assert_eq!(shown[0]["icon"], "bookmark.fill");
+
+    click(&mut app, "card:bookmark:java");
+    assert!(toasts(&mut app).is_empty(), "no toast for un-saving");
+}
+
+#[test]
+fn saved_places_sit_two_to_a_row_and_filter_by_cuisine() {
+    let mut app = NightshadeApp::new(true);
+    for id in ["java", "pizza", "sushi"] {
+        click(&mut app, &format!("card:bookmark:{id}"));
+    }
+    click(&mut app, "drawer:open");
+    click(&mut app, "drawer:saved");
+    let saved = |app: &NightshadeApp| {
+        let tree = render(app);
+        ["java", "pizza", "sushi"]
+            .into_iter()
+            .filter(|id| find(&tree, &format!("saved:open:{id}")).is_some())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(saved(&app), ["java", "pizza", "sushi"]);
+    let tree = render(&app);
+    // Each row of the grid: the keys of the cards in it.
+    fn rows(element: &crate::element::Element, out: &mut Vec<Vec<String>>) {
+        let cards: Vec<String> = element
+            .children
+            .iter()
+            .filter_map(|child| child.key.clone().filter(|key| key.starts_with("saved:open:")))
+            .collect();
+        if !cards.is_empty() {
+            out.push(cards);
+        }
+        for child in &element.children {
+            rows(child, out);
+        }
+    }
+    let mut grid = Vec::new();
+    rows(&tree, &mut grid);
+    assert_eq!(
+        grid,
+        [vec!["saved:open:sushi", "saved:open:pizza"], vec!["saved:open:java"]],
+        "newest first, two to a row"
+    );
+
+    // The menu lists each cuisine saved; picking one shows only those.
+    let menu = find(&tree, "saved:filter").expect("filter menu");
+    let props: serde_json::Value = serde_json::from_str(menu.props.native_props.as_deref().unwrap()).unwrap();
+    let items = props["items"].as_array().unwrap();
+    assert_eq!(items[0], "All");
+    let pizza_cuisine = app.place("pizza").unwrap().cuisine.clone();
+    assert!(items.iter().any(|item| item == pizza_cuisine.as_str()));
+
+    select(&mut app, "saved:filter", &pizza_cuisine);
+    assert_eq!(saved(&app), ["pizza"]);
+
+    // Un-saving the last one shown lists everything again.
+    click(&mut app, "saved:open:pizza");
+    click(&mut app, "page:bookmark");
+    click(&mut app, "page:back");
+    assert_eq!(saved(&app), ["java", "sushi"]);
+
+    select(&mut app, "saved:filter", "All");
+    assert_eq!(saved(&app), ["java", "sushi"]);
 }
 
 #[test]

@@ -89,6 +89,8 @@ pub struct NightshadeApp {
     /// Bookmarks saved by older versions, which kept only the id: listed
     /// once the place turns up in results again (`refresh_saved`).
     saved_unseen: std::collections::BTreeSet<String>,
+    /// The saved list's filter: a cuisine, or `None` for all.
+    saved_filter: Option<String>,
     /// The user's own searches, newest first, kept across launches.
     recent_searches: Vec<String>,
     /// From the backend: trending searches and ones for the time of day.
@@ -157,6 +159,7 @@ impl NightshadeApp {
             cards_moved: false,
             saved: Vec::new(),
             saved_unseen: Default::default(),
+            saved_filter: None,
             recent_searches: Vec::new(),
             trending: Vec::new(),
             time_of_day: Vec::new(),
@@ -324,6 +327,14 @@ impl App for NightshadeApp {
             "marker" => {
                 self.select_place(&event.payload);
             }
+            "select" if key == "saved:filter" => self.filter_saved(&event.payload),
+            // A maps app picked from a card's directions menu.
+            "select" if key.starts_with("card:directions:") => {
+                let id = key["card:directions:".len()..].to_string();
+                if let Some(choice) = MAPS_APPS.iter().position(|app| *app == event.payload) {
+                    self.directions_chosen(&id, choice as i64);
+                }
+            }
             // A card photo loaded: remember its dominant color.
             "load" if key.starts_with("photo:") => {
                 let id = &key["photo:".len()..];
@@ -411,8 +422,6 @@ impl App for NightshadeApp {
                     self.open_saved_place(&id.to_string());
                 } else if let Some(id) = key.strip_prefix("card:share:") {
                     self.share_place(&id.to_string());
-                } else if let Some(id) = key.strip_prefix("card:directions:") {
-                    self.directions(&id.to_string());
                 } else if let Some(id) = key.strip_prefix("card:bookmark:") {
                     self.toggle_saved(&id.to_string());
                 } else if let Some(id) = self.open_place_id().filter(|_| key == "page:share") {
@@ -577,6 +586,13 @@ impl NightshadeApp {
             self.saved.retain(|place| place.id != id);
             self.saved_unseen.remove(id);
         } else if let Some(place) = self.place(id).cloned() {
+            // The system's confirmation: "Saved", and which place.
+            self.calls.push(NativeCall::new(
+                "system",
+                "toast",
+                &serde_json::json!({"title": "Saved", "text": place.name, "icon": "bookmark.fill"})
+                    .to_string(),
+            ));
             self.saved.insert(0, place);
             self.report("save", id);
         } else {

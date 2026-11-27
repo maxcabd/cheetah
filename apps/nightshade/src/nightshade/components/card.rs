@@ -33,6 +33,8 @@ impl NightshadeApp {
                 json!({"photos": place.photos})
             }
             .to_string(),
+            // The directions button's menu: which maps app.
+            "directions_menu": json!({ "title": "", "items": MAPS_APPS }).to_string(),
             // The place's page; the id may hold a "/" (osm:node/42).
             "route": format!("/restaurant/{}", crate::router::encode_segment(&place.id)),
             "status": status,

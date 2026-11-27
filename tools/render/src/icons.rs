@@ -62,6 +62,11 @@ pub fn draw(
                 line(&mut lines, &[(-0.8, y), (0.8, y)]);
             }
         }
+        "line.3.horizontal.decrease" => {
+            for (y, w) in [(-0.55, 0.8), (0.0, 0.5), (0.55, 0.2)] {
+                line(&mut lines, &[(-w, y), (w, y)]);
+            }
+        }
         "xmark" => {
             line(&mut lines, &[(-0.6, -0.6), (0.6, 0.6)]);
             line(&mut lines, &[(0.6, -0.6), (-0.6, 0.6)]);

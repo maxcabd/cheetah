@@ -7,6 +7,16 @@ component GlassIcon
   glass key=key pressable=true width=38 height=38 radius=19 glass_style="regular" glass_tint="#00000047" glass_interactive=true .center
     use Icon name=icon size=16 color="#ffffff"
 
+# GlassIcon that opens the iOS menu, anchored to the button (above it, when
+# the button sits low): the native menu takes the tap, over the glass.
+# `items` is the menu's native_props, {"items": [...]}; a pick sends
+# `select` with the item's title.
+component GlassMenu
+  row width=38 height=38
+    glass width=38 height=38 radius=19 glass_style="regular" glass_tint="#00000047" .center
+      use Icon name=icon size=16 color="#ffffff"
+    native "menu" key=key absolute=true top=0 left=0 width=38 height=38 label=label native_props=items
+
 # Round icon button; `radius` is half of `size`.
 component ActionButton
   row key=key pressable=true width=size height=size radius=radius bg=bg .center label=label
